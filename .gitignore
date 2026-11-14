@@ -53,6 +53,7 @@ build/
 out/
 coverage/
 *.log
+*.tgz
 npm-debug.log*
 .DS_Store
 Thumbs.db

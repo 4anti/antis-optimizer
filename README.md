@@ -2,7 +2,8 @@
 
 > **Find & quarantine 100+ MB of ghost context traps across Claude Code, Cursor, Codex, and Antigravity in 0.4s — with Compiler AST & Stateful Polyglot Slicing.**
 
-[![npm version](https://img.shields.io/badge/npx-antis--optimizer-000000?style=flat-square&logo=npm)](https://github.com/4anti/antis-optimizer)
+[![GitHub Release](https://img.shields.io/github/v/release/4anti/antis-optimizer?style=flat-square&color=000000)](https://github.com/4anti/antis-optimizer/releases)
+[![CI](https://img.shields.io/github/actions/workflow/status/4anti/antis-optimizer/ci.yml?style=flat-square&label=CI)](https://github.com/4anti/antis-optimizer/actions)
 [![Hybrid AST](https://img.shields.io/badge/AST-TypeScript%20%2B%20Polyglot%20Lexer-3178C6?style=flat-square&logo=typescript)](./package.json)
 [![Node >= 18](https://img.shields.io/badge/node-%3E%3D18-339933?style=flat-square&logo=node.js)](./package.json)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](./LICENSE)
@@ -20,10 +21,17 @@ Worse, **every agent surface ignores different files**:
 
 ## 🚀 10-Second Quickstart (`npx`)
 
-Run a zero-write audit on any repository right now:
+Run a zero-write audit on any repository right now (no npm publish or clone required):
 
 ```bash
-npx antis-optimizer --audit
+npx github:4anti/antis-optimizer --audit
+```
+
+Or install globally so `antis-optimizer` works from anywhere:
+
+```bash
+npm install -g git+https://github.com/4anti/antis-optimizer.git
+antis-optimizer --audit
 ```
 
 ### Example `--audit` Scoreboard (Production Web Repo)
@@ -46,7 +54,7 @@ Repo: acme-web | Stack: node(build/check)
 
 ## 📊 Concrete Token & Cost Math (And When *Not* to Use Full Mode)
 
-Like [`ponytail-gain`](https://github.com/4anti), `antis-optimizer` is **100% honest about overhead**. Loading Tier-0 router docs (`AGENTS.md` + `INDEX.md`) costs ~**1,400 tokens per session** (`~5.6 KB`). Here is the exact math across real tasks:
+Like `ponytail-gain`, `antis-optimizer` is **100% honest about overhead**. Loading Tier-0 router docs (`AGENTS.md` + `INDEX.md`) costs ~**1,400 tokens per session** (`~5.6 KB`). Here is the exact math across real tasks:
 
 | Workflow Operation | Without `antis-optimizer` | With `antis-optimizer` | Token Savings |
 | :--- | ---: | ---: | ---: |
@@ -58,9 +66,9 @@ Like [`ponytail-gain`](https://github.com/4anti), `antis-optimizer` is **100% ho
 
 ### ⚖️ The 3-Tier Mathematical Break-Even Gate
 
-Not every repository needs a 4-layer routing stack. `npx antis-optimizer --audit` calculates your exact break-even threshold $R^* = T_{\text{tax}} / \overline{\Delta T_{\text{read}}}$ and selects one of three tiers:
+Not every repository needs a 4-layer routing stack. `npx github:4anti/antis-optimizer --audit` calculates your exact break-even threshold $R^* = T_{\text{tax}} / \overline{\Delta T_{\text{read}}}$ and selects one of three tiers:
 - **Tier 0 (`IGNORE-ONLY`, `< 25` active files & `0` monoliths):** Syncs `.ignore`, `.contextignore`, and `.jcodemunch.jsonc` only. Skips `AGENTS.md` and `INDEX.md` so doc overhead never exceeds read savings.
-- **Tier 1 (`LEAN ZERO-COPY`, `< 50` active files & `<= 2` monoliths):** Keeps a single `<= 35`-line root `AGENTS.md` + synced ignores and uses `npx antis-optimizer` globally without copying `scripts/repo-index.cjs` or `INDEX.md`.
+- **Tier 1 (`LEAN ZERO-COPY`, `< 50` active files & `<= 2` monoliths):** Keeps a single `<= 35`-line root `AGENTS.md` + synced ignores and runs via `npx github:4anti/antis-optimizer` globally without copying `scripts/repo-index.cjs` or `INDEX.md`.
 - **Tier 2 (`FULL 4-LAYER`, `>= 3` monoliths or heavy traps):** Installs `AGENTS.md` + `INDEX.md` + `scripts/repo-index.cjs` where break-even is achieved in `< 1` monolith read per session.
 
 ---
@@ -88,39 +96,39 @@ Every command is hard-capped at **`< 3,500` characters** (`--handoff` at **`<= 2
 
 ```bash
 # 1. Audit ghost traps, 1-line minified bombs, base64 blobs & token ROI break-even
-npx antis-optimizer --audit
+npx github:4anti/antis-optimizer --audit
 
 # 2. Detect active agent surfaces, nested .git boundaries & model profile
-npx antis-optimizer --detect
+npx github:4anti/antis-optimizer --detect
 
 # 3. Triple-sync .ignore, .contextignore, and .jcodemunch.jsonc (preserves comments)
-npx antis-optimizer --sync-ignores --write
+npx github:4anti/antis-optimizer --sync-ignores --write
 
 # 4. Auto-heal stale file:Lstart-Lend line ranges in AGENTS.md & INDEX.md after edits
-npx antis-optimizer --sync-landmarks --write
+npx github:4anti/antis-optimizer --sync-landmarks --write
 
 # 5. Print compact repo map & domain landmarks (< 3.5 KB)
-npx antis-optimizer --map
+npx github:4anti/antis-optimizer --map
 
 # 6. Compiler AST + Polyglot symbol & section outline (TS/JS/JSX/TSX, Python, Rust, Go, C/C++, HTML, CSS)
-npx antis-optimizer --outline src/client.ts
-npx antis-optimizer --outline index.html hero
+npx github:4anti/antis-optimizer --outline src/client.ts
+npx github:4anti/antis-optimizer --outline index.html hero
 
 # 7. Slice logical JSON/monolith sections without passing ".json" in CLI args
-npx antis-optimizer --slice catalog-snapshot metrics
+npx github:4anti/antis-optimizer --slice catalog-snapshot metrics
 
 # 8. 1-line PASS verification (doc budgets, symbol L-L bounds, nested .git, ignore parity)
-npx antis-optimizer --verify --exec "npm run build"
+npx github:4anti/antis-optimizer --verify --exec "npm run build"
 
 # 9. Pre-compaction handoff state snapshot (<= 2 KB, guaranteed valid JSON)
-npx antis-optimizer --handoff --goal "Ship API client" --files "src/client.ts,index.html"
+npx github:4anti/antis-optimizer --handoff --goal "Ship API client" --files "src/client.ts,index.html"
 ```
 
 ### 🩹 Self-Healing `file:Lstart-Lend` Landmarks (`--sync-landmarks`)
 
 Static line numbers in documentation usually rot the moment someone edits a file. `antis-optimizer` solves this with `--sync-landmarks`:
 1. `--verify` checks every `file:Lstart-Lend` citation and `` `symbol` `Lstart-Lend` `` table entry in `AGENTS.md` and `INDEX.md` against the TypeScript Compiler AST (`ts.createSourceFile`) and polyglot structural parser.
-2. Running `npx antis-optimizer --sync-landmarks --write` automatically re-anchors shifted functions, classes, HTML sections, CSS blocks, and file line counts to their exact updated `Lstart-Lend` coordinates in place.
+2. Running `npx github:4anti/antis-optimizer --sync-landmarks --write` automatically re-anchors shifted functions, classes, HTML sections, CSS blocks, and file line counts to their exact updated `Lstart-Lend` coordinates in place.
 
 ---
 
@@ -131,7 +139,7 @@ Static line numbers in documentation usually rot the moment someone edits a file
 | Tool / Plugin | The Hidden Conflict | How `antis-optimizer` Harmonizes It |
 | :--- | :--- | :--- |
 | **[`Caveman`](https://github.com/JuliusBrussee/caveman)** (`claude-code`) | `/caveman-compress` rewrites `.md` files in place, mangling markdown tables, glob patterns, and `file:L-L` line landmarks. Stacking prose rules in `AGENTS.md` wastes tokens. | Marks `AGENTS.md`, `INDEX.md`, and `SKILL.md` off-limits to `/caveman-compress` and omits duplicate prose-brevity rules when Caveman is active. |
-| **[`Ponytail`](https://github.com/4anti)** (`claude` / `antigravity`) | Ponytail's `AGENTS.md` enforces minimal diffs and "grep every caller," which conflicts with AST call-graphs and causes a `+26–39%` token regression on GPT-5/Codex models. | Deduplicates Ponytail rules in repo `AGENTS.md`, switches GPT/Codex to a pointer-only `AGENTS.md`, and upgrades caller checks from regex `grep` to `jCodemunch` when indexed. |
+| **`Ponytail`** (`claude` / `antigravity`) | Ponytail's `AGENTS.md` enforces minimal diffs and "grep every caller," which conflicts with AST call-graphs and causes a `+26–39%` token regression on GPT-5/Codex models. | Deduplicates Ponytail rules in repo `AGENTS.md`, switches GPT/Codex to a pointer-only `AGENTS.md`, and upgrades caller checks from regex `grep` to `jCodemunch` when indexed. |
 | **`Token Optimizer` Hooks** (`read_cache`, `archive_result`, `bash_compress`) | Active on Claude Code (disabled on Windows Antigravity & Codex). `read_cache.py` checks `.contextignore` only; `archive_result.py` truncates outputs `>=4,096` chars; `pipeline_analyzer.py` triggers `bash_compress` if `node` args contain `.json`. | Mirrors `.ignore` -> `.contextignore`, caps CLI outputs at `<3,500` chars, uses logical slice names (no `.json` CLI args), and prints `file:L-L` so `Read(offset, limit)` bypasses whole-file `soft_block`. |
 | **`TokenEconomizer`** (`toolprune`, `loopguard`, `repomap`) | `toolprune="auto"` permanently denies unused MCP tools in `.claude/settings.local.json` after 10 prompts, and `repomap_gen.py` ignores `.ignore`. | Sets `repomap="off"` in favor of `--map`, keeps `--verify` output deterministic for `loopguard`, and provides `toolprune_protect` templates for core `jCodemunch` tools. |
 | **`jCodemunch` MCP** (`counter` 6-tool AST door) | Ignores `.ignore` and `.contextignore`; emits **0 AST symbols** for inline `<script>`/`<style>` in `.html` and `.md`; slower than native `Read` on `<15`-line known edits. | Syncs `.jcodemunch.jsonc` (`extra_ignore_patterns`), routes multi-file TS/JS/Py/Rs/Go call graphs to `jCodemunch`, and routes HTML/CSS/JSON monoliths to `antis-optimizer --outline` / `--slice`. |

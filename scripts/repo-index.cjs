@@ -2,11 +2,11 @@
 'use strict';
 
 /**
- * Antis-Optimizer v4.0 — Universal Off-Context Repo CLI, AST & Token ROI Engine
+ * Antis-Optimizer CLI — Universal Off-Context Repo CLI, AST & Token ROI Engine
  * Subcommands: --audit | --detect | --sync-ignores [--write] | --sync-landmarks [--write]
  *              --map | --slice <scope> [id] | --outline <rel-path> [filter] | --handoff | --verify
  * Optional flags: --root <dir> --goal <text> --files <csv> --note <text> --out <rel>
- *                 --exec "<cmd>" --skip-validators --all-ignores
+ *                 --exec "<cmd>" --skip-validators --all-ignores --help --version
  */
 
 const fs = require('fs');
@@ -91,11 +91,38 @@ function parseCli(argv) {
     else if (a === '--write') opts.write = true;
     else if (a === '--all-ignores') opts.allIgnores = true;
     else if (a === '--skip-validators') opts.skipValidators = true;
+    else if (!opts.cmd && (a === '-h' || a === '--help')) opts.cmd = '--help';
+    else if (!opts.cmd && (a === '-v' || a === '--version')) opts.cmd = '--version';
     else if (!opts.cmd && a.startsWith('--')) opts.cmd = a;
     else opts.pos.push(a);
   }
   opts.cmd = opts.cmd || '--map';
   return opts;
+}
+
+function getPkgVersion() {
+  return (readJsonSafe(path.join(__dirname, '..', 'package.json')) || {}).version || '1.0.0';
+}
+
+function cmdHelp() {
+  console.log([
+    `antis-optimizer v${getPkgVersion()} — Off-Context Repo CLI & Token ROI Engine`,
+    '',
+    'Commands:',
+    '  --audit                     Audit bloat traps, monoliths & ROI break-even tier',
+    '  --detect                    Detect agent hosts, MCP servers & nested .git dirs',
+    '  --sync-ignores [--write]    Sync .ignore, .contextignore & .jcodemunch.jsonc',
+    '  --sync-landmarks [--write]  Verify/auto-heal symbol:Lstart-Lend in AGENTS/INDEX.md',
+    '  --map                       Compact repo map & domain landmarks (<3.5 KB)',
+    '  --outline <rel> [filter]    Compiler-AST / polyglot symbol & line-span outline',
+    '  --slice <scope> [id]        Slice JSON item or bounded code snippet with landmark',
+    '  --handoff [--goal "..."]    Emit <=2 KB pre-compaction JSON state snapshot',
+    '  --verify [--exec "<cmd>"]   1-line PASS verification of budgets, landmarks & ignores',
+    '  --help | -h                 Show this help',
+    '  --version | -v              Print CLI version',
+    '',
+    'Options: --root <dir> --goal <text> --files <csv> --note <text> --out <rel> --all-ignores --skip-validators'
+  ].join('\n'));
 }
 
 function stripJsonc(raw) {
@@ -1538,7 +1565,9 @@ if (require.main === module) {
   else if (opts.cmd === '--outline') cmdOutline(opts);
   else if (opts.cmd === '--handoff') cmdHandoff(opts);
   else if (opts.cmd === '--verify') cmdVerify(opts);
-  else { console.error(`Unknown subcommand: ${opts.cmd}`); process.exit(1); }
+  else if (opts.cmd === '--help') cmdHelp();
+  else if (opts.cmd === '--version') console.log(`antis-optimizer v${getPkgVersion()}`);
+  else { console.error(`Unknown subcommand: ${opts.cmd} (try --help)`); process.exit(1); }
 } else {
   module.exports = {
     stripJsStringsAndComments,

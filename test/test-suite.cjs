@@ -2,7 +2,7 @@
 'use strict';
 
 /**
- * Antis-Optimizer v4.0 — Comprehensive Automated Test Suite (28 Self-Contained Tests)
+ * Antis-Optimizer — Comprehensive Automated Test Suite (29 Self-Contained Tests)
  * Zero personal paths; runs entirely inside an isolated OS temp directory.
  */
 
@@ -12,10 +12,11 @@ const os = require('os');
 const { spawnSync } = require('child_process');
 
 const targetCli = path.resolve(__dirname, '..', 'scripts', 'repo-index.cjs');
+const pkg = require(path.resolve(__dirname, '..', 'package.json'));
 const lib = require(targetCli);
 
-console.log(`=== ANTIS-OPTIMIZER v4.0 TEST SUITE (28 TESTS) ===`);
-let passed = 0, total = 28;
+console.log(`=== ANTIS-OPTIMIZER v${pkg.version} TEST SUITE (29 TESTS) ===`);
+let passed = 0, total = 29;
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'antis-opt-test-'));
 try {
@@ -442,6 +443,18 @@ try {
   const t28 = d === 0 && !st.inBlockComment && !st.quote && st.tplStack.length === 0;
   if (t28) passed++;
   console.log(`[Test 28: Self-Lexer Mathematical Brace/Quote/Template Invariant (d=0)] ${t28 ? 'PASS' : 'FAIL'}`);
+
+  // 29. CLI Ergonomics: --help / -h and --version / -v
+  const helpRes = spawnSync('node', [targetCli, '--help'], { encoding: 'utf8' });
+  const shortHelp = spawnSync('node', [targetCli, '-h'], { encoding: 'utf8' });
+  const verRes = spawnSync('node', [targetCli, '--version'], { encoding: 'utf8' });
+  const shortVer = spawnSync('node', [targetCli, '-v'], { encoding: 'utf8' });
+  const t29 = helpRes.status === 0 && helpRes.stdout.includes('--audit') &&
+              shortHelp.status === 0 && shortHelp.stdout.includes('--verify') &&
+              verRes.status === 0 && verRes.stdout.trim() === `antis-optimizer v${pkg.version}` &&
+              shortVer.status === 0 && shortVer.stdout.trim() === `antis-optimizer v${pkg.version}`;
+  if (t29) passed++;
+  console.log(`[Test 29: CLI --help / -h and --version / -v Alignment] ${t29 ? 'PASS' : 'FAIL'}`);
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true });
 }
