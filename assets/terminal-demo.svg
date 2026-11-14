@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="350" viewBox="0 0 880 350" role="img" aria-label="antis-optimizer animated terminal walkthrough">
+  <!-- Outer terminal frame -->
+  <rect x="2" y="2" width="876" height="346" rx="14" fill="#0d1117" stroke="#30363d" stroke-width="1.5"/>
+
+  <!-- Title bar -->
+  <path d="M 16 2 H 864 A 14 14 0 0 1 878 16 V 42 H 2 V 16 A 14 14 0 0 1 16 2 Z" fill="#161b22"/>
+  <line x1="2" y1="42" x2="878" y2="42" stroke="#21262d" stroke-width="1"/>
+  <circle cx="24" cy="22" r="5.5" fill="#ff5f56"/>
+  <circle cx="42" cy="22" r="5.5" fill="#ffbd2e"/>
+  <circle cx="60" cy="22" r="5.5" fill="#27c93f"/>
+  <text x="440" y="26" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace" font-size="12" fill="#8b949e">bash — my-project (Live Demo)</text>
+
+  <!-- Animated active-step highlight band -->
+  <rect x="18" y="54" width="844" height="106" rx="8" fill="#58a6ff" fill-opacity="0.06" stroke="#58a6ff" stroke-opacity="0.18">
+    <animate attributeName="y" values="54;54;168;168;246;246;54" keyTimes="0;0.34;0.38;0.66;0.70;0.96;1" dur="10s" repeatCount="indefinite"/>
+    <animate attributeName="height" values="106;106;72;72;82;82;106" keyTimes="0;0.34;0.38;0.66;0.70;0.96;1" dur="10s" repeatCount="indefinite"/>
+  </rect>
+
+  <!-- STEP 1: audit -->
+  <g font-family="ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace" font-size="12.5">
+    <text x="30" y="76" fill="#3fb950" font-weight="700">$</text>
+    <text x="46" y="76" fill="#f0f6fc" font-weight="600">npx github:4anti/antis-optimizer --audit</text>
+
+    <g>
+      <animate attributeName="opacity" values="1;1;0.55;0.55;1" keyTimes="0;0.35;0.42;0.94;1" dur="10s" repeatCount="indefinite"/>
+      <text x="46" y="100" fill="#8b949e">Files scanned:</text>
+      <text x="190" y="100" fill="#e6edf3">1,548 total</text>
+      <text x="292" y="100" fill="#58a6ff">→</text>
+      <text x="314" y="100" fill="#7ee787" font-weight="700">166 active files (89% junk filtered)</text>
+
+      <text x="46" y="122" fill="#8b949e">Bloat blocked:</text>
+      <text x="190" y="122" fill="#ffa657" font-weight="600">157.4 MB quarantined</text>
+      <text x="358" y="122" fill="#8b949e">(node_modules, dist, media, worktrees)</text>
+
+      <text x="46" y="144" fill="#8b949e">Recommendation:</text>
+      <text x="190" y="144" fill="#79c0ff" font-weight="700">Full Setup (saves ~7,600 tokens every time you open a large file)</text>
+    </g>
+
+    <!-- STEP 2: outline -->
+    <g>
+      <animate attributeName="opacity" values="0.5;1;1;0.55;1" keyTimes="0;0.38;0.66;0.72;1" dur="10s" repeatCount="indefinite"/>
+      <text x="30" y="188" fill="#3fb950" font-weight="700">$</text>
+      <text x="46" y="188" fill="#f0f6fc" font-weight="600">antis-optimizer --outline src/auth.ts</text>
+      <text x="348" y="188" fill="#8b949e"># find exact line numbers instead of whole files</text>
+
+      <text x="46" y="211" fill="#79c0ff">verifyToken()</text>
+      <text x="210" y="211" fill="#e6edf3">src/auth.ts:L18-L54</text>
+      <text x="390" y="211" fill="#8b949e">[TypeScript AST]</text>
+
+      <text x="46" y="232" fill="#79c0ff">refreshSession()</text>
+      <text x="210" y="232" fill="#e6edf3">src/auth.ts:L56-L102</text>
+      <text x="390" y="232" fill="#8b949e">[TypeScript AST]</text>
+    </g>
+
+    <!-- STEP 3: verify -->
+    <g>
+      <animate attributeName="opacity" values="0.5;0.5;1;1" keyTimes="0;0.68;0.73;1" dur="10s" repeatCount="indefinite"/>
+      <text x="30" y="268" fill="#3fb950" font-weight="700">$</text>
+      <text x="46" y="268" fill="#f0f6fc" font-weight="600">antis-optimizer --verify</text>
+
+      <!-- Progress bar -->
+      <rect x="46" y="281" width="260" height="7" rx="3.5" fill="#21262d"/>
+      <rect x="46" y="281" width="260" height="7" rx="3.5" fill="#3fb950">
+        <animate attributeName="width" values="10;10;260;260" keyTimes="0;0.68;0.82;1" dur="10s" repeatCount="indefinite"/>
+      </rect>
+
+      <rect x="46" y="298" width="54" height="20" rx="4" fill="#196c2e"/>
+      <text x="73" y="312" text-anchor="middle" fill="#ffffff" font-size="11.5" font-weight="700">PASS</text>
+      <text x="112" y="312" fill="#7ee787">ignores synced · all line landmarks match code · docs under budget</text>
+
+      <!-- Blinking cursor -->
+      <rect x="576" y="299" width="8" height="16" rx="1.5" fill="#58a6ff">
+        <animate attributeName="opacity" values="1;0;1" dur="0.95s" repeatCount="indefinite"/>
+      </rect>
+    </g>
+  </g>
+</svg>

@@ -1,7 +1,7 @@
 {
   "name": "antis-optimizer",
   "version": "1.0.0",
-  "description": "Find & quarantine 100+ MB of ghost context traps across Claude Code, Cursor, Codex, and Antigravity in 0.4s. Hybrid Compiler AST + Stateful Lexer CLI & 4-layer agent stack (--audit, --detect, --sync-ignores, --sync-landmarks, --map, --slice, --outline, --handoff, --verify).",
+  "description": "Stop AI coding agents from wasting tokens on junk & huge files. Audits repo bloat, syncs ignores across AI tools, and slices exact function/section lines (--audit, --detect, --sync-ignores, --sync-landmarks, --map, --slice, --outline, --handoff, --verify).",
   "bin": {
     "antis-optimizer": "./scripts/repo-index.cjs"
   },
@@ -11,6 +11,7 @@
     "SKILL.md",
     "references/tool-coop-matrix.md",
     "references/templates.md",
+    "assets/*.svg",
     "README.md",
     "LICENSE"
   ],
