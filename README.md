@@ -8,8 +8,8 @@
 
 Scan bloat, sync ignore rules across every AI tool, and jump straight to the exact lines of code you need.
 
-[![GitHub Release](https://img.shields.io/github/v/release/4anti/antis-optimizer?style=flat-square&color=000000)](https://github.com/4anti/antis-optimizer/releases)
-[![CI](https://img.shields.io/github/actions/workflow/status/4anti/antis-optimizer/ci.yml?style=flat-square&label=CI)](https://github.com/4anti/antis-optimizer/actions)
+[![GitHub Release](https://img.shields.io/github/v/release/4anti/antis-optimizer?style=flat-square&label=release&color=2563eb)](https://github.com/4anti/antis-optimizer/releases)
+[![CI](https://img.shields.io/github/actions/workflow/status/4anti/antis-optimizer/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/4anti/antis-optimizer/actions)
 [![Node >= 18](https://img.shields.io/badge/node-%3E%3D18-339933?style=flat-square&logo=node.js)](./package.json)
 [![Zero Required Deps](https://img.shields.io/badge/dependencies-0%20required-2ea043?style=flat-square)](./package.json)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](./LICENSE)
