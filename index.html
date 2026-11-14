@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>antis-optimizer: Stop AI coding agents from wasting tokens</title>
   <meta name="description" content="Audit bloated repos in seconds, sync ignore rules across Claude Code, Cursor, Codex, and Antigravity, and slice exact symbol line ranges under a 3.5 KB cap." />
+  <link rel="icon" type="image/svg+xml" href="./assets/logo.svg" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
@@ -152,9 +153,6 @@
     .brand-mark {
       width: var(--space-lg);
       height: var(--space-lg);
-      border-radius: var(--radius-md);
-      background: var(--color-paper-2);
-      border: 1px solid var(--color-rule);
       display: grid;
       place-items: center;
       flex-shrink: 0;
@@ -800,8 +798,21 @@
     <div class="wrap topbar-inner">
       <a href="#main" class="brand">
         <span class="brand-mark" aria-hidden="true">
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-            <path d="M9.5 1.5L3.5 9H8L6.5 14.5L12.5 7H8L9.5 1.5Z" fill="#34d399"/>
+          <svg width="22" height="22" viewBox="17 15 92 92" fill="none">
+            <defs>
+              <linearGradient id="brandM1Metal" x1="28" y1="22" x2="100" y2="106" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stop-color="#ffffff"/>
+                <stop offset="52%" stop-color="#e2e8f0"/>
+                <stop offset="100%" stop-color="#94a3b8"/>
+              </linearGradient>
+              <linearGradient id="brandM1Cobalt" x1="30" y1="24" x2="98" y2="104" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stop-color="#93c5fd"/>
+                <stop offset="52%" stop-color="#3b82f6"/>
+                <stop offset="100%" stop-color="#3730a3"/>
+              </linearGradient>
+            </defs>
+            <path d="M58.5 27 C61 22 67 22 69.5 27 L83.5 57.5 C84.4 59.5 83.2 61.8 81 62.6 L71 66.2 C68.8 67 66.4 65.8 65.5 63.6 L62.2 55.8 L44.5 95 C43.5 97.4 41.2 99 38.6 99 L30 99 C26.4 99 24.1 95.3 25.6 92 Z" fill="url(#brandM1Metal)" stroke="#64748b" stroke-opacity="0.35" stroke-width="0.85"/>
+            <path d="M67 76.5 C67.7 74.9 69.1 73.7 70.8 73 L82.6 68.7 C85.1 67.8 87.9 69 89 71.4 L100.4 95 C101.8 97.9 99.7 101 96.4 101 L63.5 101 C60.2 101 58.1 97.6 59.6 94.6 Z" fill="url(#brandM1Cobalt)"/>
           </svg>
         </span>
         <span>antis-optimizer</span>

@@ -1,6 +1,8 @@
 <div align="center">
 
-# ⚡ antis-optimizer
+<img src="./assets/logo.svg" alt="antis-optimizer Cleaved A logo" width="68" height="68" />
+
+# antis-optimizer
 
 **Stop AI coding agents from wasting tokens on junk folders and oversized files.**
 
