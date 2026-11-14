@@ -1,0 +1,57 @@
+{
+  "name": "antis-optimizer",
+  "version": "1.3.0",
+  "description": "Find & quarantine 100+ MB of ghost context traps across Claude Code, Cursor, Codex, and Antigravity in 0.4s. Hybrid Compiler AST + Stateful Lexer CLI & 4-layer agent stack (--audit, --detect, --sync-ignores, --sync-landmarks, --map, --slice, --outline, --handoff, --verify).",
+  "bin": {
+    "antis-optimizer": "./scripts/repo-index.cjs"
+  },
+  "main": "./scripts/repo-index.cjs",
+  "files": [
+    "scripts/repo-index.cjs",
+    "SKILL.md",
+    "references/tool-coop-matrix.md",
+    "references/templates.md",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node ./test/test-suite.cjs",
+    "audit": "node ./scripts/repo-index.cjs --audit",
+    "detect": "node ./scripts/repo-index.cjs --detect",
+    "sync-ignores": "node ./scripts/repo-index.cjs --sync-ignores --write",
+    "sync-landmarks": "node ./scripts/repo-index.cjs --sync-landmarks --write",
+    "verify": "node ./scripts/repo-index.cjs --verify"
+  },
+  "optionalDependencies": {
+    "typescript": "^5.8.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "ai-agents",
+    "claude-code",
+    "cursor",
+    "codex",
+    "antigravity",
+    "context-window",
+    "token-optimization",
+    "ast",
+    "mcp",
+    "jcodemunch",
+    "ponytail",
+    "caveman",
+    "ripgrep",
+    "llm-tools"
+  ],
+  "author": "4anti",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/4anti/antis-optimizer.git"
+  },
+  "bugs": {
+    "url": "https://github.com/4anti/antis-optimizer/issues"
+  },
+  "homepage": "https://github.com/4anti/antis-optimizer#readme"
+}

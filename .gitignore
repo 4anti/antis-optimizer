@@ -1,0 +1,61 @@
+# Dependencies & lockfiles
+node_modules/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+bun.lockb
+
+# Secrets, keys, credentials & local env
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+id_rsa*
+*secret*
+*credential*
+*private*
+
+# Agent host directories & local state (never commit local agent state)
+.claude/
+.gemini/
+.agents/
+.codex/
+.cursor/
+.tokeneconomizer/
+.playwright-mcp/
+.wrangler/
+.jcodemunch.jsonc
+.contextignore
+.ignore
+
+# Local workbenches, benchmarks & scratch directories
+benchmark/
+benchmarks/
+docs/
+scratch/
+tmp/
+temp/
+_archive/
+_work/
+*comparison*.html
+*results*.json
+*.original.*
+*.bak
+*.orig
+
+# Build outputs, logs & OS metadata
+dist/
+build/
+out/
+coverage/
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+Desktop.ini
+.vscode/
+.idea/

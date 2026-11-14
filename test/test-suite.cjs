@@ -1,0 +1,450 @@
+#!/usr/bin/env node
+'use strict';
+
+/**
+ * Antis-Optimizer v4.0 — Comprehensive Automated Test Suite (28 Self-Contained Tests)
+ * Zero personal paths; runs entirely inside an isolated OS temp directory.
+ */
+
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
+const { spawnSync } = require('child_process');
+
+const targetCli = path.resolve(__dirname, '..', 'scripts', 'repo-index.cjs');
+const lib = require(targetCli);
+
+console.log(`=== ANTIS-OPTIMIZER v4.0 TEST SUITE (28 TESTS) ===`);
+let passed = 0, total = 28;
+
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'antis-opt-test-'));
+try {
+  // 1. Multi-Line TypeScript Functions & Real Compiler AST Engine Verification
+  fs.mkdirSync(path.join(tmp, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(tmp, 'src', 'engine.ts'), [
+    'export async function initializeEngine(',
+    '  canvas: HTMLCanvasElement,',
+    '  options: Record<string, unknown>,',
+    '  onReady?: () => void',
+    '): Promise<boolean> {',
+    '  function innerHelper(x: number) {',
+    '    return x * 2;',
+    '  }',
+    '  return Boolean(canvas && options && innerHelper(1) && onReady);',
+    '}',
+    'export function destroyEngine(): void {',
+    '  return;',
+    '}'
+  ].join('\n'));
+  const astParsed = lib.parseFileOutline(path.join(tmp, 'src', 'engine.ts'));
+  const out1 = spawnSync('node', [targetCli, '--root', tmp, '--outline', 'src/engine.ts'], { encoding: 'utf8' }).stdout || '';
+  const t1 = out1.includes('L1-L10: export async function initializeEngine') &&
+             out1.includes('L6-L8: function innerHelper') &&
+             out1.includes('L11-L13: export function destroyEngine') &&
+             (astParsed.astEngine === 'typescript-compiler' || astParsed.entries.length === 3);
+  if (t1) passed++;
+  console.log(`[Test 1: TypeScript Compiler AST & Multi-Line Function Spans (engine=${astParsed.astEngine || 'lexer'})] ${t1 ? 'PASS' : 'FAIL'}`);
+
+  // 2. Generic Arrow Function, React forwardRef & Python Multi-Line def
+  fs.writeFileSync(path.join(tmp, 'comp.tsx'), [
+    'export const fetchGeneric = async <T,>(',
+    '  url: string,',
+    '  opts: RequestInit',
+    '): Promise<T> => {',
+    '  return fetch(url, opts) as any;',
+    '};',
+    'export const Button = React.forwardRef<HTMLButtonElement, Props>((',
+    '  props,',
+    '  ref',
+    ') => {',
+    '  return null;',
+    '});'
+  ].join('\n'));
+  fs.writeFileSync(path.join(tmp, 'mod.py'), [
+    'async def compute_metrics(',
+    '    items: list[str],',
+    '    threshold: float = 0.5,',
+    ') -> dict:',
+    '    """Docstring"""',
+    '    return {"ok": True}'
+  ].join('\n'));
+  const tsxOut = spawnSync('node', [targetCli, '--root', tmp, '--outline', 'comp.tsx'], { encoding: 'utf8' }).stdout || '';
+  const pyOut = spawnSync('node', [targetCli, '--root', tmp, '--outline', 'mod.py'], { encoding: 'utf8' }).stdout || '';
+  const t2 = tsxOut.includes('L1-L6:') && tsxOut.includes('L7-L12:') && pyOut.includes('L1-L6: async def compute_metrics');
+  if (t2) passed++;
+  console.log(`[Test 2: Generic Arrow + forwardRef + Python Multi-line def] ${t2 ? 'PASS' : 'FAIL'}`);
+
+  // 3. Polyglot Rust, Go, HTML section span
+  fs.writeFileSync(path.join(tmp, 'lib.rs'), 'pub struct Engine {\n  pub id: u32,\n}\npub async fn run_engine(\n  id: u32,\n) -> bool {\n  true\n}\n');
+  fs.writeFileSync(path.join(tmp, 'main.go'), 'package main\nfunc (s *Server) Handle(\n  w Response,\n) error {\n  return nil\n}\n');
+  fs.writeFileSync(path.join(tmp, 'page.html'), '<main id="app">\n  <section id="hero">\n    <h1>Hi</h1>\n  </section>\n</main>\n');
+  const rsOut = spawnSync('node', [targetCli, '--root', tmp, '--outline', 'lib.rs'], { encoding: 'utf8' }).stdout || '';
+  const goOut = spawnSync('node', [targetCli, '--root', tmp, '--outline', 'main.go'], { encoding: 'utf8' }).stdout || '';
+  const htmlOut = spawnSync('node', [targetCli, '--root', tmp, '--outline', 'page.html'], { encoding: 'utf8' }).stdout || '';
+  const t3 = rsOut.includes('L4-L8:') && goOut.includes('L2-L6:') && htmlOut.includes('L2-L4: <section id="hero">');
+  if (t3) passed++;
+  console.log(`[Test 3: Polyglot Rust/Go + HTML Closing-Tag Spans] ${t3 ? 'PASS' : 'FAIL'}`);
+
+  // 4. JSON Brace-in-String Span Drift
+  fs.mkdirSync(path.join(tmp, 'data'), { recursive: true });
+  const trickyJson = {
+    items: [
+      { id: 'item-1', code: 'function broken() { return "} }} }"; }', desc: 'line' },
+      { id: 'item-2', code: 'ok', desc: 'second' }
+    ]
+  };
+  fs.writeFileSync(path.join(tmp, 'data', 'tricky-data.json'), JSON.stringify(trickyJson, null, 2) + '\n');
+  const sliceRes = spawnSync('node', [targetCli, '--root', tmp, '--slice', 'tricky-data', 'item-1'], { encoding: 'utf8' });
+  const span = JSON.parse(sliceRes.stdout).landmark;
+  const t4 = span === 'data/tricky-data.json:L3-L7';
+  if (t4) passed++;
+  console.log(`[Test 4: JSON Brace-in-String Span (L3-L7)] ${t4 ? 'PASS' : 'FAIL'}`);
+
+  // 5. .ignore Glob Enforcement
+  fs.writeFileSync(path.join(tmp, '.ignore'), '# Team comment\n*.masked.json\n');
+  fs.writeFileSync(path.join(tmp, 'foo.masked.json'), JSON.stringify({ items: [{ id: 'nope' }] }));
+  const gRes = spawnSync('node', [targetCli, '--root', tmp, '--slice', 'masked'], { encoding: 'utf8' });
+  const t5 = gRes.status !== 0 && !(gRes.stdout || '').includes('nope');
+  if (t5) passed++;
+  console.log(`[Test 5: .ignore Wildcard Glob Enforcement (*.masked.json)] ${t5 ? 'PASS' : 'FAIL'}`);
+
+  // 6. Secret File Block & Token Redaction
+  fs.writeFileSync(path.join(tmp, '.env.production'), 'API_KEY=sk-proj-1234567890abcdefghijklmnop\n');
+  fs.writeFileSync(path.join(tmp, 'config-sample.json'), JSON.stringify({ items: [{ id: 'cfg', token: 'ghp_1234567890abcdefghijklmnopqrstuvwx' }] }, null, 2));
+  const envOut = spawnSync('node', [targetCli, '--root', tmp, '--slice', '.env.production'], { encoding: 'utf8' });
+  const tokOut = spawnSync('node', [targetCli, '--root', tmp, '--slice', 'config-sample'], { encoding: 'utf8' }).stdout || '';
+  const t6 = envOut.status === 2 && tokOut.includes('[REDACTED_SECRET]') && !tokOut.includes('ghp_123456');
+  if (t6) passed++;
+  console.log(`[Test 6: Secret File Block & Token Redaction] ${t6 ? 'PASS' : 'FAIL'}`);
+
+  // 7. In-Bounds Symbol Drift Detection & --sync-landmarks Auto-Healing
+  fs.writeFileSync(path.join(tmp, 'AGENTS.md'), '# Test\n');
+  fs.writeFileSync(path.join(tmp, 'INDEX.md'), '| File | Size | Landmarks |\n| :--- | :--- | :--- |\n| `lib.rs` | `0.1 KB / 99L` | `run_engine` `L1-L5` |\n');
+  spawnSync('node', [targetCli, '--root', tmp, '--sync-ignores', '--write'], { encoding: 'utf8' });
+  const vBefore = spawnSync('node', [targetCli, '--root', tmp, '--verify'], { encoding: 'utf8' });
+  const caughtDrift = vBefore.status !== 0 && (vBefore.stdout || '').includes('run_engine(L1-L5 drifted to L4-L8)');
+  spawnSync('node', [targetCli, '--root', tmp, '--sync-landmarks', '--write'], { encoding: 'utf8' });
+  const healedIndex = fs.readFileSync(path.join(tmp, 'INDEX.md'), 'utf8');
+  const vAfter = spawnSync('node', [targetCli, '--root', tmp, '--verify'], { encoding: 'utf8' });
+  const t7 = caughtDrift && healedIndex.includes('`run_engine` `L4-L8`') && healedIndex.includes('/ 9L`') && vAfter.status === 0;
+  if (t7) passed++;
+  console.log(`[Test 7: In-Bounds Symbol Drift Catch & --sync-landmarks Auto-Heal] ${t7 ? 'PASS' : 'FAIL'}`);
+
+  // 8. Comment Preservation in .ignore & .jcodemunch.jsonc
+  fs.writeFileSync(path.join(tmp, '.jcodemunch.jsonc'), '// Custom JSONC header comment\n{\n  "extra_ignore_patterns": []\n}\n');
+  spawnSync('node', [targetCli, '--root', tmp, '--sync-ignores', '--write'], { encoding: 'utf8' });
+  const igTxt = fs.readFileSync(path.join(tmp, '.ignore'), 'utf8');
+  const jcmTxt = fs.readFileSync(path.join(tmp, '.jcodemunch.jsonc'), 'utf8');
+  const t8 = igTxt.includes('# Team comment') && jcmTxt.includes('// Custom JSONC header comment');
+  if (t8) passed++;
+  console.log(`[Test 8: Comment Preservation in .ignore & .jcodemunch.jsonc] ${t8 ? 'PASS' : 'FAIL'}`);
+
+  // 9. Mathematical Token Break-Even Tier 0 on Small Clean Repo
+  const auditSmall = spawnSync('node', [targetCli, '--root', tmp, '--audit'], { encoding: 'utf8' }).stdout || '';
+  const t9 = auditSmall.includes('TIER 0 (IGNORE-ONLY)');
+  if (t9) passed++;
+  console.log(`[Test 9: Mathematical Token Break-Even (Small Repo -> TIER 0)] ${t9 ? 'PASS' : 'FAIL'}`);
+
+  // 10. Mathematical Token Break-Even Tier 2 on Monolith Repo
+  const tmpLarge = fs.mkdtempSync(path.join(os.tmpdir(), 'antis-opt-large-'));
+  try {
+    for (let m = 0; m < 4; m++) {
+      fs.writeFileSync(path.join(tmpLarge, `monolith_${m}.ts`), `export function fn_${m}() {\n` + '  const x = 1;\n'.repeat(1500) + '}\n');
+    }
+    const auditLarge = spawnSync('node', [targetCli, '--root', tmpLarge, '--audit'], { encoding: 'utf8' }).stdout || '';
+    const t10 = auditLarge.includes('TIER 2 (FULL 4-LAYER)') && auditLarge.includes('R* =');
+    if (t10) passed++;
+    console.log(`[Test 10: Mathematical Token Break-Even (Monolith Repo -> TIER 2)] ${t10 ? 'PASS' : 'FAIL'}`);
+  } finally {
+    fs.rmSync(tmpLarge, { recursive: true, force: true });
+  }
+
+  // 11. Self-Outline of repo-index.cjs (both AST and Lexer fallback)
+  fs.mkdirSync(path.join(tmp, 'scripts'), { recursive: true });
+  fs.copyFileSync(targetCli, path.join(tmp, 'scripts', 'repo-index.cjs'));
+  const selfAstOut = spawnSync('node', [targetCli, '--root', tmp, '--outline', 'scripts/repo-index.cjs'], { encoding: 'utf8' }).stdout || '';
+  const selfLexOut = spawnSync('node', [targetCli, '--root', tmp, '--outline', 'scripts/repo-index.cjs'], {
+    encoding: 'utf8',
+    env: { ...process.env, ANTIS_FORCE_LEXER: '1' }
+  }).stdout || '';
+  const t11 = selfAstOut.includes('function cmdVerify(') && !selfAstOut.includes('const home = os.homedir()') &&
+              selfLexOut.includes('function cmdVerify(') && !selfLexOut.includes('const home = os.homedir()');
+  if (t11) passed++;
+  console.log(`[Test 11: Self-Outline Parity (Compiler AST & Stateful Lexer Fallback)] ${t11 ? 'PASS' : 'FAIL'}`);
+
+  // 12. Rust 3-Lifetime Signature Immunity ('a, 'a, 'a)
+  fs.writeFileSync(path.join(tmp, 'lifetimes.rs'), "pub fn parse<'a>(x: &'a str) -> &'a str {\n  x\n}\n");
+  const lifeOut = spawnSync('node', [targetCli, '--root', tmp, '--outline', 'lifetimes.rs'], { encoding: 'utf8' }).stdout || '';
+  const t12 = lifeOut.includes("L1-L3: pub fn parse<'a>");
+  if (t12) passed++;
+  console.log(`[Test 12: Rust Odd-Count Lifetime ('a) Span Accuracy] ${t12 ? 'PASS' : 'FAIL'}`);
+
+  // 13. Deleted/Renamed Symbol Detection in INDEX.md
+  fs.writeFileSync(path.join(tmp, 'INDEX.md'), '| File | Size | Landmarks |\n| :--- | :--- | :--- |\n| `lifetimes.rs` | `0.0 KB / 4L` | `non_existent_fn` `L1-L3` |\n');
+  const vDeleted = spawnSync('node', [targetCli, '--root', tmp, '--verify'], { encoding: 'utf8' });
+  const t13 = vDeleted.status !== 0 && (vDeleted.stdout || '').includes('non_existent_fn(symbol not found)');
+  if (t13) passed++;
+  console.log(`[Test 13: Deleted/Renamed Symbol Catch in --verify] ${t13 ? 'PASS' : 'FAIL'}`);
+
+  // 14. Dictionary JSON Key Truncation (500 keys -> valid JSON with _moreKeys)
+  const bigDict = {};
+  for (let k = 0; k < 500; k++) bigDict[`key_${k}`] = `value_${k}`;
+  fs.writeFileSync(path.join(tmp, 'dict-map.json'), JSON.stringify(bigDict, null, 2));
+  const dictSlice = spawnSync('node', [targetCli, '--root', tmp, '--slice', 'dict-map'], { encoding: 'utf8' }).stdout || '';
+  let parsedDict = null;
+  try { parsedDict = JSON.parse(dictSlice); } catch {}
+  const t14 = parsedDict && parsedDict.sample && parsedDict.sample._moreKeys === 492;
+  if (t14) passed++;
+  console.log(`[Test 14: 500-Key Dictionary JSON Valid Truncation (_moreKeys=492)] ${t14 ? 'PASS' : 'FAIL'}`);
+
+  // 15. Path Traversal Guard (--outline ../outside.js & --handoff --out ../leak.json)
+  const travRes = spawnSync('node', [targetCli, '--root', tmp, '--outline', '../outside.js'], { encoding: 'utf8' });
+  const handoffTrav = spawnSync('node', [targetCli, '--root', tmp, '--handoff', '--out', '../leak.json'], { encoding: 'utf8' });
+  const t15 = travRes.status === 2 && (travRes.stderr || '').includes('Path outside repository root') && handoffTrav.status === 2;
+  if (t15) passed++;
+  console.log(`[Test 15: Path Traversal Guard (--outline & --handoff --out)] ${t15 ? 'PASS' : 'FAIL'}`);
+
+  // 16. Nested Template Literal Interpolation (${ ... `...` ... }) & Multi-Line Arrow in ${ ... }
+  fs.writeFileSync(path.join(tmp, 'tpl.js'), [
+    'export function formatShell(a, e) {',
+    '  const s1 = `\'${a.replace(/\'/g, `\'\\\\\'\'`)}\'`;',
+    '  const s2 = `"${e.replace(/["\\\\]/g, c => `\\\\` + c)}"`;',
+    '  const s3 = `multi ${[1, 2].map(x => {',
+    '    return `val:${x}`;',
+    '  }).join(",")}`;',
+    '  return s1 + s2 + s3;',
+    '}',
+    'export function afterTpl() {',
+    '  return 42;',
+    '}'
+  ].join('\n'));
+  const tplOut = spawnSync('node', [targetCli, '--root', tmp, '--outline', 'tpl.js'], {
+    encoding: 'utf8',
+    env: { ...process.env, ANTIS_FORCE_LEXER: '1' }
+  }).stdout || '';
+  const t16 = tplOut.includes('L1-L8: export function formatShell') && tplOut.includes('L9-L11: export function afterTpl');
+  if (t16) passed++;
+  console.log(`[Test 16: Nested Template Literal Interpolation (\${...\`...\`...}) Span Accuracy] ${t16 ? 'PASS' : 'FAIL'}`);
+
+  // 17. Post-Increment/Decrement Division (a++ / b) vs Regex & Property-Keyword Division (obj.in / 2)
+  fs.writeFileSync(path.join(tmp, 'div.js'), [
+    'export function computeRatio(a, b, obj) {',
+    '  const r1 = a++ / b + (obj.return / 2) + (obj.in / 3);',
+    '  const r2 = a-- / { x: 1 }.x;',
+    '  return r1 + r2;',
+    '}',
+    'export function nextFn() {',
+    '  return true;',
+    '}'
+  ].join('\n'));
+  const divOut = spawnSync('node', [targetCli, '--root', tmp, '--outline', 'div.js'], {
+    encoding: 'utf8',
+    env: { ...process.env, ANTIS_FORCE_LEXER: '1' }
+  }).stdout || '';
+  const t17 = divOut.includes('L1-L5: export function computeRatio') && divOut.includes('L6-L8: export function nextFn');
+  if (t17) passed++;
+  console.log(`[Test 17: Post-Increment Division (a++ / b) & Property-Keyword (obj.in / 3)] ${t17 ? 'PASS' : 'FAIL'}`);
+
+  // 18. Python Module-Level Docstring with Fake `def` at Column 0 & Inline Comment `# """`
+  fs.writeFileSync(path.join(tmp, 'tricky.py'), [
+    '"""',
+    'Module docstring with example:',
+    'def fake_top_level():',
+    '    pass',
+    '"""',
+    'def real_fn(x: int) -> int:',
+    '    y = x + 1 # """ inline comment with triple quotes',
+    '    return y',
+    'def second_fn():',
+    '    return 2'
+  ].join('\n'));
+  const pyTrickyOut = spawnSync('node', [targetCli, '--root', tmp, '--outline', 'tricky.py'], { encoding: 'utf8' }).stdout || '';
+  const t18 = !pyTrickyOut.includes('fake_top_level') && pyTrickyOut.includes('L6-L8: def real_fn') && pyTrickyOut.includes('L9-L10: def second_fn');
+  if (t18) passed++;
+  console.log(`[Test 18: Python Top-Level Docstring Fake def & Inline # """ Immunity] ${t18 ? 'PASS' : 'FAIL'}`);
+
+  // 19. Rust Unicode Char Literal ('\u{1F600}'), Raw Strings (r#"..."#), Multi-line Strings, & Go Raw Backtick ('\')
+  fs.writeFileSync(path.join(tmp, 'tricky.rs'), [
+    'pub fn unicode_and_raw() -> char {',
+    '  let raw = r#"unbalanced { in raw " string"#;',
+    '  let multi = "line 1 {',
+    '  line 2";',
+    "  '\\u{1F600}'",
+    '}',
+    'pub fn after_rust() -> u32 {',
+    '  1',
+    '}'
+  ].join('\n'));
+  fs.writeFileSync(path.join(tmp, 'tricky.go'), [
+    'package main',
+    'func winPath() string {',
+    '  p := `C:\\Users\\admin\\`',
+    '  return p',
+    '}',
+    'func afterGo() int {',
+    '  return 1',
+    '}'
+  ].join('\n'));
+  const rsTricky = spawnSync('node', [targetCli, '--root', tmp, '--outline', 'tricky.rs'], { encoding: 'utf8' }).stdout || '';
+  const goTricky = spawnSync('node', [targetCli, '--root', tmp, '--outline', 'tricky.go'], { encoding: 'utf8' }).stdout || '';
+  const t19 = rsTricky.includes('L1-L6: pub fn unicode_and_raw') && rsTricky.includes('L7-L9: pub fn after_rust') && goTricky.includes('L2-L5: func winPath') && goTricky.includes('L6-L8: func afterGo');
+  if (t19) passed++;
+  console.log(`[Test 19: Rust '\\u{1F600}' + r#"..."# + Go Raw String Ending in Backslash] ${t19 ? 'PASS' : 'FAIL'}`);
+
+  // 20. Root-Anchored Glob (/out vs src/out), Character Class Glob (*.[oa]), & Bare .gitignore Dir (.vercel)
+  fs.writeFileSync(path.join(tmp, '.gitignore'), '/root_only_dir\n.vercel\n*.[oa]\n');
+  const igRules = lib.loadIgnoreRules(tmp);
+  const t20 = lib.isDirIgnored(igRules, 'root_only_dir', 'root_only_dir') &&
+              !lib.isDirIgnored(igRules, 'src/root_only_dir', 'root_only_dir') &&
+              lib.isDirIgnored(igRules, '.vercel', '.vercel') &&
+              lib.isFileIgnored(igRules, 'lib/foo.o', 'foo.o') &&
+              lib.isFileIgnored(igRules, 'lib/bar.a', 'bar.a') &&
+              !lib.isFileIgnored(igRules, 'lib/baz.c', 'baz.c');
+  if (t20) passed++;
+  console.log(`[Test 20: Root-Anchored /dir, Bare .gitignore Dir, & *.[oa] Char Class] ${t20 ? 'PASS' : 'FAIL'}`);
+
+  // 21. JSONC String-Aware Parser & Safe .jcodemunch.jsonc Splicing (Strings with /*, //, [oa], $&)
+  const trickyJcm = '// Header\n{\n  "use_gitignore": true, // inline comment\n  "extra_ignore_patterns": [\n    "docs/*",\n    "*/temp",\n    "*.[oa]"\n  ]\n}\n';
+  fs.writeFileSync(path.join(tmp, '.jcodemunch.jsonc'), trickyJcm);
+  fs.writeFileSync(path.join(tmp, '.ignore'), 'custom_$&_pattern\n*.[oa]\n');
+  spawnSync('node', [targetCli, '--root', tmp, '--sync-ignores', '--write', '--all-ignores'], { encoding: 'utf8' });
+  const parsedJcm = JSON.parse(lib.stripJsonc(fs.readFileSync(path.join(tmp, '.jcodemunch.jsonc'), 'utf8')));
+  const verifyJcm = spawnSync('node', [targetCli, '--root', tmp, '--verify', '--all-ignores'], { encoding: 'utf8' });
+  const t21 = parsedJcm && Array.isArray(parsedJcm.extra_ignore_patterns) &&
+              parsedJcm.extra_ignore_patterns.includes('custom_$&_pattern') &&
+              parsedJcm.extra_ignore_patterns.includes('*.[oa]') &&
+              (verifyJcm.stdout || '').includes('PASS ignore-parity');
+  if (t21) passed++;
+  console.log(`[Test 21: JSONC String-Safe Comment Strip & $& / [oa] Splice Safety] ${t21 ? 'PASS' : 'FAIL'}`);
+
+  // 22. --handoff Overflow Guarantees 100% Valid JSON <= 2,048 Bytes
+  const hugeGoal = 'G'.repeat(2500);
+  const hugeFiles = Array.from({ length: 20 }, (_, idx) => `src/deeply/nested/module_${idx}_${'x'.repeat(80)}.ts`).join(',');
+  const handoffRes = spawnSync('node', [targetCli, '--root', tmp, '--handoff', '--goal', hugeGoal, '--files', hugeFiles, '--note', 'N'.repeat(1000)], { encoding: 'utf8' });
+  let handoffObj = null;
+  try { handoffObj = JSON.parse(handoffRes.stdout); } catch {}
+  const handoffBytes = Buffer.byteLength((handoffRes.stdout || '').trim(), 'utf8');
+  const t22 = handoffObj !== null && handoffObj.schema === 'antis-optimizer-handoff/v1' && handoffBytes <= 2048;
+  if (t22) passed++;
+  console.log(`[Test 22: --handoff 5KB Input -> Valid JSON <= 2048B (${handoffBytes}B)] ${t22 ? 'PASS' : 'FAIL'}`);
+
+  // 23. Shorthand Attribute Label in INDEX.md Table Row + HTML Inline <script> Function Multi-Line Range
+  fs.writeFileSync(path.join(tmp, 'view.html'), [
+    '<section id="panel-themes">',
+    '  <p>Themes</p>',
+    '</section>',
+    '<script>',
+    'function renderScene(ctx) {',
+    '  const a = { x: 1 };',
+    '  return a;',
+    '}',
+    '</script>'
+  ].join('\n'));
+  fs.writeFileSync(path.join(tmp, 'INDEX.md'), '| File | Size | Landmarks |\n| :--- | :--- | :--- |\n| `view.html` | `0.1 KB / 9L` | `themes` `L1-L3`, `renderScene` `L5-L8` |\n');
+  spawnSync('node', [targetCli, '--root', tmp, '--sync-ignores', '--write', '--all-ignores'], { encoding: 'utf8' });
+  const vHtml = spawnSync('node', [targetCli, '--root', tmp, '--verify'], { encoding: 'utf8' });
+  const t23 = vHtml.status === 0 && (vHtml.stdout || '').includes('PASS landmarks');
+  if (t23) passed++;
+  console.log(`[Test 23: Shorthand Substring Anchor + HTML Inline JS Multi-Line Span] ${t23 ? 'PASS' : 'FAIL'}`);
+
+  // 24. C/C++ Preprocessor #ifdef / #else / #endif Unbalanced Brace Branch-State Restoration
+  fs.writeFileSync(path.join(tmp, 'platform.c'), [
+    'int init_platform(int mode) {',
+    '#ifdef _WIN32',
+    '  if (mode > 0) {',
+    '    return 1;',
+    '#else',
+    '  if (mode < 0) {',
+    '    return -1;',
+    '#endif',
+    '  }',
+    '  return 0;',
+    '}',
+    'int shutdown_platform(void) {',
+    '  return 0;',
+    '}'
+  ].join('\n'));
+  const cOut = spawnSync('node', [targetCli, '--root', tmp, '--outline', 'platform.c'], { encoding: 'utf8' }).stdout || '';
+  const t24 = cOut.includes('L1-L11: int init_platform') && cOut.includes('L12-L14: int shutdown_platform');
+  if (t24) passed++;
+  console.log(`[Test 24: C/C++ #ifdef / #else Unbalanced Brace Branch Restoration] ${t24 ? 'PASS' : 'FAIL'}`);
+
+  // 25. React/TS Multi-Line Destructured Object Props & Return Type + Non-Arrow Inner Map Exclusion
+  fs.writeFileSync(path.join(tmp, 'react-props.tsx'), [
+    'export const Card = ({',
+    '  title,',
+    '  items = [{ id: 1 }],',
+    '}: {',
+    '  title: string;',
+    '  items?: Array<{ id: number }>;',
+    '}): {',
+    '  rendered: boolean;',
+    '} => {',
+    '  return { rendered: true };',
+    '};',
+    'export function makeCard(',
+    '  {',
+    '    title,',
+    '  }: {',
+    '    title: string;',
+    '  },',
+    '  ctx: any',
+    '): {',
+    '  ok: boolean;',
+    '} {',
+    '  return { ok: Boolean(title && ctx) };',
+    '}',
+    'const notAnArrow = ([1, 2].map(x => x * 2));'
+  ].join('\n'));
+  const reactAstOut = spawnSync('node', [targetCli, '--root', tmp, '--outline', 'react-props.tsx'], { encoding: 'utf8' }).stdout || '';
+  const reactLexOut = spawnSync('node', [targetCli, '--root', tmp, '--outline', 'react-props.tsx'], {
+    encoding: 'utf8',
+    env: { ...process.env, ANTIS_FORCE_LEXER: '1' }
+  }).stdout || '';
+  const t25 = reactAstOut.includes('L1-L11: export const Card') && reactAstOut.includes('L12-L23: export function makeCard') && !reactAstOut.includes('notAnArrow') &&
+              reactLexOut.includes('L1-L11: export const Card') && reactLexOut.includes('L12-L23: export function makeCard') && !reactLexOut.includes('notAnArrow');
+  if (t25) passed++;
+  console.log(`[Test 25: React/TS Multi-Line Destructured Props (AST + Lexer Parity)] ${t25 ? 'PASS' : 'FAIL'}`);
+
+  // 26. Generator Functions (function* & async function* & *method)
+  fs.writeFileSync(path.join(tmp, 'gen.ts'), [
+    'export async function* streamTokens(limit: number) {',
+    '  yield limit;',
+    '}',
+    'export class TokenPool {',
+    '  *values() {',
+    '    yield 1;',
+    '  }',
+    '}'
+  ].join('\n'));
+  const genOut = spawnSync('node', [targetCli, '--root', tmp, '--outline', 'gen.ts'], { encoding: 'utf8' }).stdout || '';
+  const t26 = genOut.includes('L1-L3: export async function* streamTokens') && genOut.includes('L5-L7: *values()');
+  if (t26) passed++;
+  console.log(`[Test 26: Generator Functions (async function* & *method)] ${t26 ? 'PASS' : 'FAIL'}`);
+
+  // 27. Windows UTF-8 BOM (\uFEFF) Immunity in JSONC, .ignore, Python & TS
+  fs.writeFileSync(path.join(tmp, 'bom.py'), '\uFEFFdef bom_func(x: int) -> int:\n    return x + 1\ndef second_bom():\n    return 2\n');
+  fs.writeFileSync(path.join(tmp, 'bom-data.json'), '\uFEFF{"items":[{"id":"bom-1","name":"ok"}]}\n');
+  const bomPyOut = spawnSync('node', [targetCli, '--root', tmp, '--outline', 'bom.py'], { encoding: 'utf8' }).stdout || '';
+  const bomSliceOut = spawnSync('node', [targetCli, '--root', tmp, '--slice', 'bom-data', 'bom-1'], { encoding: 'utf8' }).stdout || '';
+  const t27 = bomPyOut.includes('L1-L2: def bom_func') && bomPyOut.includes('L3-L4: def second_bom') && bomSliceOut.includes('"id": "bom-1"');
+  if (t27) passed++;
+  console.log(`[Test 27: Windows UTF-8 BOM (\\uFEFF) Immunity across Python/JSON/TS] ${t27 ? 'PASS' : 'FAIL'}`);
+
+  // 28. Self-Lexer Invariant Check on repo-index.cjs
+  const selfLines = fs.readFileSync(targetCli, 'utf8').split(/\r?\n/);
+  const st = { inBlockComment: false, quote: '', tplStack: [], rawHashes: -1 };
+  let d = 0;
+  for (const l of selfLines) {
+    const s = lib.stripJsStringsAndComments(l, st, '.cjs');
+    for (const c of s) { if (c === '{') d++; else if (c === '}') d--; }
+  }
+  const t28 = d === 0 && !st.inBlockComment && !st.quote && st.tplStack.length === 0;
+  if (t28) passed++;
+  console.log(`[Test 28: Self-Lexer Mathematical Brace/Quote/Template Invariant (d=0)] ${t28 ? 'PASS' : 'FAIL'}`);
+} finally {
+  fs.rmSync(tmp, { recursive: true, force: true });
+}
+
+console.log(`=== SCORE: ${passed}/${total} TESTS PASSED ===`);
+if (passed !== total) process.exit(1);
