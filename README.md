@@ -14,7 +14,7 @@ Scan bloat, sync ignore rules across every AI tool, and jump straight to the exa
 
 <br/>
 
-<img src="./assets/hero-banner.svg" alt="Before vs After comparison: blocking junk files and reading exact line slices saves up to 91% of tokens" width="100%" />
+<img src="./assets/hero-banner.svg" alt="Obsidian token funnel showing 157.4 MB of junk directories blocked and an exact 37-line slice loaded into context" width="100%" />
 
 </div>
 

@@ -1,150 +1,76 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="880" height="340" viewBox="0 0 880 340" role="img" aria-label="antis-optimizer before and after comparison">
-  <defs>
-    <linearGradient id="redGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#f85149"/>
-      <stop offset="100%" stop-color="#ff7b72"/>
-    </linearGradient>
-    <linearGradient id="greenGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#2ea043"/>
-      <stop offset="100%" stop-color="#56d364"/>
-    </linearGradient>
-    <radialGradient id="glowLeft" cx="22%" cy="55%" r="36%">
-      <stop offset="0%" stop-color="#f85149" stop-opacity="0.10"/>
-      <stop offset="100%" stop-color="#0d1117" stop-opacity="0"/>
-    </radialGradient>
-    <radialGradient id="glowRight" cx="78%" cy="55%" r="36%">
-      <stop offset="0%" stop-color="#3fb950" stop-opacity="0.12"/>
-      <stop offset="100%" stop-color="#0d1117" stop-opacity="0"/>
-    </radialGradient>
-  </defs>
+<svg xmlns="http://www.w3.org/2000/svg" width="984" height="308" viewBox="-12 -10 984 308" role="img" aria-label="antis-optimizer token funnel architecture">
+  <rect x="-11" y="-9" width="982" height="306" rx="14" fill="#0d1110" stroke="#222b27" stroke-width="1"/>
+        <g font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11">
+          <rect x="4" y="16" width="276" height="44" rx="8" fill="#151b18" stroke="#27312c"/>
+          <text x="20" y="42" fill="#f59e0b">.claude/worktrees/</text>
+          <text x="264" y="42" text-anchor="end" font-size="10" fill="#7d8a83">119.9 MB</text>
 
-  <!-- Outer card -->
-  <rect x="2" y="2" width="876" height="336" rx="16" fill="#0d1117" stroke="#30363d" stroke-width="1.5"/>
-  <rect x="2" y="2" width="876" height="336" rx="16" fill="url(#glowLeft)"/>
-  <rect x="2" y="2" width="876" height="336" rx="16" fill="url(#glowRight)"/>
+          <rect x="4" y="70" width="276" height="44" rx="8" fill="#151b18" stroke="#27312c"/>
+          <text x="20" y="96" fill="#f59e0b">dist/ and build/</text>
+          <text x="264" y="96" text-anchor="end" font-size="10" fill="#7d8a83">18.6 MB</text>
 
-  <!-- Top window bar -->
-  <path d="M 18 2 H 862 A 16 16 0 0 1 878 18 V 48 H 2 V 18 A 16 16 0 0 1 18 2 Z" fill="#161b22"/>
-  <line x1="2" y1="48" x2="878" y2="48" stroke="#21262d" stroke-width="1"/>
-  <circle cx="24" cy="25" r="5.5" fill="#ff5f56"/>
-  <circle cx="42" cy="25" r="5.5" fill="#ffbd2e"/>
-  <circle cx="60" cy="25" r="5.5" fill="#27c93f"/>
-  <text x="82" y="30" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="14" font-weight="700" fill="#f0f6fc">antis-optimizer</text>
-  <text x="195" y="30" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="12.5" fill="#8b949e">· Stop AI agents from wasting tokens on junk &amp; huge files</text>
+          <rect x="4" y="124" width="276" height="44" rx="8" fill="#151b18" stroke="#27312c"/>
+          <text x="20" y="150" fill="#b2beb8">world.json</text>
+          <text x="264" y="150" text-anchor="end" font-size="10" fill="#7d8a83">121 KB 1-line</text>
 
-  <!-- Live badge -->
-  <rect x="742" y="13" width="116" height="24" rx="12" fill="#0f2a1d" stroke="#238636" stroke-width="1"/>
-  <circle cx="758" cy="25" r="3.5" fill="#3fb950">
-    <animate attributeName="opacity" values="1;0.35;1" dur="1.8s" repeatCount="indefinite"/>
-    <animate attributeName="r" values="3.5;4.5;3.5" dur="1.8s" repeatCount="indefinite"/>
-  </circle>
-  <text x="770" y="29" font-family="ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace" font-size="11" font-weight="600" fill="#7ee787">v1.0.0 · Ready</text>
+          <rect x="4" y="178" width="276" height="44" rx="8" fill="#151b18" stroke="#10b981" stroke-opacity="0.7"/>
+          <text x="20" y="204" fill="#f1f5f3" font-weight="600">src/auth.ts</text>
+          <text x="264" y="204" text-anchor="end" font-size="10" fill="#34d399">142 lines</text>
+        </g>
 
-  <!-- LEFT CARD: WITHOUT -->
-  <rect x="24" y="68" width="310" height="206" rx="12" fill="#161b22" stroke="#f85149" stroke-opacity="0.45" stroke-width="1.2"/>
-  <rect x="40" y="82" width="224" height="22" rx="6" fill="#321618"/>
-  <text x="50" y="97" font-family="ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace" font-size="11" font-weight="700" fill="#ff7b72">WITHOUT · AI reads everything</text>
+        <g fill="none" stroke-width="1.6">
+          <path d="M 280 38 C 328 38, 336 88, 378 88" stroke="#27312c"/>
+          <path d="M 280 92 C 328 92, 336 101, 378 101" stroke="#27312c"/>
+          <path d="M 280 146 C 328 146, 336 114, 378 114" stroke="#27312c"/>
+          <path d="M 280 200 C 330 200, 338 132, 378 132" stroke="#34d399" stroke-opacity="0.82" stroke-dasharray="5 7">
+            <animate attributeName="stroke-dashoffset" from="24" to="0" dur="1.1s" repeatCount="indefinite"/>
+          </path>
+          <path d="M 556 110 L 606 110" stroke="#34d399" stroke-width="2" stroke-dasharray="5 8">
+            <animate attributeName="stroke-dashoffset" from="26" to="0" dur="1.1s" repeatCount="indefinite"/>
+          </path>
+          <path d="M 467 180 L 467 218" stroke="#f59e0b" stroke-dasharray="4 5" stroke-opacity="0.78">
+            <animate attributeName="stroke-dashoffset" from="18" to="0" dur="1s" repeatCount="indefinite"/>
+          </path>
+        </g>
+        <polygon points="602,105 611,110 602,115" fill="#34d399"/>
+        <polygon points="462,214 472,214 467,222" fill="#f59e0b"/>
 
-  <g font-family="ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace" font-size="11.8">
-    <text x="42" y="130" fill="#f85149" font-weight="700">×</text>
-    <text x="58" y="130" fill="#c9d1d9">node_modules/</text>
-    <text x="316" y="130" text-anchor="end" fill="#8b949e">120 MB</text>
+        <rect x="378" y="46" width="178" height="134" rx="12" fill="#0b0e0d" stroke="#27312c"/>
+        <text x="467" y="74" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11.5" font-weight="700" fill="#f1f5f3">antis-optimizer</text>
+        <line x1="398" y1="87" x2="536" y2="87" stroke="#1d2521"/>
+        <g font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="10.2" text-anchor="middle">
+          <text x="467" y="108" fill="#b2beb8">1. sync ignores</text>
+          <text x="467" y="129" fill="#34d399">2. AST outline/slice</text>
+          <text x="467" y="150" fill="#b2beb8">3. verify lines</text>
+          <text x="467" y="168" font-size="9.5" fill="#7d8a83">cap &lt;= 3.5 KB</text>
+        </g>
 
-    <text x="42" y="154" fill="#f85149" font-weight="700">×</text>
-    <text x="58" y="154" fill="#c9d1d9">dist/ &amp; build/</text>
-    <text x="316" y="154" text-anchor="end" fill="#8b949e">18.6 MB</text>
+        <rect x="378" y="222" width="178" height="46" rx="8" fill="#291b08" stroke="#d97706" stroke-opacity="0.55"/>
+        <text x="467" y="242" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="10.5" font-weight="700" fill="#f59e0b">-157.4 MB blocked</text>
+        <text x="467" y="258" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="9.5" fill="#b2beb8">1,382 junk files skipped</text>
 
-    <text x="42" y="178" fill="#f85149" font-weight="700">×</text>
-    <text x="58" y="178" fill="#c9d1d9">assets/giant.json</text>
-    <text x="316" y="178" text-anchor="end" fill="#8b949e">90 KB</text>
+        <rect x="612" y="16" width="344" height="252" rx="12" fill="#0b0e0d" stroke="#10b981" stroke-opacity="0.55"/>
+        <rect x="628" y="32" width="90" height="20" rx="5" fill="#0a291e" stroke="#10b981" stroke-opacity="0.5"/>
+        <text x="673" y="45.5" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="10" font-weight="700" fill="#34d399">EXACT SLICE</text>
+        <text x="940" y="45.5" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="10" fill="#7d8a83">1.4K tokens</text>
 
-    <text x="42" y="202" fill="#d29922" font-weight="700">!</text>
-    <text x="58" y="202" fill="#ffa657">Reads full 800-line file</text>
-  </g>
+        <rect x="628" y="64" width="312" height="126" rx="8" fill="#151b18" stroke="#1d2521"/>
+        <text x="640" y="84" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="10.2" font-weight="600" fill="#f1f5f3">src/auth.ts</text>
+        <text x="926" y="84" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="9.8" fill="#34d399">L18-L54 (37L)</text>
+        <line x1="628" y1="94" x2="940" y2="94" stroke="#1d2521"/>
+        <rect x="631" y="101" width="2.5" height="78" rx="1.2" fill="#34d399"/>
+        <g font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="10">
+          <text x="642" y="116" fill="#7d8a83">18  <tspan fill="#f1f5f3">async function verifyToken(jwt) {</tspan></text>
+          <text x="642" y="134" fill="#7d8a83">19    <tspan fill="#b2beb8">const claims = await decode(jwt);</tspan></text>
+          <text x="642" y="152" fill="#7d8a83">..    <tspan fill="#7d8a83">// only needed range injected</tspan></text>
+          <text x="642" y="170" fill="#7d8a83">54  <tspan fill="#34d399">return claims; }</tspan></text>
+        </g>
 
-  <text x="40" y="229" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="11" fill="#8b949e">Context Window</text>
-  <text x="316" y="229" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace" font-size="11" font-weight="700" fill="#ff7b72">
-    88% FULL · Wasted
-    <animate attributeName="opacity" values="0.7;1;0.7" dur="2.2s" repeatCount="indefinite"/>
-  </text>
-  <rect x="40" y="238" width="276" height="12" rx="6" fill="#21262d"/>
-  <rect x="40" y="238" width="242" height="12" rx="6" fill="url(#redGrad)">
-    <animate attributeName="width" values="175;242;242;175" keyTimes="0;0.35;0.82;1" dur="4.4s" repeatCount="indefinite"/>
-  </rect>
-
-  <!-- CENTER FLOW BRIDGE -->
-  <line x1="334" y1="171" x2="546" y2="171" stroke="#30363d" stroke-width="2" stroke-dasharray="6 6"/>
-  <line x1="334" y1="171" x2="546" y2="171" stroke="#58a6ff" stroke-width="2" stroke-dasharray="6 18" stroke-opacity="0.85">
-    <animate attributeName="stroke-dashoffset" from="48" to="0" dur="1.4s" repeatCount="indefinite"/>
-  </line>
-
-  <!-- Moving packet dots -->
-  <circle cx="342" cy="171" r="4" fill="#79c0ff">
-    <animate attributeName="cx" values="338;542" dur="1.8s" repeatCount="indefinite"/>
-    <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.15;0.85;1" dur="1.8s" repeatCount="indefinite"/>
-  </circle>
-  <circle cx="440" cy="171" r="3" fill="#56d364">
-    <animate attributeName="cx" values="338;542" begin="0.9s" dur="1.8s" repeatCount="indefinite"/>
-    <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.15;0.85;1" begin="0.9s" dur="1.8s" repeatCount="indefinite"/>
-  </circle>
-
-  <!-- Center pill -->
-  <rect x="364" y="143" width="152" height="56" rx="12" fill="#0d1117" stroke="#388bfd" stroke-width="1.5">
-    <animate attributeName="stroke-opacity" values="0.5;1;0.5" dur="2.2s" repeatCount="indefinite"/>
-  </rect>
-  <text x="440" y="167" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace" font-size="12" font-weight="700" fill="#79c0ff">antis-optimizer</text>
-  <text x="440" y="186" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace" font-size="10.5" fill="#8b949e">audit · ignore · slice</text>
-
-  <!-- Arrow tip -->
-  <polygon points="538,165 547,171 538,177" fill="#56d364"/>
-
-  <!-- RIGHT CARD: WITH -->
-  <rect x="546" y="68" width="310" height="206" rx="12" fill="#161b22" stroke="#3fb950" stroke-opacity="0.55" stroke-width="1.2"/>
-  <rect x="562" y="82" width="214" height="22" rx="6" fill="#0f2a1d"/>
-  <text x="572" y="97" font-family="ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace" font-size="11" font-weight="700" fill="#7ee787">WITH · Clean &amp; targeted</text>
-
-  <g font-family="ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace" font-size="11.8">
-    <text x="564" y="130" fill="#3fb950" font-weight="700">✓</text>
-    <text x="580" y="130" fill="#e6edf3">Junk auto-blocked</text>
-    <text x="838" y="130" text-anchor="end" fill="#7ee787">89% less noise</text>
-
-    <text x="564" y="154" fill="#3fb950" font-weight="700">✓</text>
-    <text x="580" y="154" fill="#e6edf3">All ignores synced</text>
-    <text x="838" y="154" text-anchor="end" fill="#7ee787">1 command</text>
-
-    <text x="564" y="178" fill="#58a6ff" font-weight="700">→</text>
-    <text x="580" y="178" fill="#e6edf3">auth.ts : login()</text>
-    <text x="838" y="178" text-anchor="end" fill="#79c0ff">L42-L78</text>
-
-    <text x="564" y="202" fill="#3fb950" font-weight="700">✓</text>
-    <text x="580" y="202" fill="#7ee787">Reads only those 37 lines</text>
-  </g>
-
-  <text x="562" y="229" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="11" fill="#8b949e">Context Window</text>
-  <text x="838" y="229" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace" font-size="11" font-weight="700" fill="#7ee787">~91% Saved per read</text>
-  <rect x="562" y="238" width="276" height="12" rx="6" fill="#21262d"/>
-  <rect x="562" y="238" width="32" height="12" rx="6" fill="url(#greenGrad)">
-    <animate attributeName="width" values="160;28;28;160" keyTimes="0;0.35;0.82;1" dur="4.4s" repeatCount="indefinite"/>
-  </rect>
-
-  <!-- FOOTER COMPATIBILITY PILLS -->
-  <g font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="11.5" font-weight="600" fill="#c9d1d9">
-    <rect x="24" y="292" width="106" height="28" rx="8" fill="#161b22" stroke="#30363d"/>
-    <text x="77" y="310" text-anchor="middle">Claude Code</text>
-
-    <rect x="140" y="292" width="76" height="28" rx="8" fill="#161b22" stroke="#30363d"/>
-    <text x="178" y="310" text-anchor="middle">Cursor</text>
-
-    <rect x="226" y="292" width="122" height="28" rx="8" fill="#161b22" stroke="#30363d"/>
-    <text x="287" y="310" text-anchor="middle">Codex / ChatGPT</text>
-
-    <rect x="358" y="292" width="104" height="28" rx="8" fill="#161b22" stroke="#30363d"/>
-    <text x="410" y="310" text-anchor="middle">Antigravity</text>
-
-    <rect x="472" y="292" width="214" height="28" rx="8" fill="#161b22" stroke="#30363d"/>
-    <text x="579" y="310" text-anchor="middle" fill="#8b949e">TS · JS · Py · Rs · Go · C++ · HTML</text>
-
-    <rect x="696" y="292" width="160" height="28" rx="8" fill="#0f2a1d" stroke="#238636" stroke-opacity="0.7"/>
-    <text x="776" y="310" text-anchor="middle" fill="#7ee787">Zero Required Deps</text>
-  </g>
-</svg>
+        <text x="628" y="214" font-family="-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-serif" font-size="11" fill="#b2beb8">Context used</text>
+        <text x="940" y="214" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="10.5" font-weight="700" fill="#34d399">3% used, 91% saved</text>
+        <rect x="628" y="224" width="312" height="10" rx="5" fill="#1e2622"/>
+        <rect x="628" y="224" width="36" height="10" rx="5" fill="#34d399">
+          <animate attributeName="width" values="72;28;28;72" keyTimes="0;0.35;0.85;1" dur="4.2s" repeatCount="indefinite"/>
+        </rect>
+        <text x="628" y="252" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="9.8" fill="#7d8a83">.ignore, .contextignore, .jcodemunch.jsonc synced</text>
+      </svg>

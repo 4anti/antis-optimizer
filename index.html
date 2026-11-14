@@ -1,0 +1,1666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>antis-optimizer: Stop AI coding agents from wasting tokens</title>
+  <meta name="description" content="Audit bloated repos in seconds, sync ignore rules across Claude Code, Cursor, Codex, and Antigravity, and slice exact symbol line ranges under a 3.5 KB cap." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+  <style>
+/* Hallmark · shape: Tool Showcase / Live CLI Session (from bloat audit to verified lines) · genre: modern-minimal · theme: Obsidian Terminal · posture: Restrained · axes: obsidian/emerald/geist+mono */
+    :root {
+      color-scheme: dark;
+
+      /* Surfaces: Obsidian with subtle emerald anchor tint */
+      --color-paper: oklch(11.5% 0.008 162);
+      --color-paper-2: oklch(14.8% 0.010 162);
+      --color-paper-3: oklch(18.2% 0.012 162);
+      --color-paper-4: oklch(22.5% 0.014 162);
+      --color-rule: oklch(28% 0.016 162);
+      --color-hairline: oklch(21.5% 0.012 162);
+
+      /* Ink & signals */
+      --color-ink: oklch(96% 0.006 162);
+      --color-ink-2: oklch(78% 0.010 162);
+      --color-muted: oklch(65% 0.012 162);
+      --color-accent: oklch(78% 0.165 162);
+      --color-accent-ink: oklch(12% 0.020 162);
+      --color-accent-bg: oklch(21% 0.055 162);
+      --color-accent-rule: oklch(45% 0.115 162);
+      --color-warn: oklch(79% 0.155 72);
+      --color-warn-bg: oklch(21% 0.048 65);
+      --color-warn-rule: oklch(45% 0.115 65);
+      --color-focus: oklch(82% 0.175 162);
+
+      /* Ghostty macOS window chrome literals tokenized */
+      --color-chrome-top: oklch(17.5% 0.011 162);
+      --color-chrome-bot: oklch(15% 0.010 162);
+      --color-specular: oklch(34% 0.015 162);
+      --color-dot-red: oklch(65% 0.21 25);
+      --color-dot-yellow: oklch(80% 0.16 82);
+      --color-dot-green: oklch(73% 0.19 145);
+
+      /* Typography */
+      --font-display: "Geist", "Plus Jakarta Sans", sans-serif;
+      --font-body: "Geist", "Plus Jakarta Sans", sans-serif;
+      --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+      --text-sm: 0.875rem;
+      --text-md: 1rem;
+      --text-lead: clamp(1.0625rem, 0.35vw + 0.95rem, 1.25rem);
+      --text-title: clamp(1.25rem, 0.7vw + 1rem, 1.5rem);
+      --text-section: clamp(2.125rem, 2.2vw + 1.25rem, 3rem);
+      --text-display-s: clamp(2.25rem, 3.2vw + 1rem, 3.5rem);
+      --text-display: clamp(2.5rem, 3.8vw + 1rem, 4.125rem);
+
+      /* Spacing scale (strict multiples of 4px) */
+      --space-3xs: 2px;
+      --space-2xs: 4px;
+      --space-xs: 8px;
+      --space-sm: 12px;
+      --space-md: 16px;
+      --space-lg: 24px;
+      --space-xl: 40px;
+      --space-2xl: 64px;
+      --space-3xl: 96px;
+      --gap-columns: 32px;
+
+      --container: 1200px;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+      --radius-xl: 16px;
+
+      --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+      --dur-micro: 120ms;
+      --dur-short: 220ms;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; overflow-x: clip; scroll-behavior: smooth; }
+    html { scrollbar-color: var(--color-rule) var(--color-paper); }
+    body {
+      background: var(--color-paper);
+      color: var(--color-ink);
+      font-family: var(--font-body);
+      font-size: var(--text-md);
+      font-weight: 400;
+      line-height: 1.55;
+      text-wrap: pretty;
+      font-synthesis: none;
+      -webkit-font-smoothing: antialiased;
+    }
+    ::selection { background: var(--color-accent-bg); color: var(--color-ink); }
+    a { color: inherit; text-decoration: none; }
+    button { font: inherit; color: inherit; cursor: pointer; background: none; border: none; }
+    h1, h2, h3 { margin: 0; text-wrap: balance; font-family: var(--font-display); }
+    p { margin: 0; }
+    ul { margin: 0; padding: 0; list-style: none; }
+    code, pre { font-family: var(--font-mono); }
+
+    :focus-visible {
+      outline: 2px solid var(--color-focus);
+      outline-offset: 2px;
+    }
+
+    .skip-link {
+      position: absolute;
+      left: var(--space-md);
+      top: -120px;
+      z-index: 500;
+      padding: var(--space-xs) var(--space-md);
+      border-radius: var(--radius-md);
+      background: var(--color-accent);
+      color: var(--color-accent-ink);
+      font-weight: 700;
+    }
+    .skip-link:focus-visible { top: var(--space-md); }
+
+    .wrap {
+      width: 100%;
+      max-width: var(--container);
+      margin: 0 auto;
+      padding-inline: var(--space-lg);
+    }
+
+    /* Sticky Solid Header */
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 300;
+      background: var(--color-paper);
+      border-bottom: 1px solid var(--color-hairline);
+    }
+    .topbar-inner {
+      min-height: var(--space-2xl);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-md);
+    }
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-sm);
+      font-family: var(--font-mono);
+      font-size: var(--text-md);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--color-ink);
+    }
+    .brand-mark {
+      width: var(--space-lg);
+      height: var(--space-lg);
+      border-radius: var(--radius-md);
+      background: var(--color-paper-2);
+      border: 1px solid var(--color-rule);
+      display: grid;
+      place-items: center;
+      flex-shrink: 0;
+    }
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: var(--space-lg);
+      font-size: var(--text-sm);
+      color: var(--color-ink-2);
+    }
+    .nav-links a {
+      padding: var(--space-2xs) var(--space-xs);
+      border-radius: var(--radius-md);
+      transition: color var(--dur-micro) var(--ease-out);
+    }
+    .nav-links a:hover { color: var(--color-accent); }
+    .nav-links a:active { color: var(--color-ink); }
+
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: var(--space-xs);
+    }
+
+    /* Controls & Interactive States */
+    .ctrl-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-xs);
+      min-height: 40px;
+      padding: 0 var(--space-md);
+      border-radius: var(--radius-md);
+      background: var(--color-paper-2);
+      border: 1px solid var(--color-rule);
+      color: var(--color-ink-2);
+      font-size: var(--text-sm);
+      font-weight: 500;
+      white-space: nowrap;
+      transition: background-color var(--dur-micro) var(--ease-out), border-color var(--dur-micro) var(--ease-out), color var(--dur-micro) var(--ease-out);
+    }
+    .ctrl-btn:hover {
+      background: var(--color-paper-3);
+      border-color: var(--color-specular);
+      color: var(--color-ink);
+    }
+    .ctrl-btn:active { background: var(--color-paper-4); }
+    .ctrl-btn:disabled, .ctrl-btn[aria-disabled="true"] {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .ctrl-btn.is-active {
+      background: var(--color-accent-bg);
+      border-color: var(--color-accent-rule);
+      color: var(--color-accent);
+    }
+    .ctrl-btn--primary {
+      background: var(--color-accent);
+      border-color: var(--color-accent);
+      color: var(--color-accent-ink);
+      font-weight: 700;
+    }
+    .ctrl-btn--primary:hover {
+      background: var(--color-ink);
+      border-color: var(--color-ink);
+      color: var(--color-accent-ink);
+    }
+    .ctrl-dot {
+      width: var(--space-xs);
+      height: var(--space-xs);
+      border-radius: 999px;
+      background: var(--color-accent);
+      flex-shrink: 0;
+    }
+
+    /* Sections & Cadence */
+    .sec { padding-block: var(--space-3xl); }
+    .sec--compact { padding-block: var(--space-2xl); }
+    .sec--band {
+      background: var(--color-paper-2);
+      color: var(--color-ink);
+      border-block: 1px solid var(--color-hairline);
+    }
+    .sec-head {
+      display: grid;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      column-gap: var(--gap-columns);
+      row-gap: var(--space-md);
+      align-items: end;
+      margin-bottom: var(--space-xl);
+    }
+    .sec-title {
+      grid-column: 1 / span 7;
+      font-size: var(--text-section);
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      line-height: 1.08;
+      color: var(--color-ink);
+      max-width: 24ch;
+    }
+    .sec-copy {
+      grid-column: 8 / span 5;
+      color: var(--color-ink-2);
+      font-size: var(--text-md);
+      line-height: 1.55;
+    }
+    .sec-head--stack .sec-title { grid-column: 1 / span 8; max-width: 28ch; }
+    .sec-head--stack .sec-copy { grid-column: 1 / span 7; margin-top: var(--space-xs); }
+    .sec-head--ctrl .sec-title { grid-column: 1 / span 7; }
+    .sec-head--ctrl .ctrl-group { grid-column: 8 / span 5; justify-content: flex-end; }
+    .sec-head--ctrl .sec-copy { grid-column: 1 / span 7; margin-top: var(--space-xs); }
+
+    /* Hero Layouts (M1 / M2 / M3) */
+    .hero-wrap { padding-block: var(--space-xl) var(--space-2xl); }
+    .hero-h1 {
+      font-weight: 700;
+      letter-spacing: -0.035em;
+      line-height: 1.05;
+      color: var(--color-ink);
+    }
+    .hero-p {
+      margin-top: var(--space-md);
+      color: var(--color-ink-2);
+      font-size: var(--text-lead);
+      line-height: 1.5;
+      max-width: 52ch;
+    }
+    .cta-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-sm);
+      margin-top: var(--space-lg);
+      min-width: 0;
+      max-width: 100%;
+    }
+    .cmd-copy-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-sm);
+      min-height: 48px;
+      max-width: 100%;
+      padding: 0 var(--space-md);
+      border-radius: var(--radius-md);
+      background: var(--color-paper-2);
+      border: 1px solid var(--color-rule);
+      font-family: var(--font-mono);
+      font-size: var(--text-sm);
+      color: var(--color-ink);
+      transition: border-color var(--dur-micro) var(--ease-out), background-color var(--dur-micro) var(--ease-out);
+    }
+    .cmd-copy-btn:hover {
+      background: var(--color-paper-3);
+      border-color: var(--color-accent-rule);
+    }
+    .cmd-copy-btn:active { background: var(--color-paper-4); }
+    .cmd-copy-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .cmd-copy-btn .prompt { color: var(--color-accent); font-weight: 700; }
+    .cmd-copy-btn .copy-state {
+      padding: var(--space-2xs) var(--space-xs);
+      border-radius: var(--space-2xs);
+      background: var(--color-paper-3);
+      border: 1px solid var(--color-hairline);
+      font-family: var(--font-body);
+      font-size: var(--text-sm);
+      color: var(--color-ink-2);
+    }
+
+    /* M1 Centered Stage: calibrated for 1280x800 single-screen fold */
+    .m1-wrap {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      justify-items: center;
+      text-align: center;
+      gap: var(--space-lg);
+    }
+    .m1-head {
+      width: 100%;
+      max-width: 700px;
+      min-width: 0;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      justify-items: center;
+    }
+    .m1-head .hero-h1 { font-size: clamp(2rem, 3.6vw + 0.5rem, 3.625rem); max-width: 18ch; }
+    .m1-head .cta-row { justify-content: center; margin-top: var(--space-md); }
+    .m1-term { width: 100%; max-width: 840px; min-width: 0; }
+
+    /* M2 Asymmetric Editorial Split */
+    .m2-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+      column-gap: var(--gap-columns);
+      row-gap: var(--space-xl);
+      align-items: center;
+      padding-block: var(--space-lg);
+    }
+    .m2-grid .hero-h1 { font-size: var(--text-display-s); max-width: 16ch; }
+    .m2-points {
+      margin-top: var(--space-lg);
+      display: grid;
+      gap: var(--space-sm);
+      color: var(--color-ink-2);
+      font-size: var(--text-md);
+    }
+    .m2-points li {
+      display: flex;
+      align-items: baseline;
+      gap: var(--space-sm);
+    }
+    .m2-points .chk { color: var(--color-accent); font-weight: 700; flex-shrink: 0; }
+
+    /* M3 Crisp Documentation Header */
+    .m3-head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: var(--space-lg);
+      padding-bottom: var(--space-md);
+      margin-bottom: var(--space-md);
+      border-bottom: 1px solid var(--color-hairline);
+    }
+    .m3-head > div:first-child { min-width: 0; max-width: 100%; }
+    .m3-head .hero-h1 { font-size: clamp(2rem, 2.8vw + 0.5rem, 3rem); max-width: 22ch; }
+    .m3-head .hero-p { margin-top: var(--space-xs); }
+    .m3-head .cta-row { margin-top: var(--space-md); }
+    .m3-facts {
+      display: grid;
+      grid-template-columns: repeat(3, auto);
+      gap: var(--space-lg);
+      padding-left: var(--space-lg);
+      border-left: 1px solid var(--color-rule);
+    }
+    .m3-fact-val {
+      display: block;
+      font-family: var(--font-mono);
+      font-variant-numeric: tabular-nums;
+      font-size: var(--text-title);
+      font-weight: 700;
+      color: var(--color-accent);
+    }
+    .m3-fact-key {
+      display: block;
+      font-size: var(--text-sm);
+      color: var(--color-ink-2);
+    }
+    .m3-term { width: 100%; max-width: 780px; }
+
+    /* SVG Container & Playback Strip */
+    .svg-box svg { width: 100%; height: auto; display: block; }
+    .term-controls {
+      margin-top: var(--space-sm);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-sm);
+      padding-inline: var(--space-xs);
+    }
+    .ctrl-group { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-xs); }
+    .seek-label {
+      font-size: var(--text-sm);
+      color: var(--color-muted);
+      margin-right: var(--space-2xs);
+    }
+    .mini-btn {
+      min-height: 36px;
+      padding: var(--space-2xs) var(--space-sm);
+      border-radius: var(--radius-md);
+      background: var(--color-paper-2);
+      border: 1px solid var(--color-hairline);
+      color: var(--color-ink-2);
+      font-family: var(--font-mono);
+      font-size: var(--text-sm);
+      transition: color var(--dur-micro) var(--ease-out), border-color var(--dur-micro) var(--ease-out), background-color var(--dur-micro) var(--ease-out);
+    }
+    .mini-btn:hover {
+      background: var(--color-paper-3);
+      color: var(--color-ink);
+      border-color: var(--color-rule);
+    }
+    .mini-btn:active { background: var(--color-paper-4); }
+    .mini-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* wc / du Style Bare Telemetry Strip (No Cards) */
+    .telemetry-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 0;
+    }
+    .telemetry-cell {
+      padding-inline: var(--space-lg);
+      display: grid;
+      gap: var(--space-xs);
+    }
+    .telemetry-cell:first-child { padding-left: 0; }
+    .telemetry-cell:last-child { padding-right: 0; }
+    .telemetry-cell + .telemetry-cell { border-left: 1px solid var(--color-rule); }
+    .telemetry-val {
+      font-family: var(--font-mono);
+      font-variant-numeric: tabular-nums;
+      font-size: var(--text-display-s);
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      line-height: 1.05;
+      color: var(--color-ink);
+    }
+    .telemetry-val.is-accent { color: var(--color-accent); }
+    .telemetry-comment {
+      font-family: var(--font-mono);
+      font-size: var(--text-sm);
+      color: var(--color-muted);
+    }
+
+    /* Interactive Unified Diff Context Simulator (Zero Nested Cards) */
+    .diff-well {
+      background: var(--color-paper-2);
+      color: var(--color-ink);
+      border: 1px solid var(--color-rule);
+      border-radius: var(--radius-xl);
+      overflow: hidden;
+    }
+    .diff-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-md);
+      padding: var(--space-lg);
+      background: var(--color-paper-3);
+      border-bottom: 1px solid var(--color-hairline);
+    }
+    .seg-toggle {
+      display: inline-flex;
+      padding: var(--space-2xs);
+      border-radius: var(--radius-md);
+      background: var(--color-paper);
+      border: 1px solid var(--color-rule);
+      gap: var(--space-2xs);
+    }
+    .seg-btn {
+      min-height: 36px;
+      padding: 0 var(--space-md);
+      border-radius: var(--space-2xs);
+      font-size: var(--text-sm);
+      font-weight: 500;
+      color: var(--color-ink-2);
+      transition: background-color var(--dur-micro) var(--ease-out), color var(--dur-micro) var(--ease-out);
+    }
+    .seg-btn:hover { color: var(--color-ink); }
+    .seg-btn:active { background: var(--color-paper-3); }
+    .seg-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .seg-btn.is-before {
+      background: var(--color-warn-bg);
+      color: var(--color-warn);
+      font-weight: 700;
+    }
+    .seg-btn.is-after {
+      background: var(--color-accent-bg);
+      color: var(--color-accent);
+      font-weight: 700;
+    }
+
+    .sim-readout {
+      display: flex;
+      align-items: baseline;
+      gap: var(--space-sm);
+    }
+    .sim-num {
+      font-family: var(--font-mono);
+      font-variant-numeric: tabular-nums;
+      font-size: var(--text-title);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--color-accent);
+    }
+    .sim-summary {
+      font-size: var(--text-sm);
+      color: var(--color-ink-2);
+    }
+
+    .meter-track {
+      height: var(--space-xs);
+      background: var(--color-paper);
+      border-bottom: 1px solid var(--color-hairline);
+      overflow: hidden;
+    }
+    .meter-fill {
+      width: 100%;
+      height: 100%;
+      transform-origin: left center;
+      transform: scaleX(0.03);
+      background: var(--color-accent);
+      transition: transform 320ms var(--ease-out), background-color 200ms var(--ease-out);
+    }
+
+    .diff-pre {
+      margin: 0;
+      padding: var(--space-lg);
+      font-family: var(--font-mono);
+      font-size: var(--text-sm);
+      line-height: 1.75;
+      overflow-x: auto;
+    }
+    .diff-line {
+      display: grid;
+      grid-template-columns: 24px minmax(260px, 1.3fr) minmax(180px, 1fr);
+      gap: var(--space-md);
+      padding: var(--space-xs) var(--space-sm);
+      border-radius: var(--space-2xs);
+      align-items: baseline;
+    }
+    .diff-line.is-header {
+      color: var(--color-muted);
+      padding-bottom: var(--space-sm);
+      margin-bottom: var(--space-xs);
+      border-bottom: 1px solid var(--color-hairline);
+    }
+    .diff-line.is-del {
+      background: var(--color-warn-bg);
+      color: var(--color-warn);
+    }
+    .diff-line.is-add {
+      background: var(--color-accent-bg);
+      color: var(--color-accent);
+    }
+    .diff-line.is-dim {
+      background: transparent;
+      color: var(--color-muted);
+    }
+    .diff-path { color: var(--color-ink); font-weight: 500; }
+    .diff-line.is-dim .diff-path { color: var(--color-muted); font-weight: 400; }
+    .diff-detail { text-align: right; font-variant-numeric: tabular-nums; }
+
+    /* Impact Table (High-Contrast Headers, Sentence Case) */
+    .table-wrap {
+      overflow-x: auto;
+      border-top: 1px solid var(--color-ink-2);
+      border-bottom: 1px solid var(--color-rule);
+    }
+    table.impact-tbl {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: var(--text-md);
+    }
+    .impact-tbl th {
+      padding: var(--space-md) var(--space-md) var(--space-md) 0;
+      border-bottom: 1px solid var(--color-rule);
+      font-family: var(--font-body);
+      font-size: var(--text-sm);
+      font-weight: 500;
+      color: var(--color-ink-2);
+    }
+    .impact-tbl th:last-child { padding-right: 0; text-align: right; }
+    .impact-tbl td {
+      padding: var(--space-lg) var(--space-md) var(--space-lg) 0;
+      border-bottom: 1px solid var(--color-hairline);
+      color: var(--color-ink-2);
+      vertical-align: top;
+    }
+    .impact-tbl td:last-child { padding-right: 0; }
+    .impact-tbl tr:last-child td { border-bottom: none; }
+    .impact-tbl td.task { color: var(--color-ink); font-weight: 700; }
+    .impact-tbl td.saved {
+      font-family: var(--font-mono);
+      font-variant-numeric: tabular-nums;
+      font-weight: 700;
+      color: var(--color-accent);
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    /* Man-Page CLI Synopsis Rows (Replaces 6-Card Grid) */
+    .man-block {
+      margin-top: var(--space-3xl);
+      display: grid;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      column-gap: var(--gap-columns);
+      row-gap: var(--space-xl);
+      align-items: start;
+    }
+    .man-aside {
+      grid-column: 1 / span 4;
+      display: grid;
+      gap: var(--space-sm);
+    }
+    .man-aside h3 {
+      font-size: var(--text-title);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--color-ink);
+    }
+    .man-aside p {
+      font-size: var(--text-md);
+      color: var(--color-ink-2);
+    }
+    .man-rows {
+      grid-column: 5 / span 8;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      border-top: 1px solid var(--color-ink-2);
+    }
+    .man-rows li {
+      display: grid;
+      grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+      column-gap: var(--gap-columns);
+      row-gap: var(--space-sm);
+      align-items: baseline;
+      padding-block: var(--space-md);
+      border-bottom: 1px solid var(--color-hairline);
+    }
+    .man-cmd {
+      font-family: var(--font-mono);
+      font-size: var(--text-md);
+      font-weight: 500;
+      color: var(--color-ink);
+    }
+    .man-cmd .arg { color: var(--color-accent); }
+    .man-desc {
+      font-size: var(--text-md);
+      color: var(--color-ink-2);
+    }
+
+    /* Closing Setup Band */
+    .install-grid {
+      display: grid;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      column-gap: var(--gap-columns);
+      row-gap: var(--space-xl);
+      align-items: center;
+    }
+    .install-head {
+      grid-column: 1 / span 5;
+      display: grid;
+      gap: var(--space-sm);
+    }
+    .install-head h2 {
+      font-size: var(--text-section);
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      line-height: 1.08;
+      color: var(--color-ink);
+    }
+    .install-head p { color: var(--color-ink-2); }
+    .install-panel {
+      grid-column: 6 / span 7;
+      display: grid;
+      gap: var(--space-md);
+    }
+    .code-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-md);
+      padding: var(--space-sm) var(--space-md);
+      border-radius: var(--radius-lg);
+      background: var(--color-paper);
+      color: var(--color-ink);
+      border: 1px solid var(--color-rule);
+      font-family: var(--font-mono);
+      font-size: var(--text-sm);
+      overflow: hidden;
+    }
+    .code-bar code {
+      flex: 1;
+      min-width: 0;
+      overflow-x: auto;
+      white-space: nowrap;
+      padding-block: var(--space-2xs);
+      scrollbar-width: none;
+    }
+    .code-bar code::-webkit-scrollbar { display: none; }
+
+    /* Footer Colophon */
+    footer {
+      padding-block: var(--space-xl) var(--space-2xl);
+      border-top: 1px solid var(--color-hairline);
+      color: var(--color-muted);
+      font-size: var(--text-sm);
+    }
+    .footer-inner {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-md);
+    }
+    .footer-meta {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-lg);
+    }
+    .footer-meta strong { color: var(--color-ink); font-weight: 700; }
+
+    @media (max-width: 960px) {
+      .sec-head, .man-block, .install-grid, .m2-grid {
+        grid-template-columns: minmax(0, 1fr);
+      }
+      .sec-title, .sec-copy, .sec-head--ctrl .ctrl-group,
+      .man-aside, .man-rows, .install-head, .install-panel {
+        grid-column: 1 / -1;
+      }
+      .sec-head--ctrl .ctrl-group { justify-content: flex-start; }
+      .telemetry-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        row-gap: var(--space-lg);
+      }
+      .telemetry-cell:nth-child(3) { padding-left: 0; border-left: none; }
+      .m3-facts { padding-left: 0; border-left: none; }
+      .diff-line { grid-template-columns: 20px minmax(0, 1fr); }
+      .diff-detail { grid-column: 2; text-align: left; }
+    }
+
+    @media (max-width: 640px) {
+      .wrap { padding-inline: var(--space-md); }
+      .nav-links, .hide-sm { display: none; }
+      .brand { font-size: var(--text-sm); gap: var(--space-xs); white-space: nowrap; }
+      .nav-actions .ctrl-btn { min-height: 36px; padding: 0 var(--space-sm); font-size: var(--text-sm); }
+      .cmd-copy-btn { width: 100%; max-width: 100%; justify-content: space-between; }
+      .cmd-copy-btn > span:nth-child(2) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .sec { padding-block: var(--space-2xl); }
+      .telemetry-grid, .m3-facts, .man-rows li { grid-template-columns: minmax(0, 1fr); }
+      .telemetry-cell { padding-inline: 0; border-left: none !important; padding-top: var(--space-md); border-top: 1px solid var(--color-hairline); }
+      .telemetry-cell:first-child { border-top: none; padding-top: 0; }
+      .man-rows li { gap: var(--space-xs); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html, body { scroll-behavior: auto; }
+      .meter-fill, .ctrl-btn, .cmd-copy-btn, .mini-btn, .seg-btn { transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="topbar">
+    <div class="wrap topbar-inner">
+      <a href="#main" class="brand">
+        <span class="brand-mark" aria-hidden="true">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+            <path d="M9.5 1.5L3.5 9H8L6.5 14.5L12.5 7H8L9.5 1.5Z" fill="#34d399"/>
+          </svg>
+        </span>
+        <span>antis-optimizer</span>
+      </a>
+
+      <nav class="nav-links" aria-label="Primary">
+        <a href="#simulator">Diff simulator</a>
+        <a href="#architecture">Token funnel</a>
+        <a href="#workflow">Workflow</a>
+        <a href="#impact">Commands</a>
+        <a href="#install">Setup</a>
+      </nav>
+
+      <div class="nav-actions">
+        <button id="cycleLayoutBtn" type="button" class="ctrl-btn is-active" title="Switch hero composition (rotates randomly across M1, M2, M3 on reload)">
+          <span class="ctrl-dot" aria-hidden="true"></span>
+          <span id="layoutBadge">M1 Linear Noir</span>
+        </button>
+        <a href="https://github.com/4anti/antis-optimizer" target="_blank" rel="noreferrer" class="ctrl-btn">GitHub</a>
+      </div>
+    </div>
+  </header>
+
+  <main id="main">
+    <!-- Section 1: Randomly Rotated Hero (M1 Linear Noir | M2 Ghostty Editorial | M3 Docs Crisp) -->
+    <section id="heroMount" aria-label="Introduction"></section>
+
+    <!-- Section 2: wc / du Style Bare Telemetry Strip -->
+    <section class="sec sec--compact sec--band" aria-label="Measured repo savings">
+      <div class="wrap">
+        <div id="telemetryGrid" class="telemetry-grid"></div>
+      </div>
+    </section>
+
+    <!-- Section 3: Interactive Unified Diff Context Simulator -->
+    <section id="simulator" class="sec">
+      <div class="wrap">
+        <div class="sec-head sec-head--ctrl">
+          <h2 class="sec-title">See what stops hitting your context.</h2>
+          <div id="repoPills" class="ctrl-group" role="group" aria-label="Repository preset"></div>
+          <p class="sec-copy">Compare raw agent exploration against bounded ignore rules and exact symbol slices across three repo shapes.</p>
+        </div>
+
+        <div class="diff-well">
+          <div class="diff-bar">
+            <div class="seg-toggle" role="group" aria-label="Context comparison mode">
+              <button id="simBeforeBtn" type="button" class="seg-btn">Raw scan</button>
+              <button id="simAfterBtn" type="button" class="seg-btn">With antis-optimizer</button>
+            </div>
+            <div class="sim-readout">
+              <span id="simTokens" class="sim-num">1,380 tokens</span>
+              <span id="simSummary" class="sim-summary"></span>
+            </div>
+          </div>
+
+          <div class="meter-track" aria-hidden="true">
+            <div id="simMeterFill" class="meter-fill"></div>
+          </div>
+
+          <div id="diffLines" class="diff-pre"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 4: Token Funnel Architecture (H2) on Elevated Paper Band -->
+    <section id="architecture" class="sec sec--band">
+      <div class="wrap">
+        <div class="sec-head sec-head--stack">
+          <h2 class="sec-title">Quarantine junk downward. Route slices straight.</h2>
+          <p class="sec-copy">One ignore contract locks out build directories, forgotten worktrees, and giant one-line JSON across Claude Code, Cursor, Codex, and Antigravity.</p>
+        </div>
+        <div id="heroDiagramMount" class="svg-box"></div>
+      </div>
+    </section>
+
+    <!-- Section 5: 4-Step Workflow (W1) -->
+    <section id="workflow" class="sec">
+      <div class="wrap">
+        <div class="sec-head">
+          <h2 class="sec-title">From bloated repo to verified line ranges.</h2>
+          <p class="sec-copy">Supports TS, JS, Python, Rust, Go, C, C++, C#, HTML, CSS, and JSON with zero required runtime packages.</p>
+        </div>
+        <div id="workflowMount" class="svg-box"></div>
+      </div>
+    </section>
+
+    <!-- Section 6: Measured Savings Table + Man-Page Command Rows -->
+    <section id="impact" class="sec">
+      <div class="wrap">
+        <div class="sec-head">
+          <h2 class="sec-title">Every command capped under 3,500 characters.</h2>
+          <p class="sec-copy">Secrets and API keys scrub out before stdout, and key or env files are always refused.</p>
+        </div>
+
+        <div class="table-wrap">
+          <table class="impact-tbl">
+            <thead>
+              <tr>
+                <th scope="col">Common agent task</th>
+                <th scope="col">Without antis-optimizer</th>
+                <th scope="col">With antis-optimizer</th>
+                <th scope="col">Saved</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="task">Searching a repo</td>
+                <td>Scans <code>dist/</code>, caches, media, worktrees (<code>35k to 120k+</code> tok)</td>
+                <td>Junk blocked across all tools (<code>~1.2k</code> tokens)</td>
+                <td class="saved">~96 to 99%</td>
+              </tr>
+              <tr>
+                <td class="task">Checking a large JSON or HTML file</td>
+                <td>Reads the full file (<code>8k to 15k</code> tokens)</td>
+                <td><code>--slice</code> pulls the target section (<code>~700</code> tokens)</td>
+                <td class="saved">~91%</td>
+              </tr>
+              <tr>
+                <td class="task">Finding a function in big files</td>
+                <td>Opens multiple source files (<code>12k+</code> tokens)</td>
+                <td><code>--outline</code> prints <code>Lstart-Lend</code> (<code>~550</code> tok)</td>
+                <td class="saved">~95%</td>
+              </tr>
+              <tr>
+                <td class="task">Running checks after edits</td>
+                <td>Dumps full logs to context (<code>2.5k to 9k</code> tokens)</td>
+                <td><code>--verify</code> prints one PASS line (<code>~35</code> tok)</td>
+                <td class="saved">~98%</td>
+              </tr>
+              <tr>
+                <td class="task">Resuming after compaction</td>
+                <td>Re-reads files from scratch (<code>15k+</code> tokens)</td>
+                <td><code>--handoff</code> saves 2 KB state (<code>~500</code> tok)</td>
+                <td class="saved">~94%</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="man-block">
+          <div class="man-aside">
+            <h3>CLI reference</h3>
+            <p>Every flag runs locally via Node 18+ or one npx command with zero install step.</p>
+          </div>
+          <ol class="man-rows">
+            <li><code class="man-cmd">--audit</code><p class="man-desc">Counts source vs junk, flags files over 15 KB, and recommends the lightest setup tier.</p></li>
+            <li><code class="man-cmd">--detect</code><p class="man-desc">Discovers installed coding agents, MCP servers, and nested worktrees.</p></li>
+            <li><code class="man-cmd">--sync-ignores <span class="arg">--write</span></code><p class="man-desc">Keeps <code>.ignore</code>, <code>.contextignore</code>, and MCP exclusions aligned in one pass.</p></li>
+            <li><code class="man-cmd">--outline <span class="arg">&lt;file&gt; [filter]</span></code><p class="man-desc">Extracts exact symbol bounds via TypeScript Compiler AST or built-in lexer.</p></li>
+            <li><code class="man-cmd">--slice <span class="arg">&lt;name&gt; [key]</span></code><p class="man-desc">Reads only one bounded symbol range or structured section under strict byte caps.</p></li>
+            <li><code class="man-cmd">--sync-landmarks <span class="arg">&amp;&amp; --verify</span></code><p class="man-desc">Auto-heals shifted doc line pointers and validates caps in one output line.</p></li>
+          </ol>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 7: Closing Paper Band Setup -->
+    <section id="install" class="sec sec--compact sec--band">
+      <div class="wrap install-grid">
+        <div class="install-head">
+          <h2>Run the audit or drop it into your agent.</h2>
+          <p id="agentDesc"></p>
+        </div>
+
+        <div class="install-panel">
+          <div id="agentTabs" class="ctrl-group" role="group" aria-label="Target agent setup"></div>
+          <div class="code-bar">
+            <code id="agentCmd"></code>
+            <button id="copyAgentBtn" type="button" class="ctrl-btn ctrl-btn--primary" style="flex-shrink:0;">Copy</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap footer-inner">
+      <div class="footer-meta">
+        <strong>antis-optimizer</strong>
+        <span>MIT License</span>
+        <span>Zero required dependencies</span>
+      </div>
+      <span id="footerRefreshNote" style="font-family:var(--font-mono);"></span>
+    </div>
+  </footer>
+
+  <script>
+    const P = {
+      win: '#101412', headerTop: '#171c19', headerBot: '#131816',
+      card: '#151b18', inset: '#0b0e0d', border: '#27312c', hairline: '#1d2521',
+      primary: '#f1f5f3', secondary: '#b2beb8', muted: '#7d8a83',
+      good: '#34d399', goodBg: '#0a291e', goodBorder: '#10b981',
+      warn: '#f59e0b', warnBg: '#291b08', warnBorder: '#d97706',
+      progressBg: '#1e2622', specular: 'rgba(220,255,238,0.08)'
+    };
+
+    const FONT_SANS = "'Geist','Plus Jakarta Sans',sans-serif";
+    const FONT_MONO = "'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace";
+
+    const LAYOUTS = {
+      M1: { id: 'M1', name: 'M1 Linear Noir' },
+      M2: { id: 'M2', name: 'M2 Ghostty Editorial' },
+      M3: { id: 'M3', name: 'M3 Docs Crisp' }
+    };
+
+    const REPOS = {
+      nextjs: {
+        label: 'Next.js App', rawTokens: 48200, optTokens: 1380, rawFiles: '1,548 files scanned', optFiles: '166 active files',
+        barRaw: 0.88, barOpt: 0.03,
+        telemetry: [
+          ['157.4 MB', '# junk directories quarantined', false],
+          ['1,380', '# tokens used instead of 48,200', true],
+          ['3.5 KB', '# strict hard cap per slice', false],
+          ['0', '# required runtime packages', false]
+        ],
+        delLines: [
+          ['.claude/worktrees/', '119.9 MB full duplicate tree read'],
+          ['dist/ & .next/static/', '18.6 MB minified bundles scanned'],
+          ['node_modules/', '142.0 MB dependency files crawled'],
+          ['src/auth.ts (1..142)', 'entire file dumped into context']
+        ],
+        addLines: [
+          ['.ignore + .contextignore', 'synced (157.4 MB blocked once)'],
+          ['src/auth.ts --outline', '4 exact symbols mapped in 0.1s'],
+          ['--slice src/auth.ts:L18-L54', '37 needed lines injected (550 tok)'],
+          ['--sync-landmarks && --verify', 'healed L18-L54 -> L24-L60 (PASS)']
+        ]
+      },
+      monorepo: {
+        label: 'TS Monorepo', rawTokens: 96400, optTokens: 2140, rawFiles: '4,820 files scanned', optFiles: '312 active files',
+        barRaw: 0.94, barOpt: 0.04,
+        telemetry: [
+          ['412.0 MB', '# workspace build bloat blocked', false],
+          ['2,140', '# tokens used instead of 96,400', true],
+          ['11', '# verified file landmarks healed', false],
+          ['98%', '# token drop per grep cycle', false]
+        ],
+        delLines: [
+          ['packages/*/dist/', '210.4 MB compiled JS artifacts read'],
+          ['.git/worktrees/', '184.0 MB parallel checkouts scanned'],
+          ['coverage/ & playwright/', '17.6 MB test report dumps read'],
+          ['packages/core/router.ts', 'all 690 lines loaded repeatedly']
+        ],
+        addLines: [
+          ['.jcodemunch.jsonc + .ignore', '412.0 MB excluded across tools'],
+          ['--map + --outline router.ts', '11 route landmarks indexed'],
+          ['--slice router:L210-L248', '39 bounded handler lines only'],
+          ['--verify --exec "npm test"', 'PASS printed in 1 concise line']
+        ]
+      },
+      rust: {
+        label: 'Rust CLI', rawTokens: 61800, optTokens: 1120, rawFiles: '980 files scanned', optFiles: '74 active files',
+        barRaw: 0.90, barOpt: 0.02,
+        telemetry: [
+          ['890.0 MB', '# target debug artifacts skipped', false],
+          ['1,120', '# tokens used instead of 61,800', true],
+          ['42 L', '# parser slice replacing 520 L', false],
+          ['0.4s', '# full audit runtime via node', false]
+        ],
+        delLines: [
+          ['target/debug/', '890.0 MB build cache traversed'],
+          ['Cargo.lock', '64 KB lockfile read during search'],
+          ['fixtures/world.json', '121 KB single-line JSON loaded'],
+          ['src/parser.rs (1..520)', 'entire module parsed as plain text']
+        ],
+        addLines: [
+          ['.ignore + .contextignore', 'target/ and Cargo.lock quarantined'],
+          ['--outline src/parser.rs', 'built-in Rust lexer symbols'],
+          ['--slice parser:L88-L129', '42 lines extracted under cap'],
+          ['--handoff state <= 2 KB', 'resume state saved without bloat']
+        ]
+      }
+    };
+
+    const AGENTS = {
+      npx: {
+        label: 'Instant npx',
+        desc: 'Zero install: run a full repo bloat audit straight from GitHub in 10 seconds.',
+        cmd: 'npx github:4anti/antis-optimizer --audit'
+      },
+      claude: {
+        label: 'Claude Code',
+        desc: 'Audit junk and lock in ignore parity across your local agent config.',
+        cmd: 'npx github:4anti/antis-optimizer --audit && npx github:4anti/antis-optimizer --sync-ignores --write'
+      },
+      cursor: {
+        label: 'Cursor',
+        desc: 'Keep .ignore, .contextignore, and MCP ignore rules synced automatically.',
+        cmd: 'npx github:4anti/antis-optimizer --sync-ignores --write && npx github:4anti/antis-optimizer --detect'
+      },
+      codex: {
+        label: 'Codex',
+        desc: 'Generate compact AGENTS.md landmarks and verify token caps in one line.',
+        cmd: 'npx github:4anti/antis-optimizer --map && npx github:4anti/antis-optimizer --verify'
+      },
+      antigravity: {
+        label: 'Antigravity',
+        desc: 'Install as a global skill so every repo task starts bounded and verified.',
+        cmd: 'git clone https://github.com/4anti/antis-optimizer.git ~/.gemini/config/skills/antis-optimizer'
+      }
+    };
+
+    function pickInitialLayout() {
+      const param = new URLSearchParams(location.search).get('layout');
+      if (LAYOUTS[param]) return param;
+      let prev = null;
+      try { prev = sessionStorage.getItem('antis_last_layout'); } catch {}
+      const pool = Object.keys(LAYOUTS).filter(k => k !== prev);
+      const chosen = pool[Math.floor(Math.random() * pool.length)];
+      try { sessionStorage.setItem('antis_last_layout', chosen); } catch {}
+      return chosen;
+    }
+
+    const state = {
+      layout: pickInitialLayout(),
+      repo: 'nextjs',
+      after: true,
+      agent: 'npx',
+      paused: window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    };
+
+    function makeTyping(text, x, charW, startFrac, endFrac) {
+      const n = text.length;
+      const totalW = +(n * charW).toFixed(1);
+      const wVals = ['0', '0'], xVals = [String(x), String(x)], times = ['0', startFrac.toFixed(4)];
+      for (let i = 1; i <= n; i++) {
+        const w = +(i * charW).toFixed(1);
+        wVals.push(String(w));
+        xVals.push(String(+(x + w + 2).toFixed(1)));
+        times.push((startFrac + ((endFrac - startFrac) * i) / n).toFixed(4));
+      }
+      wVals.push(String(totalW), '0');
+      xVals.push(String(+(x + totalW + 2).toFixed(1)), String(x));
+      times.push('0.9600', '1');
+      return { totalW, wValues: wVals.join(';'), xValues: xVals.join(';'), keyTimes: times.join(';') };
+    }
+
+    // T1 Slim Ghostty macOS Terminal
+    function svgT1() {
+      const c1 = makeTyping('npx github:4anti/antis-optimizer --audit', 164, 7.0, 0.015, 0.10);
+      const c2 = makeTyping('antis-optimizer --outline src/auth.ts', 164, 7.0, 0.28, 0.36);
+      const c3 = makeTyping('antis-optimizer --verify', 164, 7.0, 0.50, 0.56);
+      const glyphs = ['⠋','⠙','⠸','⠴','⠦','⠏'];
+      const spinner = glyphs.map((g, idx) => {
+        const vals = glyphs.map((_, j) => (j === idx ? '1' : '0')).join(';');
+        return `<text x="36" y="106" opacity="${idx === 0 ? 1 : 0}">${g}<animate attributeName="opacity" calcMode="discrete" values="${vals}" dur="0.48s" repeatCount="indefinite"/></text>`;
+      }).join('');
+      const promptTxt = `<tspan fill="${P.secondary}">~/acme-web</tspan> <tspan fill="${P.muted}">main</tspan> <tspan fill="${P.good}" font-weight="700">❯</tspan>`;
+
+      return `<svg id="mainTermSvg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 404" role="img" aria-label="antis-optimizer Ghostty terminal walkthrough">
+        <defs>
+          <linearGradient id="t1_hdr" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="${P.headerTop}"/>
+            <stop offset="100%" stop-color="${P.headerBot}"/>
+          </linearGradient>
+          <clipPath id="t1_c1"><rect x="164" y="66" height="22" width="0"><animate attributeName="width" calcMode="discrete" values="${c1.wValues}" keyTimes="${c1.keyTimes}" dur="14s" repeatCount="indefinite"/></rect></clipPath>
+          <clipPath id="t1_c2"><rect x="164" y="180" height="22" width="0"><animate attributeName="width" calcMode="discrete" values="${c2.wValues}" keyTimes="${c2.keyTimes}" dur="14s" repeatCount="indefinite"/></rect></clipPath>
+          <clipPath id="t1_c3"><rect x="164" y="294" height="22" width="0"><animate attributeName="width" calcMode="discrete" values="${c3.wValues}" keyTimes="${c3.keyTimes}" dur="14s" repeatCount="indefinite"/></rect></clipPath>
+        </defs>
+
+        <rect x="8" y="6" width="944" height="390" rx="13" fill="${P.win}" stroke="${P.border}" stroke-width="1.1"/>
+        <path d="M 21 6 H 939 A 13 13 0 0 1 952 19 V 44 H 8 V 19 A 13 13 0 0 1 21 6 Z" fill="url(#t1_hdr)"/>
+        <line x1="20" y1="7" x2="940" y2="7" stroke="${P.specular}" stroke-width="1"/>
+        <line x1="8" y1="44" x2="952" y2="44" stroke="${P.hairline}" stroke-width="1"/>
+        <circle cx="30" cy="25" r="5.5" fill="#ff5f57" stroke="#e0443e" stroke-width="0.6"/>
+        <circle cx="49" cy="25" r="5.5" fill="#febc2e" stroke="#d89e24" stroke-width="0.6"/>
+        <circle cx="68" cy="25" r="5.5" fill="#28c840" stroke="#1aab29" stroke-width="0.6"/>
+
+        <rect x="358" y="13" width="244" height="24" rx="6" fill="${P.inset}" stroke="${P.border}" stroke-width="0.9"/>
+        <text x="480" y="28.5" text-anchor="middle" font-family="${FONT_MONO}" font-size="11" font-weight="500" fill="${P.primary}">acme-web  <tspan fill="${P.muted}" font-weight="400">zsh  antis-optimizer</tspan></text>
+        <text x="932" y="28.5" text-anchor="end" font-family="${FONT_MONO}" font-size="10.2" fill="${P.good}">ts-ast</text>
+
+        <g font-family="${FONT_MONO}" font-size="11.6">
+          <animate attributeName="opacity" values="1;1;0.08;1" keyTimes="0;0.96;0.99;1" dur="14s" repeatCount="indefinite"/>
+
+          <!-- 1. AUDIT -->
+          <text x="36" y="82" textLength="119" lengthAdjust="spacing">${promptTxt}</text>
+          <text x="164" y="82" fill="${P.primary}" font-weight="600" textLength="${c1.totalW}" lengthAdjust="spacing" clip-path="url(#t1_c1)">npx github:4anti/antis-optimizer --audit</text>
+          <text x="922" y="82" text-anchor="end" font-size="10.2" fill="${P.muted}" opacity="0">0.4s<animate attributeName="opacity" values="0;0;1;1" keyTimes="0;0.158;0.168;1" dur="14s" repeatCount="indefinite"/></text>
+          <rect x="164" y="70.5" width="7.2" height="14.5" rx="1.2" fill="${P.good}">
+            <animate attributeName="x" calcMode="discrete" values="${c1.xValues}" keyTimes="${c1.keyTimes}" dur="14s" repeatCount="indefinite"/>
+            <animate attributeName="opacity" calcMode="discrete" values="1;1;0;0" keyTimes="0;0.10;0.105;1" dur="14s" repeatCount="indefinite"/>
+          </rect>
+          <g opacity="0">
+            <animate attributeName="opacity" calcMode="discrete" values="0;0;1;1;0;0" keyTimes="0;0.098;0.102;0.156;0.160;1" dur="14s" repeatCount="indefinite"/>
+            <g font-size="11.5" fill="${P.good}" font-weight="700">${spinner}</g>
+            <text x="53" y="106" font-size="11.2" fill="${P.secondary}">Scanning files, ignore rules, and byte caps...</text>
+          </g>
+          <text x="36" y="106" opacity="0"><tspan fill="${P.good}" font-weight="700">✓</tspan><tspan fill="${P.primary}"> Scanned 1,548 files -> </tspan><tspan fill="${P.good}" font-weight="700">166 active (-89.3% junk)</tspan><animate attributeName="opacity" values="0;0;1;1" keyTimes="0;0.160;0.170;1" dur="14s" repeatCount="indefinite"/></text>
+          <text x="36" y="125" opacity="0"><tspan fill="${P.muted}">├─ </tspan><tspan fill="${P.secondary}">Blocked: </tspan><tspan fill="${P.warn}" font-weight="600">157.4 MB quarantined</tspan><tspan fill="${P.muted}"> (.claude/worktrees, dist, .playwright-mcp)</tspan><animate attributeName="opacity" values="0;0;1;1" keyTimes="0;0.175;0.185;1" dur="14s" repeatCount="indefinite"/></text>
+          <text x="36" y="144" opacity="0"><tspan fill="${P.muted}">├─ </tspan><tspan fill="${P.secondary}">Large:   </tspan><tspan fill="${P.primary}">19 files &gt;= 15 KB</tspan><tspan fill="${P.muted}"> (dashboard.tsx 86 KB, world.json 121 KB)</tspan><animate attributeName="opacity" values="0;0;1;1" keyTimes="0;0.190;0.200;1" dur="14s" repeatCount="indefinite"/></text>
+          <text x="36" y="163" opacity="0"><tspan fill="${P.muted}">└─ </tspan><tspan fill="${P.secondary}">Advice:  </tspan><tspan fill="${P.good}" font-weight="600">Full Setup fits best</tspan><tspan fill="${P.muted}"> (pays off on first slice read)</tspan><animate attributeName="opacity" values="0;0;1;1" keyTimes="0;0.205;0.215;1" dur="14s" repeatCount="indefinite"/></text>
+
+          <!-- 2. OUTLINE -->
+          <g opacity="0">
+            <animate attributeName="opacity" values="0;0;1;1" keyTimes="0;0.260;0.270;1" dur="14s" repeatCount="indefinite"/>
+            <text x="36" y="196" textLength="119" lengthAdjust="spacing">${promptTxt}</text>
+            <text x="164" y="196" fill="${P.primary}" font-weight="600" textLength="${c2.totalW}" lengthAdjust="spacing" clip-path="url(#t1_c2)">antis-optimizer --outline src/auth.ts</text>
+            <text x="446" y="196" font-size="10.8" fill="${P.muted}" opacity="0"># skip reading 142 lines<animate attributeName="opacity" values="0;0;1;1" keyTimes="0;0.36;0.37;1" dur="14s" repeatCount="indefinite"/></text>
+            <text x="922" y="196" text-anchor="end" font-size="10.2" fill="${P.muted}" opacity="0">0.1s<animate attributeName="opacity" values="0;0;1;1" keyTimes="0;0.375;0.385;1" dur="14s" repeatCount="indefinite"/></text>
+          </g>
+          <rect x="164" y="184.5" width="7.2" height="14.5" rx="1.2" fill="${P.good}" opacity="0">
+            <animate attributeName="x" calcMode="discrete" values="${c2.xValues}" keyTimes="${c2.keyTimes}" dur="14s" repeatCount="indefinite"/>
+            <animate attributeName="opacity" calcMode="discrete" values="0;0;1;1;0;0" keyTimes="0;0.275;0.28;0.36;0.365;1" dur="14s" repeatCount="indefinite"/>
+          </rect>
+          <text x="36" y="220" opacity="0"><tspan fill="${P.primary}" font-weight="600">src/auth.ts</tspan><tspan fill="${P.muted}"> (142 lines, parser: typescript-ast)</tspan><animate attributeName="opacity" values="0;0;1;1" keyTimes="0;0.380;0.390;1" dur="14s" repeatCount="indefinite"/></text>
+          <text x="36" y="239" opacity="0"><tspan fill="${P.good}">L18-L54   </tspan><tspan fill="${P.muted}">export async function </tspan><tspan fill="${P.primary}" font-weight="600">verifyToken</tspan><tspan fill="${P.secondary}">(token: string)</tspan><animate attributeName="opacity" values="0;0;1;1" keyTimes="0;0.395;0.405;1" dur="14s" repeatCount="indefinite"/></text>
+          <text x="36" y="258" opacity="0"><tspan fill="${P.good}">L56-L102  </tspan><tspan fill="${P.muted}">export async function </tspan><tspan fill="${P.primary}" font-weight="600">refreshSession</tspan><tspan fill="${P.secondary}">(userId: string)</tspan><animate attributeName="opacity" values="0;0;1;1" keyTimes="0;0.410;0.420;1" dur="14s" repeatCount="indefinite"/></text>
+          <text x="36" y="277" opacity="0"><tspan fill="${P.good}">L104-L138 </tspan><tspan fill="${P.muted}">export function </tspan><tspan fill="${P.primary}" font-weight="600">revokeToken</tspan><tspan fill="${P.secondary}">(sessionId: string)</tspan><animate attributeName="opacity" values="0;0;1;1" keyTimes="0;0.425;0.435;1" dur="14s" repeatCount="indefinite"/></text>
+
+          <!-- 3. VERIFY -->
+          <g opacity="0">
+            <animate attributeName="opacity" values="0;0;1;1" keyTimes="0;0.480;0.490;1" dur="14s" repeatCount="indefinite"/>
+            <text x="36" y="310" textLength="119" lengthAdjust="spacing">${promptTxt}</text>
+            <text x="164" y="310" fill="${P.primary}" font-weight="600" textLength="${c3.totalW}" lengthAdjust="spacing" clip-path="url(#t1_c3)">antis-optimizer --verify</text>
+            <text x="922" y="310" text-anchor="end" font-size="10.2" fill="${P.muted}" opacity="0">0.2s<animate attributeName="opacity" values="0;0;1;1" keyTimes="0;0.640;0.650;1" dur="14s" repeatCount="indefinite"/></text>
+          </g>
+          <rect x="164" y="298.5" width="7.2" height="14.5" rx="1.2" fill="${P.good}" opacity="0">
+            <animate attributeName="x" calcMode="discrete" values="${c3.xValues}" keyTimes="${c3.keyTimes}" dur="14s" repeatCount="indefinite"/>
+            <animate attributeName="opacity" calcMode="discrete" values="0;0;1;1;0;0" keyTimes="0;0.495;0.50;0.56;0.565;1" dur="14s" repeatCount="indefinite"/>
+          </rect>
+          <g opacity="0">
+            <animate attributeName="opacity" calcMode="discrete" values="0;0;1;1;0;0" keyTimes="0;0.565;0.57;0.64;0.645;1" dur="14s" repeatCount="indefinite"/>
+            <rect x="36" y="330" width="210" height="5" rx="2.5" fill="${P.progressBg}"/>
+            <rect x="36" y="330" width="0" height="5" rx="2.5" fill="${P.good}">
+              <animate attributeName="width" values="0;0;210;210" keyTimes="0;0.568;0.64;1" dur="14s" repeatCount="indefinite"/>
+            </rect>
+            <text x="260" y="336" font-size="10.8" fill="${P.secondary}">Checking ignores, doc caps, and line landmarks...</text>
+          </g>
+          <g opacity="0">
+            <animate attributeName="opacity" values="0;0;1;1" keyTimes="0;0.645;0.655;1" dur="14s" repeatCount="indefinite"/>
+            <rect x="36" y="323" width="50" height="19" rx="4" fill="${P.goodBg}" stroke="${P.goodBorder}" stroke-opacity="0.7"/>
+            <text x="61" y="336" text-anchor="middle" font-size="10.5" font-weight="700" fill="${P.good}">PASS</text>
+            <text x="98" y="336" fill="${P.secondary}">ignores synced, 0 stale lines, docs &lt;= 80L</text>
+            <text x="922" y="336" text-anchor="end" font-size="10.5" fill="${P.muted}">38 tokens</text>
+          </g>
+
+          <g opacity="0">
+            <animate attributeName="opacity" values="0;0;1;1" keyTimes="0;0.67;0.68;1" dur="14s" repeatCount="indefinite"/>
+            <text x="36" y="366" textLength="119" lengthAdjust="spacing">${promptTxt}</text>
+            <rect x="164" y="354.5" width="7.5" height="14.5" rx="1.2" fill="${P.good}">
+              <animate attributeName="opacity" values="1;0;1" dur="0.9s" repeatCount="indefinite"/>
+            </rect>
+          </g>
+        </g>
+      </svg>`;
+    }
+
+    // H2 Token Funnel (Elevation by Obsidian Lightness, Zero Heavy Shadows)
+    function svgH2() {
+      return `<svg id="funnelSvg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 288" role="img" aria-label="antis-optimizer token funnel architecture">
+        <g font-family="${FONT_MONO}" font-size="11">
+          <rect x="4" y="16" width="276" height="44" rx="8" fill="${P.card}" stroke="${P.border}"/>
+          <text x="20" y="42" fill="${P.warn}">.claude/worktrees/</text>
+          <text x="264" y="42" text-anchor="end" font-size="10" fill="${P.muted}">119.9 MB</text>
+
+          <rect x="4" y="70" width="276" height="44" rx="8" fill="${P.card}" stroke="${P.border}"/>
+          <text x="20" y="96" fill="${P.warn}">dist/ and build/</text>
+          <text x="264" y="96" text-anchor="end" font-size="10" fill="${P.muted}">18.6 MB</text>
+
+          <rect x="4" y="124" width="276" height="44" rx="8" fill="${P.card}" stroke="${P.border}"/>
+          <text x="20" y="150" fill="${P.secondary}">world.json</text>
+          <text x="264" y="150" text-anchor="end" font-size="10" fill="${P.muted}">121 KB 1-line</text>
+
+          <rect x="4" y="178" width="276" height="44" rx="8" fill="${P.card}" stroke="${P.goodBorder}" stroke-opacity="0.7"/>
+          <text x="20" y="204" fill="${P.primary}" font-weight="600">src/auth.ts</text>
+          <text x="264" y="204" text-anchor="end" font-size="10" fill="${P.good}">142 lines</text>
+        </g>
+
+        <g fill="none" stroke-width="1.6">
+          <path d="M 280 38 C 328 38, 336 88, 378 88" stroke="${P.border}"/>
+          <path d="M 280 92 C 328 92, 336 101, 378 101" stroke="${P.border}"/>
+          <path d="M 280 146 C 328 146, 336 114, 378 114" stroke="${P.border}"/>
+          <path d="M 280 200 C 330 200, 338 132, 378 132" stroke="${P.good}" stroke-opacity="0.82" stroke-dasharray="5 7">
+            <animate attributeName="stroke-dashoffset" from="24" to="0" dur="1.1s" repeatCount="indefinite"/>
+          </path>
+          <path d="M 556 110 L 606 110" stroke="${P.good}" stroke-width="2" stroke-dasharray="5 8">
+            <animate attributeName="stroke-dashoffset" from="26" to="0" dur="1.1s" repeatCount="indefinite"/>
+          </path>
+          <path d="M 467 180 L 467 218" stroke="${P.warn}" stroke-dasharray="4 5" stroke-opacity="0.78">
+            <animate attributeName="stroke-dashoffset" from="18" to="0" dur="1s" repeatCount="indefinite"/>
+          </path>
+        </g>
+        <polygon points="602,105 611,110 602,115" fill="${P.good}"/>
+        <polygon points="462,214 472,214 467,222" fill="${P.warn}"/>
+
+        <rect x="378" y="46" width="178" height="134" rx="12" fill="${P.inset}" stroke="${P.border}"/>
+        <text x="467" y="74" text-anchor="middle" font-family="${FONT_MONO}" font-size="11.5" font-weight="700" fill="${P.primary}">antis-optimizer</text>
+        <line x1="398" y1="87" x2="536" y2="87" stroke="${P.hairline}"/>
+        <g font-family="${FONT_MONO}" font-size="10.2" text-anchor="middle">
+          <text x="467" y="108" fill="${P.secondary}">1. sync ignores</text>
+          <text x="467" y="129" fill="${P.good}">2. AST outline/slice</text>
+          <text x="467" y="150" fill="${P.secondary}">3. verify lines</text>
+          <text x="467" y="168" font-size="9.5" fill="${P.muted}">cap &lt;= 3.5 KB</text>
+        </g>
+
+        <rect x="378" y="222" width="178" height="46" rx="8" fill="${P.warnBg}" stroke="${P.warnBorder}" stroke-opacity="0.55"/>
+        <text x="467" y="242" text-anchor="middle" font-family="${FONT_MONO}" font-size="10.5" font-weight="700" fill="${P.warn}">-157.4 MB blocked</text>
+        <text x="467" y="258" text-anchor="middle" font-family="${FONT_MONO}" font-size="9.5" fill="${P.secondary}">1,382 junk files skipped</text>
+
+        <rect x="612" y="16" width="344" height="252" rx="12" fill="${P.inset}" stroke="${P.goodBorder}" stroke-opacity="0.55"/>
+        <rect x="628" y="32" width="90" height="20" rx="5" fill="${P.goodBg}" stroke="${P.goodBorder}" stroke-opacity="0.5"/>
+        <text x="673" y="45.5" text-anchor="middle" font-family="${FONT_MONO}" font-size="10" font-weight="700" fill="${P.good}">EXACT SLICE</text>
+        <text x="940" y="45.5" text-anchor="end" font-family="${FONT_MONO}" font-size="10" fill="${P.muted}">1.4K tokens</text>
+
+        <rect x="628" y="64" width="312" height="126" rx="8" fill="${P.card}" stroke="${P.hairline}"/>
+        <text x="640" y="84" font-family="${FONT_MONO}" font-size="10.2" font-weight="600" fill="${P.primary}">src/auth.ts</text>
+        <text x="926" y="84" text-anchor="end" font-family="${FONT_MONO}" font-size="9.8" fill="${P.good}">L18-L54 (37L)</text>
+        <line x1="628" y1="94" x2="940" y2="94" stroke="${P.hairline}"/>
+        <rect x="631" y="101" width="2.5" height="78" rx="1.2" fill="${P.good}"/>
+        <g font-family="${FONT_MONO}" font-size="10">
+          <text x="642" y="116" fill="${P.muted}">18  <tspan fill="${P.primary}">async function verifyToken(jwt) {</tspan></text>
+          <text x="642" y="134" fill="${P.muted}">19    <tspan fill="${P.secondary}">const claims = await decode(jwt);</tspan></text>
+          <text x="642" y="152" fill="${P.muted}">..    <tspan fill="${P.muted}">// only needed range injected</tspan></text>
+          <text x="642" y="170" fill="${P.muted}">54  <tspan fill="${P.good}">return claims; }</tspan></text>
+        </g>
+
+        <text x="628" y="214" font-family="${FONT_SANS}" font-size="11" fill="${P.secondary}">Context used</text>
+        <text x="940" y="214" text-anchor="end" font-family="${FONT_MONO}" font-size="10.5" font-weight="700" fill="${P.good}">3% used, 91% saved</text>
+        <rect x="628" y="224" width="312" height="10" rx="5" fill="${P.progressBg}"/>
+        <rect x="628" y="224" width="36" height="10" rx="5" fill="${P.good}">
+          <animate attributeName="width" values="72;28;28;72" keyTimes="0;0.35;0.85;1" dur="4.2s" repeatCount="indefinite"/>
+        </rect>
+        <text x="628" y="252" font-family="${FONT_MONO}" font-size="9.8" fill="${P.muted}">.ignore, .contextignore, .jcodemunch.jsonc synced</text>
+      </svg>`;
+    }
+
+    // W1 Bento 4-Step (Unified Obsidian Emerald Palette)
+    function svgW1() {
+      return `<svg id="workflowSvg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 202" role="img" aria-label="4-step workflow diagram">
+        <g fill="none" stroke-width="1.6">
+          <line x1="224" y1="100" x2="248" y2="100" stroke="${P.border}"/>
+          <line x1="466" y1="100" x2="490" y2="100" stroke="${P.border}"/>
+          <line x1="708" y1="100" x2="732" y2="100" stroke="${P.border}"/>
+          <line x1="224" y1="100" x2="248" y2="100" stroke="${P.good}" stroke-dasharray="3 5"><animate attributeName="stroke-dashoffset" from="16" to="0" dur="1s" repeatCount="indefinite"/></line>
+          <line x1="466" y1="100" x2="490" y2="100" stroke="${P.good}" stroke-dasharray="3 5"><animate attributeName="stroke-dashoffset" from="16" to="0" dur="1s" repeatCount="indefinite"/></line>
+          <line x1="708" y1="100" x2="732" y2="100" stroke="${P.good}" stroke-dasharray="3 5"><animate attributeName="stroke-dashoffset" from="16" to="0" dur="1s" repeatCount="indefinite"/></line>
+        </g>
+
+        <rect x="4" y="8" width="220" height="186" rx="12" fill="${P.win}" stroke="${P.border}">
+          <animate attributeName="stroke" values="${P.border};${P.goodBorder};${P.border};${P.border}" keyTimes="0;0.14;0.30;1" dur="8s" repeatCount="indefinite"/>
+        </rect>
+        <text x="20" y="32" font-family="${FONT_MONO}" font-size="10.5" font-weight="700" fill="${P.good}">01</text>
+        <text x="42" y="32" font-family="${FONT_SANS}" font-size="13" font-weight="700" fill="${P.primary}">Find Bloat</text>
+        <text x="20" y="54" font-family="${FONT_MONO}" font-size="10.5" fill="${P.good}">$ --audit</text>
+        <rect x="20" y="66" width="188" height="72" rx="7" fill="${P.inset}" stroke="${P.hairline}"/>
+        <g font-family="${FONT_MONO}" font-size="9.8">
+          <text x="30" y="86" fill="${P.warn}">worktrees/   119.9 MB</text>
+          <text x="30" y="104" fill="${P.secondary}">dist/         18.6 MB</text>
+          <text x="30" y="124" fill="${P.good}">active      166/1,548</text>
+        </g>
+        <text x="20" y="166" font-family="${FONT_SANS}" font-size="11" fill="${P.secondary}">Spots junk and &gt;15 KB files</text>
+
+        <rect x="248" y="8" width="218" height="186" rx="12" fill="${P.win}" stroke="${P.border}">
+          <animate attributeName="stroke" values="${P.border};${P.border};${P.goodBorder};${P.border};${P.border}" keyTimes="0;0.24;0.39;0.55;1" dur="8s" repeatCount="indefinite"/>
+        </rect>
+        <text x="264" y="32" font-family="${FONT_MONO}" font-size="10.5" font-weight="700" fill="${P.good}">02</text>
+        <text x="286" y="32" font-family="${FONT_SANS}" font-size="13" font-weight="700" fill="${P.primary}">Sync Ignores</text>
+        <text x="264" y="54" font-family="${FONT_MONO}" font-size="10.5" fill="${P.good}">$ --sync-ignores</text>
+        <rect x="264" y="66" width="186" height="72" rx="7" fill="${P.inset}" stroke="${P.hairline}"/>
+        <g font-family="${FONT_MONO}" font-size="9.8">
+          <text x="274" y="86" fill="${P.good}">✓ <tspan fill="${P.primary}">.ignore</tspan></text>
+          <text x="274" y="104" fill="${P.good}">✓ <tspan fill="${P.primary}">.contextignore</tspan></text>
+          <text x="274" y="122" fill="${P.good}">✓ <tspan fill="${P.primary}">.jcodemunch.jsonc</tspan></text>
+        </g>
+        <text x="264" y="166" font-family="${FONT_SANS}" font-size="11" fill="${P.secondary}">Mirrors rules across tools</text>
+
+        <rect x="490" y="8" width="218" height="186" rx="12" fill="${P.win}" stroke="${P.border}">
+          <animate attributeName="stroke" values="${P.border};${P.border};${P.goodBorder};${P.border};${P.border}" keyTimes="0;0.48;0.64;0.80;1" dur="8s" repeatCount="indefinite"/>
+        </rect>
+        <text x="506" y="32" font-family="${FONT_MONO}" font-size="10.5" font-weight="700" fill="${P.good}">03</text>
+        <text x="528" y="32" font-family="${FONT_SANS}" font-size="13" font-weight="700" fill="${P.primary}">Slice Lines</text>
+        <text x="506" y="54" font-family="${FONT_MONO}" font-size="10.5" fill="${P.good}">$ --outline / --slice</text>
+        <rect x="506" y="66" width="186" height="72" rx="7" fill="${P.inset}" stroke="${P.hairline}"/>
+        <g font-family="${FONT_MONO}" font-size="9.8">
+          <text x="516" y="86" fill="${P.good}">L18-L54  <tspan fill="${P.primary}">verifyToken</tspan></text>
+          <text x="516" y="104" fill="${P.muted}">L56-L102 <tspan fill="${P.secondary}">refreshUser</tspan></text>
+          <text x="516" y="122" fill="${P.muted}">L104-138 <tspan fill="${P.secondary}">revokeToken</tspan></text>
+        </g>
+        <text x="506" y="166" font-family="${FONT_SANS}" font-size="11" fill="${P.secondary}">Jumps straight to symbols</text>
+
+        <rect x="732" y="8" width="224" height="186" rx="12" fill="${P.win}" stroke="${P.border}">
+          <animate attributeName="stroke" values="${P.border};${P.border};${P.goodBorder};${P.border}" keyTimes="0;0.74;0.88;1" dur="8s" repeatCount="indefinite"/>
+        </rect>
+        <text x="748" y="32" font-family="${FONT_MONO}" font-size="10.5" font-weight="700" fill="${P.good}">04</text>
+        <text x="770" y="32" font-family="${FONT_SANS}" font-size="13" font-weight="700" fill="${P.primary}">Stay Verified</text>
+        <text x="748" y="54" font-family="${FONT_MONO}" font-size="10.5" fill="${P.good}">$ --verify</text>
+        <rect x="748" y="66" width="192" height="72" rx="7" fill="${P.inset}" stroke="${P.hairline}"/>
+        <g font-family="${FONT_MONO}" font-size="9.8">
+          <text x="758" y="87" fill="${P.muted}">L18-L54 -&gt; <tspan fill="${P.good}" font-weight="700">L24-L60</tspan></text>
+          <rect x="758" y="98" width="172" height="5" rx="2.5" fill="${P.progressBg}"/>
+          <rect x="758" y="98" width="172" height="5" rx="2.5" fill="${P.good}">
+            <animate attributeName="width" values="24;172;172;24" keyTimes="0;0.38;0.88;1" dur="4s" repeatCount="indefinite"/>
+          </rect>
+          <text x="758" y="124" font-weight="700" fill="${P.good}">PASS <tspan fill="${P.secondary}" font-weight="400">(38 tokens)</tspan></text>
+        </g>
+        <text x="748" y="166" font-family="${FONT_SANS}" font-size="11" fill="${P.secondary}">Heals shifted line ranges</text>
+      </svg>`;
+    }
+
+    function terminalControlsMarkup() {
+      return `<div class="term-controls">
+        <div class="ctrl-group">
+          <span class="seek-label">Jump:</span>
+          <button type="button" class="mini-btn" data-seek="0">Loop 0s</button>
+          <button type="button" class="mini-btn" data-seek="3.1">--audit</button>
+          <button type="button" class="mini-btn" data-seek="6.5">--outline</button>
+          <button type="button" class="mini-btn" data-seek="9.9">--verify</button>
+        </div>
+        <div class="ctrl-group">
+          <button id="replayTermBtn" type="button" class="mini-btn">Replay</button>
+          <button id="pauseTermBtn" type="button" class="mini-btn">${state.paused ? 'Play' : 'Pause'}</button>
+        </div>
+      </div>`;
+    }
+
+    function syncSvgPlayback() {
+      const svgs = [document.getElementById('mainTermSvg'), document.getElementById('funnelSvg'), document.getElementById('workflowSvg')].filter(Boolean);
+      svgs.forEach(svg => {
+        if (state.paused) {
+          if (svg.id === 'mainTermSvg' && typeof svg.setCurrentTime === 'function') svg.setCurrentTime(10.5);
+          if (typeof svg.pauseAnimations === 'function') svg.pauseAnimations();
+        } else {
+          if (typeof svg.unpauseAnimations === 'function') svg.unpauseAnimations();
+        }
+      });
+    }
+
+    function renderHero() {
+      const mount = document.getElementById('heroMount');
+      const termSvg = svgT1();
+      const controls = terminalControlsMarkup();
+      let html = '';
+
+      if (state.layout === 'M2') {
+        mount.className = 'hero-wrap';
+        html = `<div class="wrap m2-grid">
+          <div>
+            <h1 class="hero-h1">Stop AI agents burning tokens on junk.</h1>
+            <p class="hero-p">Scan repo bloat in 0.4s, lock ignores across tools, and slice exact AST ranges under 3.5 KB.</p>
+            <ul class="m2-points">
+              <li><span class="chk">+</span><span>Quarantines <code>dist/</code>, worktrees, and one-line JSON</span></li>
+              <li><span class="chk">+</span><span>Syncs <code>.ignore</code>, <code>.contextignore</code>, and MCP rules</span></li>
+              <li><span class="chk">+</span><span>Auto-heals shifted <code>file:Lstart-Lend</code> landmarks</span></li>
+            </ul>
+            <div class="cta-row">
+              <button type="button" class="cmd-copy-btn" data-copy="npx github:4anti/antis-optimizer --audit">
+                <span class="prompt">$</span>
+                <span>npx github:4anti/antis-optimizer --audit</span>
+                <span class="copy-state">Copy</span>
+              </button>
+            </div>
+          </div>
+          <div>
+            <div class="svg-box">${termSvg}</div>
+            ${controls}
+          </div>
+        </div>`;
+      } else if (state.layout === 'M3') {
+        mount.className = 'hero-wrap';
+        html = `<div class="wrap">
+          <div class="m3-head">
+            <div>
+              <h1 class="hero-h1">Precision context for coding agents.</h1>
+              <p class="hero-p">Repo auditing, ignore parity, and AST line slicing for Claude Code, Cursor, Codex, and Antigravity.</p>
+              <div class="cta-row">
+                <button type="button" class="cmd-copy-btn" data-copy="npx github:4anti/antis-optimizer --audit">
+                  <span class="prompt">$</span>
+                  <span>npx github:4anti/antis-optimizer --audit</span>
+                  <span class="copy-state">Copy</span>
+                </button>
+                <a href="#install" class="ctrl-btn">Setup guides</a>
+              </div>
+            </div>
+            <div class="m3-facts" aria-label="Core limits">
+              <div><span class="m3-fact-val">91-98%</span><span class="m3-fact-key">tokens saved</span></div>
+              <div><span class="m3-fact-val">Node 18+</span><span class="m3-fact-key">runtime</span></div>
+              <div><span class="m3-fact-val">0</span><span class="m3-fact-key">dependencies</span></div>
+            </div>
+          </div>
+          <div class="m3-term">
+            <div class="svg-box">${termSvg}</div>
+            ${controls}
+          </div>
+        </div>`;
+      } else {
+        mount.className = 'hero-wrap';
+        html = `<div class="wrap m1-wrap">
+          <div class="m1-head">
+            <h1 class="hero-h1">Precision context for AI coding agents.</h1>
+            <p class="hero-p">Quarantine build bloat everywhere, then slice only the symbol lines you need under 3.5 KB.</p>
+            <div class="cta-row">
+              <button type="button" class="cmd-copy-btn" data-copy="npx github:4anti/antis-optimizer --audit">
+                <span class="prompt">$</span>
+                <span>npx github:4anti/antis-optimizer --audit</span>
+                <span class="copy-state">Copy</span>
+              </button>
+              <a href="#simulator" class="ctrl-btn">See live diff</a>
+            </div>
+          </div>
+          <div class="m1-term">
+            <div class="svg-box">${termSvg}</div>
+            ${controls}
+          </div>
+        </div>`;
+      }
+
+      mount.innerHTML = html;
+
+      const labelParts = LAYOUTS[state.layout].name.split(' ');
+      document.getElementById('layoutBadge').innerHTML = `${labelParts[0]} <span class="hide-sm">${labelParts.slice(1).join(' ')}</span>`;
+      document.getElementById('footerRefreshNote').textContent = `Hero: ${LAYOUTS[state.layout].name} (picks across M1, M2, M3 per reload)`;
+
+      mount.querySelectorAll('[data-seek]').forEach(btn => {
+        btn.onclick = () => {
+          const svg = document.getElementById('mainTermSvg');
+          if (svg && typeof svg.setCurrentTime === 'function') svg.setCurrentTime(parseFloat(btn.dataset.seek));
+        };
+      });
+
+      const replayBtn = document.getElementById('replayTermBtn');
+      const pauseBtn = document.getElementById('pauseTermBtn');
+      if (replayBtn) {
+        replayBtn.onclick = () => {
+          state.paused = false;
+          pauseBtn.textContent = 'Pause';
+          const svg = document.getElementById('mainTermSvg');
+          if (svg && typeof svg.setCurrentTime === 'function') {
+            svg.setCurrentTime(0);
+            syncSvgPlayback();
+          }
+        };
+      }
+      if (pauseBtn) {
+        pauseBtn.onclick = () => {
+          state.paused = !state.paused;
+          pauseBtn.textContent = state.paused ? 'Play' : 'Pause';
+          syncSvgPlayback();
+        };
+      }
+
+      mount.querySelectorAll('[data-copy]').forEach(btn => {
+        btn.onclick = () => {
+          navigator.clipboard?.writeText(btn.dataset.copy).catch(() => {});
+          const tag = btn.querySelector('.copy-state');
+          if (tag) {
+            tag.textContent = 'Copied';
+            tag.style.color = 'var(--color-accent)';
+            setTimeout(() => { tag.textContent = 'Copy'; tag.style.color = ''; }, 1300);
+          }
+        };
+      });
+
+      syncSvgPlayback();
+    }
+
+    function renderTelemetry() {
+      const r = REPOS[state.repo];
+      document.getElementById('telemetryGrid').innerHTML = r.telemetry.map(([val, comment, accent]) => `
+        <div class="telemetry-cell">
+          <div class="telemetry-val ${accent ? 'is-accent' : ''}">${val}</div>
+          <div class="telemetry-comment">${comment}</div>
+        </div>
+      `).join('');
+    }
+
+    function renderSimulator() {
+      const r = REPOS[state.repo];
+      const saved = Math.round((1 - r.optTokens / r.rawTokens) * 100);
+      const scale = state.after ? r.barOpt : r.barRaw;
+      const color = state.after ? 'var(--color-accent)' : 'var(--color-warn)';
+
+      document.getElementById('repoPills').innerHTML = Object.entries(REPOS).map(([id, item]) => {
+        const on = id === state.repo;
+        return `<button type="button" data-repo="${id}" class="ctrl-btn ${on ? 'is-active' : ''}">${item.label}</button>`;
+      }).join('');
+      document.querySelectorAll('#repoPills button').forEach(b => {
+        b.onclick = () => { state.repo = b.dataset.repo; renderSimulator(); renderTelemetry(); };
+      });
+
+      document.getElementById('simBeforeBtn').className = 'seg-btn ' + (!state.after ? 'is-before' : '');
+      document.getElementById('simAfterBtn').className = 'seg-btn ' + (state.after ? 'is-after' : '');
+
+      const tokEl = document.getElementById('simTokens');
+      tokEl.textContent = `${(state.after ? r.optTokens : r.rawTokens).toLocaleString('en-US')} tokens`;
+      tokEl.style.color = color;
+      document.getElementById('simSummary').textContent = state.after
+        ? `-${saved}% (${r.optFiles})`
+        : `unfiltered (${r.rawFiles})`;
+
+      const fill = document.getElementById('simMeterFill');
+      fill.style.transform = `scaleX(${scale})`;
+      fill.style.backgroundColor = color;
+
+      const delHtml = r.delLines.map(([path, detail]) => `
+        <div class="diff-line ${!state.after ? 'is-del' : 'is-dim'}">
+          <span>-</span>
+          <span class="diff-path">${path}</span>
+          <span class="diff-detail">${detail}</span>
+        </div>
+      `).join('');
+
+      const addHtml = r.addLines.map(([path, detail]) => `
+        <div class="diff-line ${state.after ? 'is-add' : 'is-dim'}">
+          <span>+</span>
+          <span class="diff-path">${path}</span>
+          <span class="diff-detail">${detail}</span>
+        </div>
+      `).join('');
+
+      document.getElementById('diffLines').innerHTML = `
+        <div class="diff-line is-header">
+          <span>@@</span>
+          <span>--- a/raw_scan.log (${r.rawTokens.toLocaleString('en-US')} tokens)</span>
+          <span class="diff-detail">+++ b/antis_optimizer.route (${r.optTokens.toLocaleString('en-US')} tokens)</span>
+        </div>
+        ${delHtml}
+        ${addHtml}
+      `;
+    }
+
+    function renderAgents() {
+      const a = AGENTS[state.agent];
+      document.getElementById('agentTabs').innerHTML = Object.entries(AGENTS).map(([id, item]) => {
+        const on = id === state.agent;
+        return `<button type="button" data-agent="${id}" class="ctrl-btn ${on ? 'is-active' : ''}">${item.label}</button>`;
+      }).join('');
+      document.querySelectorAll('#agentTabs button').forEach(b => {
+        b.onclick = () => { state.agent = b.dataset.agent; renderAgents(); };
+      });
+      document.getElementById('agentDesc').textContent = a.desc;
+      document.getElementById('agentCmd').textContent = a.cmd;
+    }
+
+    document.getElementById('simBeforeBtn').onclick = () => { state.after = false; renderSimulator(); };
+    document.getElementById('simAfterBtn').onclick = () => { state.after = true; renderSimulator(); };
+
+    document.getElementById('copyAgentBtn').onclick = () => {
+      const cmd = AGENTS[state.agent].cmd;
+      navigator.clipboard?.writeText(cmd).catch(() => {});
+      const btn = document.getElementById('copyAgentBtn');
+      btn.textContent = 'Copied';
+      setTimeout(() => { btn.textContent = 'Copy'; }, 1300);
+    };
+
+    document.getElementById('cycleLayoutBtn').onclick = () => {
+      const pool = Object.keys(LAYOUTS).filter(k => k !== state.layout);
+      const next = pool[Math.floor(Math.random() * pool.length)];
+      state.layout = next;
+      try { sessionStorage.setItem('antis_last_layout', next); } catch {}
+      renderHero();
+    };
+
+    document.getElementById('heroDiagramMount').innerHTML = svgH2();
+    document.getElementById('workflowMount').innerHTML = svgW1();
+    renderHero();
+    renderTelemetry();
+    renderSimulator();
+    renderAgents();
+  </script>
+</body>
+</html>

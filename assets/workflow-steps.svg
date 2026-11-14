@@ -1,90 +1,70 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="880" height="216" viewBox="0 0 880 216" role="img" aria-label="How antis-optimizer works in 4 simple steps">
-  <!-- Background -->
-  <rect x="2" y="2" width="876" height="212" rx="14" fill="#0d1117" stroke="#30363d" stroke-width="1.5"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="984" height="222" viewBox="-12 -10 984 222" role="img" aria-label="4-step workflow diagram">
+  <rect x="-11" y="-9" width="982" height="220" rx="14" fill="#0d1110" stroke="#222b27" stroke-width="1"/>
+        <g fill="none" stroke-width="1.6">
+          <line x1="224" y1="100" x2="248" y2="100" stroke="#27312c"/>
+          <line x1="466" y1="100" x2="490" y2="100" stroke="#27312c"/>
+          <line x1="708" y1="100" x2="732" y2="100" stroke="#27312c"/>
+          <line x1="224" y1="100" x2="248" y2="100" stroke="#34d399" stroke-dasharray="3 5"><animate attributeName="stroke-dashoffset" from="16" to="0" dur="1s" repeatCount="indefinite"/></line>
+          <line x1="466" y1="100" x2="490" y2="100" stroke="#34d399" stroke-dasharray="3 5"><animate attributeName="stroke-dashoffset" from="16" to="0" dur="1s" repeatCount="indefinite"/></line>
+          <line x1="708" y1="100" x2="732" y2="100" stroke="#34d399" stroke-dasharray="3 5"><animate attributeName="stroke-dashoffset" from="16" to="0" dur="1s" repeatCount="indefinite"/></line>
+        </g>
 
-  <text x="26" y="32" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="13.5" font-weight="700" fill="#f0f6fc">How It Works (4 Steps)</text>
-  <text x="184" y="32" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="12" fill="#8b949e">One fast scan → cleaner searches, synced ignores, exact line reads</text>
+        <rect x="4" y="8" width="220" height="186" rx="12" fill="#101412" stroke="#27312c">
+          <animate attributeName="stroke" values="#27312c;#10b981;#27312c;#27312c" keyTimes="0;0.14;0.30;1" dur="8s" repeatCount="indefinite"/>
+        </rect>
+        <text x="20" y="32" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="10.5" font-weight="700" fill="#34d399">01</text>
+        <text x="42" y="32" font-family="-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-serif" font-size="13" font-weight="700" fill="#f1f5f3">Find Bloat</text>
+        <text x="20" y="54" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="10.5" fill="#34d399">$ --audit</text>
+        <rect x="20" y="66" width="188" height="72" rx="7" fill="#0b0e0d" stroke="#1d2521"/>
+        <g font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="9.8">
+          <text x="30" y="86" fill="#f59e0b">worktrees/   119.9 MB</text>
+          <text x="30" y="104" fill="#b2beb8">dist/         18.6 MB</text>
+          <text x="30" y="124" fill="#34d399">active      166/1,548</text>
+        </g>
+        <text x="20" y="166" font-family="-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-serif" font-size="11" fill="#b2beb8">Spots junk and &gt;15 KB files</text>
 
-  <!-- Animated connector lines between cards -->
-  <g stroke-width="2" fill="none">
-    <line x1="210" y1="122" x2="236" y2="122" stroke="#30363d"/>
-    <line x1="426" y1="122" x2="452" y2="122" stroke="#30363d"/>
-    <line x1="642" y1="122" x2="668" y2="122" stroke="#30363d"/>
+        <rect x="248" y="8" width="218" height="186" rx="12" fill="#101412" stroke="#27312c">
+          <animate attributeName="stroke" values="#27312c;#27312c;#10b981;#27312c;#27312c" keyTimes="0;0.24;0.39;0.55;1" dur="8s" repeatCount="indefinite"/>
+        </rect>
+        <text x="264" y="32" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="10.5" font-weight="700" fill="#34d399">02</text>
+        <text x="286" y="32" font-family="-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-serif" font-size="13" font-weight="700" fill="#f1f5f3">Sync Ignores</text>
+        <text x="264" y="54" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="10.5" fill="#34d399">$ --sync-ignores</text>
+        <rect x="264" y="66" width="186" height="72" rx="7" fill="#0b0e0d" stroke="#1d2521"/>
+        <g font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="9.8">
+          <text x="274" y="86" fill="#34d399">✓ <tspan fill="#f1f5f3">.ignore</tspan></text>
+          <text x="274" y="104" fill="#34d399">✓ <tspan fill="#f1f5f3">.contextignore</tspan></text>
+          <text x="274" y="122" fill="#34d399">✓ <tspan fill="#f1f5f3">.jcodemunch.jsonc</tspan></text>
+        </g>
+        <text x="264" y="166" font-family="-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-serif" font-size="11" fill="#b2beb8">Mirrors rules across tools</text>
 
-    <line x1="210" y1="122" x2="236" y2="122" stroke="#58a6ff" stroke-dasharray="4 6">
-      <animate attributeName="stroke-dashoffset" from="20" to="0" dur="1s" repeatCount="indefinite"/>
-    </line>
-    <line x1="426" y1="122" x2="452" y2="122" stroke="#58a6ff" stroke-dasharray="4 6">
-      <animate attributeName="stroke-dashoffset" from="20" to="0" dur="1s" repeatCount="indefinite"/>
-    </line>
-    <line x1="642" y1="122" x2="668" y2="122" stroke="#58a6ff" stroke-dasharray="4 6">
-      <animate attributeName="stroke-dashoffset" from="20" to="0" dur="1s" repeatCount="indefinite"/>
-    </line>
-  </g>
+        <rect x="490" y="8" width="218" height="186" rx="12" fill="#101412" stroke="#27312c">
+          <animate attributeName="stroke" values="#27312c;#27312c;#10b981;#27312c;#27312c" keyTimes="0;0.48;0.64;0.80;1" dur="8s" repeatCount="indefinite"/>
+        </rect>
+        <text x="506" y="32" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="10.5" font-weight="700" fill="#34d399">03</text>
+        <text x="528" y="32" font-family="-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-serif" font-size="13" font-weight="700" fill="#f1f5f3">Slice Lines</text>
+        <text x="506" y="54" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="10.5" fill="#34d399">$ --outline / --slice</text>
+        <rect x="506" y="66" width="186" height="72" rx="7" fill="#0b0e0d" stroke="#1d2521"/>
+        <g font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="9.8">
+          <text x="516" y="86" fill="#34d399">L18-L54  <tspan fill="#f1f5f3">verifyToken</tspan></text>
+          <text x="516" y="104" fill="#7d8a83">L56-L102 <tspan fill="#b2beb8">refreshUser</tspan></text>
+          <text x="516" y="122" fill="#7d8a83">L104-138 <tspan fill="#b2beb8">revokeToken</tspan></text>
+        </g>
+        <text x="506" y="166" font-family="-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-serif" font-size="11" fill="#b2beb8">Jumps straight to symbols</text>
 
-  <!-- Traveling light dots across steps -->
-  <circle cx="212" cy="122" r="3.5" fill="#79c0ff">
-    <animate attributeName="cx" values="212;234" dur="1.2s" repeatCount="indefinite"/>
-    <animate attributeName="opacity" values="0;1;0" dur="1.2s" repeatCount="indefinite"/>
-  </circle>
-  <circle cx="428" cy="122" r="3.5" fill="#79c0ff">
-    <animate attributeName="cx" values="428;450" begin="0.4s" dur="1.2s" repeatCount="indefinite"/>
-    <animate attributeName="opacity" values="0;1;0" begin="0.4s" dur="1.2s" repeatCount="indefinite"/>
-  </circle>
-  <circle cx="644" cy="122" r="3.5" fill="#56d364">
-    <animate attributeName="cx" values="644;666" begin="0.8s" dur="1.2s" repeatCount="indefinite"/>
-    <animate attributeName="opacity" values="0;1;0" begin="0.8s" dur="1.2s" repeatCount="indefinite"/>
-  </circle>
-
-  <!-- Step 1 -->
-  <rect x="20" y="52" width="190" height="142" rx="10" fill="#161b22" stroke="#30363d">
-    <animate attributeName="stroke" values="#30363d;#58a6ff;#30363d;#30363d" keyTimes="0;0.15;0.35;1" dur="6s" repeatCount="indefinite"/>
-  </rect>
-  <circle cx="42" cy="76" r="11" fill="#1f6feb" fill-opacity="0.25" stroke="#58a6ff"/>
-  <text x="42" y="80" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11.5" font-weight="700" fill="#79c0ff">1</text>
-  <text x="62" y="80" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="13" font-weight="700" fill="#f0f6fc">Find Bloat</text>
-  <rect x="32" y="96" width="166" height="22" rx="5" fill="#0d1117" stroke="#21262d"/>
-  <text x="42" y="111" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11" fill="#79c0ff">--audit</text>
-  <text x="32" y="140" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="11.5" fill="#c9d1d9">Spots junk folders,</text>
-  <text x="32" y="157" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="11.5" fill="#c9d1d9">huge bundles, and</text>
-  <text x="32" y="174" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="11.5" fill="#8b949e">oversized source files.</text>
-
-  <!-- Step 2 -->
-  <rect x="236" y="52" width="190" height="142" rx="10" fill="#161b22" stroke="#30363d">
-    <animate attributeName="stroke" values="#30363d;#30363d;#58a6ff;#30363d" keyTimes="0;0.25;0.42;1" dur="6s" repeatCount="indefinite"/>
-  </rect>
-  <circle cx="258" cy="76" r="11" fill="#1f6feb" fill-opacity="0.25" stroke="#58a6ff"/>
-  <text x="258" y="80" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11.5" font-weight="700" fill="#79c0ff">2</text>
-  <text x="278" y="80" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="13" font-weight="700" fill="#f0f6fc">Block Everywhere</text>
-  <rect x="248" y="96" width="166" height="22" rx="5" fill="#0d1117" stroke="#21262d"/>
-  <text x="258" y="111" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11" fill="#79c0ff">--sync-ignores</text>
-  <text x="248" y="140" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="11.5" fill="#c9d1d9">Writes one ignore list</text>
-  <text x="248" y="157" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="11.5" fill="#c9d1d9">shared across search,</text>
-  <text x="248" y="174" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="11.5" fill="#8b949e">Claude, Cursor &amp; MCPs.</text>
-
-  <!-- Step 3 -->
-  <rect x="452" y="52" width="190" height="142" rx="10" fill="#161b22" stroke="#30363d">
-    <animate attributeName="stroke" values="#30363d;#30363d;#58a6ff;#30363d" keyTimes="0;0.50;0.67;1" dur="6s" repeatCount="indefinite"/>
-  </rect>
-  <circle cx="474" cy="76" r="11" fill="#1f6feb" fill-opacity="0.25" stroke="#58a6ff"/>
-  <text x="474" y="80" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11.5" font-weight="700" fill="#79c0ff">3</text>
-  <text x="494" y="80" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="13" font-weight="700" fill="#f0f6fc">Slice Exact Lines</text>
-  <rect x="464" y="96" width="166" height="22" rx="5" fill="#0d1117" stroke="#21262d"/>
-  <text x="474" y="111" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11" fill="#79c0ff">--outline / --slice</text>
-  <text x="464" y="140" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="11.5" fill="#c9d1d9">Maps functions &amp; tags</text>
-  <text x="464" y="157" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="11.5" fill="#c9d1d9">to exact line ranges</text>
-  <text x="464" y="174" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="11.5" fill="#8b949e">(no whole-file reads).</text>
-
-  <!-- Step 4 -->
-  <rect x="668" y="52" width="190" height="142" rx="10" fill="#161b22" stroke="#30363d">
-    <animate attributeName="stroke" values="#30363d;#30363d;#3fb950;#30363d" keyTimes="0;0.75;0.90;1" dur="6s" repeatCount="indefinite"/>
-  </rect>
-  <circle cx="690" cy="76" r="11" fill="#238636" fill-opacity="0.3" stroke="#3fb950"/>
-  <text x="690" y="80" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11.5" font-weight="700" fill="#7ee787">4</text>
-  <text x="710" y="80" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="13" font-weight="700" fill="#f0f6fc">Stay Verified</text>
-  <rect x="680" y="96" width="166" height="22" rx="5" fill="#0d1117" stroke="#21262d"/>
-  <text x="690" y="111" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11" fill="#7ee787">--verify</text>
-  <text x="680" y="140" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="11.5" fill="#c9d1d9">Updates shifted line</text>
-  <text x="680" y="157" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="11.5" fill="#c9d1d9">numbers &amp; checks rules</text>
-  <text x="680" y="174" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="11.5" fill="#8b949e">with a 1-line pass.</text>
-</svg>
+        <rect x="732" y="8" width="224" height="186" rx="12" fill="#101412" stroke="#27312c">
+          <animate attributeName="stroke" values="#27312c;#27312c;#10b981;#27312c" keyTimes="0;0.74;0.88;1" dur="8s" repeatCount="indefinite"/>
+        </rect>
+        <text x="748" y="32" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="10.5" font-weight="700" fill="#34d399">04</text>
+        <text x="770" y="32" font-family="-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-serif" font-size="13" font-weight="700" fill="#f1f5f3">Stay Verified</text>
+        <text x="748" y="54" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="10.5" fill="#34d399">$ --verify</text>
+        <rect x="748" y="66" width="192" height="72" rx="7" fill="#0b0e0d" stroke="#1d2521"/>
+        <g font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="9.8">
+          <text x="758" y="87" fill="#7d8a83">L18-L54 -&gt; <tspan fill="#34d399" font-weight="700">L24-L60</tspan></text>
+          <rect x="758" y="98" width="172" height="5" rx="2.5" fill="#1e2622"/>
+          <rect x="758" y="98" width="172" height="5" rx="2.5" fill="#34d399">
+            <animate attributeName="width" values="24;172;172;24" keyTimes="0;0.38;0.88;1" dur="4s" repeatCount="indefinite"/>
+          </rect>
+          <text x="758" y="124" font-weight="700" fill="#34d399">PASS <tspan fill="#b2beb8" font-weight="400">(38 tokens)</tspan></text>
+        </g>
+        <text x="748" y="166" font-family="-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-serif" font-size="11" fill="#b2beb8">Heals shifted line ranges</text>
+      </svg>

@@ -1,77 +1,97 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="880" height="350" viewBox="0 0 880 350" role="img" aria-label="antis-optimizer animated terminal walkthrough">
-  <!-- Outer terminal frame -->
-  <rect x="2" y="2" width="876" height="346" rx="14" fill="#0d1117" stroke="#30363d" stroke-width="1.5"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="404" viewBox="0 0 960 404" role="img" aria-label="antis-optimizer Ghostty terminal walkthrough">
+        <defs>
+          <linearGradient id="t1_hdr" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="#171c19"/>
+            <stop offset="100%" stop-color="#131816"/>
+          </linearGradient>
+          <clipPath id="t1_c1"><rect x="164" y="66" height="22" width="0"><animate attributeName="width" calcMode="discrete" values="0;0;7;14;21;28;35;42;49;56;63;70;77;84;91;98;105;112;119;126;133;140;147;154;161;168;175;182;189;196;203;210;217;224;231;238;245;252;259;266;273;280;280;0" keyTimes="0;0.0150;0.0171;0.0192;0.0214;0.0235;0.0256;0.0278;0.0299;0.0320;0.0341;0.0363;0.0384;0.0405;0.0426;0.0448;0.0469;0.0490;0.0511;0.0532;0.0554;0.0575;0.0596;0.0617;0.0639;0.0660;0.0681;0.0703;0.0724;0.0745;0.0766;0.0788;0.0809;0.0830;0.0851;0.0873;0.0894;0.0915;0.0936;0.0958;0.0979;0.1000;0.9600;1" dur="14s" repeatCount="indefinite"/></rect></clipPath>
+          <clipPath id="t1_c2"><rect x="164" y="180" height="22" width="0"><animate attributeName="width" calcMode="discrete" values="0;0;7;14;21;28;35;42;49;56;63;70;77;84;91;98;105;112;119;126;133;140;147;154;161;168;175;182;189;196;203;210;217;224;231;238;245;252;259;259;0" keyTimes="0;0.2800;0.2822;0.2843;0.2865;0.2886;0.2908;0.2930;0.2951;0.2973;0.2995;0.3016;0.3038;0.3059;0.3081;0.3103;0.3124;0.3146;0.3168;0.3189;0.3211;0.3232;0.3254;0.3276;0.3297;0.3319;0.3341;0.3362;0.3384;0.3405;0.3427;0.3449;0.3470;0.3492;0.3514;0.3535;0.3557;0.3578;0.3600;0.9600;1" dur="14s" repeatCount="indefinite"/></rect></clipPath>
+          <clipPath id="t1_c3"><rect x="164" y="294" height="22" width="0"><animate attributeName="width" calcMode="discrete" values="0;0;7;14;21;28;35;42;49;56;63;70;77;84;91;98;105;112;119;126;133;140;147;154;161;168;168;0" keyTimes="0;0.5000;0.5025;0.5050;0.5075;0.5100;0.5125;0.5150;0.5175;0.5200;0.5225;0.5250;0.5275;0.5300;0.5325;0.5350;0.5375;0.5400;0.5425;0.5450;0.5475;0.5500;0.5525;0.5550;0.5575;0.5600;0.9600;1" dur="14s" repeatCount="indefinite"/></rect></clipPath>
+        </defs>
 
-  <!-- Title bar -->
-  <path d="M 16 2 H 864 A 14 14 0 0 1 878 16 V 42 H 2 V 16 A 14 14 0 0 1 16 2 Z" fill="#161b22"/>
-  <line x1="2" y1="42" x2="878" y2="42" stroke="#21262d" stroke-width="1"/>
-  <circle cx="24" cy="22" r="5.5" fill="#ff5f56"/>
-  <circle cx="42" cy="22" r="5.5" fill="#ffbd2e"/>
-  <circle cx="60" cy="22" r="5.5" fill="#27c93f"/>
-  <text x="440" y="26" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace" font-size="12" fill="#8b949e">bash — my-project (Live Demo)</text>
+        <rect x="8" y="6" width="944" height="390" rx="13" fill="#101412" stroke="#27312c" stroke-width="1.1"/>
+        <path d="M 21 6 H 939 A 13 13 0 0 1 952 19 V 44 H 8 V 19 A 13 13 0 0 1 21 6 Z" fill="url(#t1_hdr)"/>
+        <line x1="20" y1="7" x2="940" y2="7" stroke="rgba(220,255,238,0.08)" stroke-width="1"/>
+        <line x1="8" y1="44" x2="952" y2="44" stroke="#1d2521" stroke-width="1"/>
+        <circle cx="30" cy="25" r="5.5" fill="#ff5f57" stroke="#e0443e" stroke-width="0.6"/>
+        <circle cx="49" cy="25" r="5.5" fill="#febc2e" stroke="#d89e24" stroke-width="0.6"/>
+        <circle cx="68" cy="25" r="5.5" fill="#28c840" stroke="#1aab29" stroke-width="0.6"/>
 
-  <!-- Animated active-step highlight band -->
-  <rect x="18" y="54" width="844" height="106" rx="8" fill="#58a6ff" fill-opacity="0.06" stroke="#58a6ff" stroke-opacity="0.18">
-    <animate attributeName="y" values="54;54;168;168;246;246;54" keyTimes="0;0.34;0.38;0.66;0.70;0.96;1" dur="10s" repeatCount="indefinite"/>
-    <animate attributeName="height" values="106;106;72;72;82;82;106" keyTimes="0;0.34;0.38;0.66;0.70;0.96;1" dur="10s" repeatCount="indefinite"/>
-  </rect>
+        <rect x="358" y="13" width="244" height="24" rx="6" fill="#0b0e0d" stroke="#27312c" stroke-width="0.9"/>
+        <text x="480" y="28.5" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11" font-weight="500" fill="#f1f5f3">acme-web  <tspan fill="#7d8a83" font-weight="400">zsh  antis-optimizer</tspan></text>
+        <text x="932" y="28.5" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="10.2" fill="#34d399">ts-ast</text>
 
-  <!-- STEP 1: audit -->
-  <g font-family="ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace" font-size="12.5">
-    <text x="30" y="76" fill="#3fb950" font-weight="700">$</text>
-    <text x="46" y="76" fill="#f0f6fc" font-weight="600">npx github:4anti/antis-optimizer --audit</text>
+        <g font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="11.6">
+          <animate attributeName="opacity" values="1;1;0.08;1" keyTimes="0;0.96;0.99;1" dur="14s" repeatCount="indefinite"/>
 
-    <g>
-      <animate attributeName="opacity" values="1;1;0.55;0.55;1" keyTimes="0;0.35;0.42;0.94;1" dur="10s" repeatCount="indefinite"/>
-      <text x="46" y="100" fill="#8b949e">Files scanned:</text>
-      <text x="190" y="100" fill="#e6edf3">1,548 total</text>
-      <text x="292" y="100" fill="#58a6ff">→</text>
-      <text x="314" y="100" fill="#7ee787" font-weight="700">166 active files (89% junk filtered)</text>
+          <!-- 1. AUDIT -->
+          <text x="36" y="82" textLength="119" lengthAdjust="spacing"><tspan fill="#b2beb8">~/acme-web</tspan> <tspan fill="#7d8a83">main</tspan> <tspan fill="#34d399" font-weight="700">❯</tspan></text>
+          <text x="164" y="82" fill="#f1f5f3" font-weight="600" textLength="280" lengthAdjust="spacing" clip-path="url(#t1_c1)">npx github:4anti/antis-optimizer --audit</text>
+          <text x="922" y="82" text-anchor="end" font-size="10.2" fill="#7d8a83" opacity="0">0.4s<animate attributeName="opacity" values="0;0;1;1" keyTimes="0;0.158;0.168;1" dur="14s" repeatCount="indefinite"/></text>
+          <rect x="164" y="70.5" width="7.2" height="14.5" rx="1.2" fill="#34d399">
+            <animate attributeName="x" calcMode="discrete" values="164;164;173;180;187;194;201;208;215;222;229;236;243;250;257;264;271;278;285;292;299;306;313;320;327;334;341;348;355;362;369;376;383;390;397;404;411;418;425;432;439;446;446;164" keyTimes="0;0.0150;0.0171;0.0192;0.0214;0.0235;0.0256;0.0278;0.0299;0.0320;0.0341;0.0363;0.0384;0.0405;0.0426;0.0448;0.0469;0.0490;0.0511;0.0532;0.0554;0.0575;0.0596;0.0617;0.0639;0.0660;0.0681;0.0703;0.0724;0.0745;0.0766;0.0788;0.0809;0.0830;0.0851;0.0873;0.0894;0.0915;0.0936;0.0958;0.0979;0.1000;0.9600;1" dur="14s" repeatCount="indefinite"/>
+            <animate attributeName="opacity" calcMode="discrete" values="1;1;0;0" keyTimes="0;0.10;0.105;1" dur="14s" repeatCount="indefinite"/>
+          </rect>
+          <g opacity="0">
+            <animate attributeName="opacity" calcMode="discrete" values="0;0;1;1;0;0" keyTimes="0;0.098;0.102;0.156;0.160;1" dur="14s" repeatCount="indefinite"/>
+            <g font-size="11.5" fill="#34d399" font-weight="700"><text x="36" y="106" opacity="1">⠋<animate attributeName="opacity" calcMode="discrete" values="1;0;0;0;0;0" dur="0.48s" repeatCount="indefinite"/></text><text x="36" y="106" opacity="0">⠙<animate attributeName="opacity" calcMode="discrete" values="0;1;0;0;0;0" dur="0.48s" repeatCount="indefinite"/></text><text x="36" y="106" opacity="0">⠸<animate attributeName="opacity" calcMode="discrete" values="0;0;1;0;0;0" dur="0.48s" repeatCount="indefinite"/></text><text x="36" y="106" opacity="0">⠴<animate attributeName="opacity" calcMode="discrete" values="0;0;0;1;0;0" dur="0.48s" repeatCount="indefinite"/></text><text x="36" y="106" opacity="0">⠦<animate attributeName="opacity" calcMode="discrete" values="0;0;0;0;1;0" dur="0.48s" repeatCount="indefinite"/></text><text x="36" y="106" opacity="0">⠏<animate attributeName="opacity" calcMode="discrete" values="0;0;0;0;0;1" dur="0.48s" repeatCount="indefinite"/></text></g>
+            <text x="53" y="106" font-size="11.2" fill="#b2beb8">Scanning files, ignore rules, and byte caps...</text>
+          </g>
+          <text x="36" y="106" opacity="0"><tspan fill="#34d399" font-weight="700">✓</tspan><tspan fill="#f1f5f3"> Scanned 1,548 files -> </tspan><tspan fill="#34d399" font-weight="700">166 active (-89.3% junk)</tspan><animate attributeName="opacity" values="0;0;1;1" keyTimes="0;0.160;0.170;1" dur="14s" repeatCount="indefinite"/></text>
+          <text x="36" y="125" opacity="0"><tspan fill="#7d8a83">├─ </tspan><tspan fill="#b2beb8">Blocked: </tspan><tspan fill="#f59e0b" font-weight="600">157.4 MB quarantined</tspan><tspan fill="#7d8a83"> (.claude/worktrees, dist, .playwright-mcp)</tspan><animate attributeName="opacity" values="0;0;1;1" keyTimes="0;0.175;0.185;1" dur="14s" repeatCount="indefinite"/></text>
+          <text x="36" y="144" opacity="0"><tspan fill="#7d8a83">├─ </tspan><tspan fill="#b2beb8">Large:   </tspan><tspan fill="#f1f5f3">19 files &gt;= 15 KB</tspan><tspan fill="#7d8a83"> (dashboard.tsx 86 KB, world.json 121 KB)</tspan><animate attributeName="opacity" values="0;0;1;1" keyTimes="0;0.190;0.200;1" dur="14s" repeatCount="indefinite"/></text>
+          <text x="36" y="163" opacity="0"><tspan fill="#7d8a83">└─ </tspan><tspan fill="#b2beb8">Advice:  </tspan><tspan fill="#34d399" font-weight="600">Full Setup fits best</tspan><tspan fill="#7d8a83"> (pays off on first slice read)</tspan><animate attributeName="opacity" values="0;0;1;1" keyTimes="0;0.205;0.215;1" dur="14s" repeatCount="indefinite"/></text>
 
-      <text x="46" y="122" fill="#8b949e">Bloat blocked:</text>
-      <text x="190" y="122" fill="#ffa657" font-weight="600">157.4 MB quarantined</text>
-      <text x="358" y="122" fill="#8b949e">(node_modules, dist, media, worktrees)</text>
+          <!-- 2. OUTLINE -->
+          <g opacity="0">
+            <animate attributeName="opacity" values="0;0;1;1" keyTimes="0;0.260;0.270;1" dur="14s" repeatCount="indefinite"/>
+            <text x="36" y="196" textLength="119" lengthAdjust="spacing"><tspan fill="#b2beb8">~/acme-web</tspan> <tspan fill="#7d8a83">main</tspan> <tspan fill="#34d399" font-weight="700">❯</tspan></text>
+            <text x="164" y="196" fill="#f1f5f3" font-weight="600" textLength="259" lengthAdjust="spacing" clip-path="url(#t1_c2)">antis-optimizer --outline src/auth.ts</text>
+            <text x="446" y="196" font-size="10.8" fill="#7d8a83" opacity="0"># skip reading 142 lines<animate attributeName="opacity" values="0;0;1;1" keyTimes="0;0.36;0.37;1" dur="14s" repeatCount="indefinite"/></text>
+            <text x="922" y="196" text-anchor="end" font-size="10.2" fill="#7d8a83" opacity="0">0.1s<animate attributeName="opacity" values="0;0;1;1" keyTimes="0;0.375;0.385;1" dur="14s" repeatCount="indefinite"/></text>
+          </g>
+          <rect x="164" y="184.5" width="7.2" height="14.5" rx="1.2" fill="#34d399" opacity="0">
+            <animate attributeName="x" calcMode="discrete" values="164;164;173;180;187;194;201;208;215;222;229;236;243;250;257;264;271;278;285;292;299;306;313;320;327;334;341;348;355;362;369;376;383;390;397;404;411;418;425;425;164" keyTimes="0;0.2800;0.2822;0.2843;0.2865;0.2886;0.2908;0.2930;0.2951;0.2973;0.2995;0.3016;0.3038;0.3059;0.3081;0.3103;0.3124;0.3146;0.3168;0.3189;0.3211;0.3232;0.3254;0.3276;0.3297;0.3319;0.3341;0.3362;0.3384;0.3405;0.3427;0.3449;0.3470;0.3492;0.3514;0.3535;0.3557;0.3578;0.3600;0.9600;1" dur="14s" repeatCount="indefinite"/>
+            <animate attributeName="opacity" calcMode="discrete" values="0;0;1;1;0;0" keyTimes="0;0.275;0.28;0.36;0.365;1" dur="14s" repeatCount="indefinite"/>
+          </rect>
+          <text x="36" y="220" opacity="0"><tspan fill="#f1f5f3" font-weight="600">src/auth.ts</tspan><tspan fill="#7d8a83"> (142 lines, parser: typescript-ast)</tspan><animate attributeName="opacity" values="0;0;1;1" keyTimes="0;0.380;0.390;1" dur="14s" repeatCount="indefinite"/></text>
+          <text x="36" y="239" opacity="0"><tspan fill="#34d399">L18-L54   </tspan><tspan fill="#7d8a83">export async function </tspan><tspan fill="#f1f5f3" font-weight="600">verifyToken</tspan><tspan fill="#b2beb8">(token: string)</tspan><animate attributeName="opacity" values="0;0;1;1" keyTimes="0;0.395;0.405;1" dur="14s" repeatCount="indefinite"/></text>
+          <text x="36" y="258" opacity="0"><tspan fill="#34d399">L56-L102  </tspan><tspan fill="#7d8a83">export async function </tspan><tspan fill="#f1f5f3" font-weight="600">refreshSession</tspan><tspan fill="#b2beb8">(userId: string)</tspan><animate attributeName="opacity" values="0;0;1;1" keyTimes="0;0.410;0.420;1" dur="14s" repeatCount="indefinite"/></text>
+          <text x="36" y="277" opacity="0"><tspan fill="#34d399">L104-L138 </tspan><tspan fill="#7d8a83">export function </tspan><tspan fill="#f1f5f3" font-weight="600">revokeToken</tspan><tspan fill="#b2beb8">(sessionId: string)</tspan><animate attributeName="opacity" values="0;0;1;1" keyTimes="0;0.425;0.435;1" dur="14s" repeatCount="indefinite"/></text>
 
-      <text x="46" y="144" fill="#8b949e">Recommendation:</text>
-      <text x="190" y="144" fill="#79c0ff" font-weight="700">Full Setup (saves ~7,600 tokens every time you open a large file)</text>
-    </g>
+          <!-- 3. VERIFY -->
+          <g opacity="0">
+            <animate attributeName="opacity" values="0;0;1;1" keyTimes="0;0.480;0.490;1" dur="14s" repeatCount="indefinite"/>
+            <text x="36" y="310" textLength="119" lengthAdjust="spacing"><tspan fill="#b2beb8">~/acme-web</tspan> <tspan fill="#7d8a83">main</tspan> <tspan fill="#34d399" font-weight="700">❯</tspan></text>
+            <text x="164" y="310" fill="#f1f5f3" font-weight="600" textLength="168" lengthAdjust="spacing" clip-path="url(#t1_c3)">antis-optimizer --verify</text>
+            <text x="922" y="310" text-anchor="end" font-size="10.2" fill="#7d8a83" opacity="0">0.2s<animate attributeName="opacity" values="0;0;1;1" keyTimes="0;0.640;0.650;1" dur="14s" repeatCount="indefinite"/></text>
+          </g>
+          <rect x="164" y="298.5" width="7.2" height="14.5" rx="1.2" fill="#34d399" opacity="0">
+            <animate attributeName="x" calcMode="discrete" values="164;164;173;180;187;194;201;208;215;222;229;236;243;250;257;264;271;278;285;292;299;306;313;320;327;334;334;164" keyTimes="0;0.5000;0.5025;0.5050;0.5075;0.5100;0.5125;0.5150;0.5175;0.5200;0.5225;0.5250;0.5275;0.5300;0.5325;0.5350;0.5375;0.5400;0.5425;0.5450;0.5475;0.5500;0.5525;0.5550;0.5575;0.5600;0.9600;1" dur="14s" repeatCount="indefinite"/>
+            <animate attributeName="opacity" calcMode="discrete" values="0;0;1;1;0;0" keyTimes="0;0.495;0.50;0.56;0.565;1" dur="14s" repeatCount="indefinite"/>
+          </rect>
+          <g opacity="0">
+            <animate attributeName="opacity" calcMode="discrete" values="0;0;1;1;0;0" keyTimes="0;0.565;0.57;0.64;0.645;1" dur="14s" repeatCount="indefinite"/>
+            <rect x="36" y="330" width="210" height="5" rx="2.5" fill="#1e2622"/>
+            <rect x="36" y="330" width="0" height="5" rx="2.5" fill="#34d399">
+              <animate attributeName="width" values="0;0;210;210" keyTimes="0;0.568;0.64;1" dur="14s" repeatCount="indefinite"/>
+            </rect>
+            <text x="260" y="336" font-size="10.8" fill="#b2beb8">Checking ignores, doc caps, and line landmarks...</text>
+          </g>
+          <g opacity="0">
+            <animate attributeName="opacity" values="0;0;1;1" keyTimes="0;0.645;0.655;1" dur="14s" repeatCount="indefinite"/>
+            <rect x="36" y="323" width="50" height="19" rx="4" fill="#0a291e" stroke="#10b981" stroke-opacity="0.7"/>
+            <text x="61" y="336" text-anchor="middle" font-size="10.5" font-weight="700" fill="#34d399">PASS</text>
+            <text x="98" y="336" fill="#b2beb8">ignores synced, 0 stale lines, docs &lt;= 80L</text>
+            <text x="922" y="336" text-anchor="end" font-size="10.5" fill="#7d8a83">38 tokens</text>
+          </g>
 
-    <!-- STEP 2: outline -->
-    <g>
-      <animate attributeName="opacity" values="0.5;1;1;0.55;1" keyTimes="0;0.38;0.66;0.72;1" dur="10s" repeatCount="indefinite"/>
-      <text x="30" y="188" fill="#3fb950" font-weight="700">$</text>
-      <text x="46" y="188" fill="#f0f6fc" font-weight="600">antis-optimizer --outline src/auth.ts</text>
-      <text x="348" y="188" fill="#8b949e"># find exact line numbers instead of whole files</text>
-
-      <text x="46" y="211" fill="#79c0ff">verifyToken()</text>
-      <text x="210" y="211" fill="#e6edf3">src/auth.ts:L18-L54</text>
-      <text x="390" y="211" fill="#8b949e">[TypeScript AST]</text>
-
-      <text x="46" y="232" fill="#79c0ff">refreshSession()</text>
-      <text x="210" y="232" fill="#e6edf3">src/auth.ts:L56-L102</text>
-      <text x="390" y="232" fill="#8b949e">[TypeScript AST]</text>
-    </g>
-
-    <!-- STEP 3: verify -->
-    <g>
-      <animate attributeName="opacity" values="0.5;0.5;1;1" keyTimes="0;0.68;0.73;1" dur="10s" repeatCount="indefinite"/>
-      <text x="30" y="268" fill="#3fb950" font-weight="700">$</text>
-      <text x="46" y="268" fill="#f0f6fc" font-weight="600">antis-optimizer --verify</text>
-
-      <!-- Progress bar -->
-      <rect x="46" y="281" width="260" height="7" rx="3.5" fill="#21262d"/>
-      <rect x="46" y="281" width="260" height="7" rx="3.5" fill="#3fb950">
-        <animate attributeName="width" values="10;10;260;260" keyTimes="0;0.68;0.82;1" dur="10s" repeatCount="indefinite"/>
-      </rect>
-
-      <rect x="46" y="298" width="54" height="20" rx="4" fill="#196c2e"/>
-      <text x="73" y="312" text-anchor="middle" fill="#ffffff" font-size="11.5" font-weight="700">PASS</text>
-      <text x="112" y="312" fill="#7ee787">ignores synced · all line landmarks match code · docs under budget</text>
-
-      <!-- Blinking cursor -->
-      <rect x="576" y="299" width="8" height="16" rx="1.5" fill="#58a6ff">
-        <animate attributeName="opacity" values="1;0;1" dur="0.95s" repeatCount="indefinite"/>
-      </rect>
-    </g>
-  </g>
-</svg>
+          <g opacity="0">
+            <animate attributeName="opacity" values="0;0;1;1" keyTimes="0;0.67;0.68;1" dur="14s" repeatCount="indefinite"/>
+            <text x="36" y="366" textLength="119" lengthAdjust="spacing"><tspan fill="#b2beb8">~/acme-web</tspan> <tspan fill="#7d8a83">main</tspan> <tspan fill="#34d399" font-weight="700">❯</tspan></text>
+            <rect x="164" y="354.5" width="7.5" height="14.5" rx="1.2" fill="#34d399">
+              <animate attributeName="opacity" values="1;0;1" dur="0.9s" repeatCount="indefinite"/>
+            </rect>
+          </g>
+        </g>
+      </svg>
