@@ -68,6 +68,20 @@ function isSecretPath(relPath) {
   return SECRET_FILE_RE.test(normalizePattern(relPath));
 }
 
+// Reads only the first `n` bytes; full reads of huge junk files are slow and throw above V8's string limit.
+function readHead(fullPath, n = 4096) {
+  let fd;
+  try {
+    fd = fs.openSync(fullPath, 'r');
+    const buf = Buffer.alloc(n);
+    return buf.toString('utf8', 0, fs.readSync(fd, buf, 0, n, 0));
+  } catch { return ''; } finally {
+    if (fd !== undefined) try { fs.closeSync(fd); } catch {}
+  }
+}
+
+const partialNote = truncated => truncated ? ' [partial scan: depth/entry cap hit; counts are lower bounds]' : '';
+
 function isInsideRoot(root, fullPath) {
   const rel = path.relative(path.resolve(root), path.resolve(fullPath));
   return !rel.startsWith('..') && !path.isAbsolute(rel);
@@ -172,9 +186,10 @@ function globToRegExp(glob) {
   for (let i = 0; i < clean.length; i++) {
     const c = clean[i];
     if (c === '*' && clean[i + 1] === '*') {
-      reStr += '.*';
       i++;
-      if (clean[i + 1] === '/') i++;
+      // `**/` spans whole path segments only: `**/logs` must not match `catalogs`.
+      if (clean[i + 1] === '/') { reStr += '(?:.*/)?'; i++; }
+      else reStr += '.*';
     } else if (c === '*') {
       reStr += '[^/]*';
     } else if (c === '?') {
@@ -237,18 +252,17 @@ const isFileIgnored = (ig, rel, name) => matchIgnoreRules(ig, rel, name, false);
 function isDynamicTextTrap(fullPath, fileName, sizeBytes) {
   if (LOCKFILE_RE.test(fileName) || /\.min\.(?:js|css)$/i.test(fileName)) return true;
   if (sizeBytes >= 50 * 1024 && /\.(?:json|js|css|html?|md|txt|svg)$/i.test(fileName)) {
-    try {
-      const head = fs.readFileSync(fullPath, 'utf8').slice(0, 4096);
-      if (/data:image\/[^;]+;base64,/.test(head) || head.split(/\r?\n/).some(l => l.length >= 2048)) return true;
-    } catch {}
+    const head = readHead(fullPath);
+    if (/data:image\/[^;]+;base64,/.test(head) || head.split(/\r?\n/).some(l => l.length >= 2048)) return true;
   }
   return false;
 }
 
 function walkRepo(root, maxDepth = 5) {
+  // backupDirs: well-known output dirs (safe to sync). suggestDirs: name/size guesses, shown but never auto-written.
   const res = {
     gitDirs: [], agents: [], indexFiles: [], largeTraps: [],
-    generatedHints: [], backupDirs: [], dotSourceDirs: [], truncated: false
+    generatedHints: [], backupDirs: [], suggestDirs: [], dotSourceDirs: [], truncated: false
   };
   const ig = loadIgnoreRules(root);
   const seenRealDirs = new Set();
@@ -256,7 +270,7 @@ function walkRepo(root, maxDepth = 5) {
 
   function visit(dir, depth) {
     if (depth > maxDepth || visits >= MAX_WALK_VISITS) {
-      if (visits >= MAX_WALK_VISITS) res.truncated = true;
+      res.truncated = true;
       return;
     }
     try {
@@ -269,7 +283,7 @@ function walkRepo(root, maxDepth = 5) {
 
     if (depth > 0 && entries.length >= HEAVY_DIR_ENTRIES) {
       const relDir = normalizePattern(path.relative(root, dir));
-      if (relDir) res.backupDirs.push(relDir + '/');
+      if (relDir) res.suggestDirs.push(relDir + '/');
       return;
     }
 
@@ -280,7 +294,7 @@ function walkRepo(root, maxDepth = 5) {
       if (e.isDirectory()) {
         if (e.name === '.git') { res.gitDirs.push(rel); continue; }
         if (isDirIgnored(ig, rel, e.name)) continue;
-        if (BACKUP_DIR_RE.test(e.name)) { res.backupDirs.push(rel + '/'); continue; }
+        if (BACKUP_DIR_RE.test(e.name)) { res.suggestDirs.push(rel + '/'); continue; }
         if (SKIP_WALK_DIRS.has(e.name)) {
           if (depth > 0 && !BASE_TRAPS.includes(e.name + '/') && e.name !== 'venv') res.backupDirs.push(rel + '/');
           continue;
@@ -294,7 +308,7 @@ function walkRepo(root, maxDepth = 5) {
         let st;
         try { st = fs.statSync(full); } catch { continue; }
         if (/\.(?:md|html?)$/i.test(e.name) && st.size >= 50 * 1024) {
-          const head = fs.readFileSync(full, 'utf8').slice(0, 4096);
+          const head = readHead(full);
           if (/data:image\/[^;]+;base64,/.test(head) || st.size >= 150 * 1024 || head.split(/\r?\n/).some(l => l.length >= 2048)) {
             res.largeTraps.push({ rel, bytes: st.size, base64: head.includes('base64,') });
           }
@@ -303,7 +317,7 @@ function walkRepo(root, maxDepth = 5) {
         } else if (isDynamicTextTrap(full, e.name, st.size) && st.size >= 50 * 1024) {
           res.generatedHints.push(rel);
         } else if (/(?:^|\/)(?:dist|build|out)\/.*\.(?:js|css)$/i.test(rel) && st.size >= 10 * 1024) {
-          const head = fs.readFileSync(full, 'utf8').slice(0, 4096);
+          const head = readHead(full);
           if (st.size >= 50 * 1024 || /\.(?:bundle|vendor|chunk)\.(?:js|css)$/i.test(e.name) || head.split(/\r?\n/).some(l => l.length >= 2048)) {
             res.generatedHints.push(rel);
           }
@@ -335,12 +349,16 @@ function collectAuditStats(root) {
   const seenRealDirs = new Set();
   let rawFiles = 0, rawBytes = 0, activeFiles = 0, activeBytes = 0;
   let trapTextFiles = 0, trapTextBytes = 0, trapBinaryBytes = 0;
-  let visits = 0;
+  let visits = 0, truncated = false;
   const trapBuckets = {};
   const monoliths = [];
+  const suggestSet = new Set();
 
   function scanAll(dir, depth, parentIgnored, bucketName) {
-    if (depth > 6 || visits >= MAX_WALK_VISITS * 3) return;
+    if (depth > 6 || visits >= MAX_WALK_VISITS * 3) {
+      if (!parentIgnored || visits >= MAX_WALK_VISITS * 3) truncated = true; // deep ignored junk is not "missed source"
+      return;
+    }
     try {
       const rp = fs.realpathSync(dir);
       if (seenRealDirs.has(rp)) return;
@@ -348,13 +366,19 @@ function collectAuditStats(root) {
     } catch { return; }
     let entries;
     try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    if (depth > 0 && !parentIgnored && entries.length >= HEAVY_DIR_ENTRIES) {
+      const relDir = normalizePattern(path.relative(root, dir));
+      if (relDir) suggestSet.add(relDir + '/');
+    }
     for (const e of entries) {
-      if (visits++ >= MAX_WALK_VISITS * 3) return;
+      if (visits++ >= MAX_WALK_VISITS * 3) { truncated = true; return; }
       if (e.name === '.git' || e.name === 'node_modules' || e.name === '.venv' || e.name === 'venv') continue;
       const full = path.join(dir, e.name);
       const rel = normalizePattern(path.relative(root, full));
       if (e.isDirectory()) {
-        const dirIg = parentIgnored || isDirIgnored(ig, rel, e.name) || BACKUP_DIR_RE.test(e.name) || SKIP_WALK_DIRS.has(e.name);
+        // Name guesses (BACKUP_DIR_RE) are not synced, so they must not count as quarantined either.
+        const dirIg = parentIgnored || isDirIgnored(ig, rel, e.name) || SKIP_WALK_DIRS.has(e.name);
+        if (!dirIg && BACKUP_DIR_RE.test(e.name)) suggestSet.add(rel + '/');
         const bName = bucketName || (dirIg ? rel + '/' : '');
         scanAll(full, depth + 1, dirIg, bName);
       } else if (e.isFile()) {
@@ -397,7 +421,9 @@ function collectAuditStats(root) {
     trapTextTokens: Math.ceil(trapTextBytes / 4),
     trapBinaryBytes,
     trapBuckets,
-    monoliths
+    monoliths,
+    suggestDirs: [...suggestSet],
+    truncated
   };
 }
 
@@ -465,8 +491,10 @@ function cmdAudit(opts) {
     `├─ Active source footprint: ${fmtInt(activeFiles)} files (~${fmtInt(activeTokens)} tokens total)`,
     `├─ Monoliths (>=15KB):      ${monoliths.length} files (${monoliths.slice(0, 5).map(m => `${m.rel}:${Math.round(m.bytes / 1024)}KB`).join(', ') || 'none'})`,
     `├─ Mathematical ROI model:  Session doc tax = ~${fmtInt(sessionTaxTokens)} tok (1.5x compact) | Avg monolith slice save = ~${fmtInt(avgMonoSave)} tok/read`,
-    `├─ Break-even threshold:    R* = ${breakEvenReads} monolith reads/session (plus 100% protection against ${fmtInt(trapTextTokens)}-tok trap reads)`,
-    `└─ Optimal configuration:   ${tierInfo.label} — ${tierInfo.reason}`
+    `├─ Break-even threshold:    R* = ${breakEvenReads} monolith reads/session (plus ~${fmtInt(trapTextTokens)} tok of trap files kept out of searches)`,
+    `└─ Optimal configuration:   ${tierInfo.label} — ${tierInfo.reason}`,
+    ...(stats.suggestDirs.length ? [`⚠ Review guessed dirs (not auto-ignored): ${stats.suggestDirs.slice(0, 6).join(', ')}`] : []),
+    ...(stats.truncated ? [`⚠${partialNote(true)}`] : [])
   ];
   console.log(capOutput(out.join('\n')));
 }
@@ -477,9 +505,11 @@ function detectHostTools(root) {
   const mcpNames = p => Object.keys((readJsonSafe(path.join(home, p)) || {}).mcpServers || {});
   const claudeMcp = mcpNames('.claude.json');
   const agyMcp = mcpNames('.gemini/config/mcp_config.json');
-  const hasTokenOpt = has('.claude/token-optimizer') || has('.gemini/token-optimizer') || fs.existsSync(path.join(root, '.contextignore'));
+  // Install-only signal: a repo-local .contextignore (which --sync-ignores itself writes) must not gate --slice.
+  const hasTokenOptInstall = has('.claude/token-optimizer') || has('.gemini/token-optimizer');
+  const hasTokenOpt = hasTokenOptInstall || fs.existsSync(path.join(root, '.contextignore'));
   const hasJcm = claudeMcp.includes('jcodemunch') || agyMcp.includes('jcodemunch') || fs.existsSync(path.join(root, '.jcodemunch.jsonc'));
-  return { home, has, claudeMcp, agyMcp, hasTokenOpt, hasJcm };
+  return { home, has, claudeMcp, agyMcp, hasTokenOpt, hasTokenOptInstall, hasJcm };
 }
 
 function cmdDetect(opts) {
@@ -504,8 +534,11 @@ function cmdDetect(opts) {
     `Claude plugins: ${enabledPlugins.join(', ') || 'none'} | Codex hooks: ${has('.codex/hooks.json') ? 'present' : 'none'}`,
     'Recommended Profile:',
     '  - Skip prose brevity rules in AGENTS.md when Ponytail/Caveman active; keep Codex AGENTS.md pointer-only.',
-    `  - Sync .ignore + .contextignore + .jcodemunch.jsonc (traps=${repo.largeTraps.length}, generated=${repo.generatedHints.length}, dirs=${repo.backupDirs.length}).`
+    `  - Sync .ignore + .contextignore + .jcodemunch.jsonc (traps=${repo.largeTraps.length}, generated=${repo.generatedHints.length}, dirs=${repo.backupDirs.length}).${partialNote(repo.truncated)}`
   ];
+  if (repo.suggestDirs.length) {
+    out.push(`  - Review (not auto-synced; add to .ignore by hand if junk): ${repo.suggestDirs.join(', ')}`);
+  }
   if (repo.dotSourceDirs.length) {
     out.push(`  - Dot-dirs (rg/Grep needs --hidden or explicit path; Windows rg prints \\): ${repo.dotSourceDirs.join(', ')}`);
   }
@@ -530,11 +563,13 @@ function computeIgnoreTargets(root) {
     if (p.startsWith('!')) negSet.add(p);
     else posSet.add(p);
   }
-  for (const d of repo.backupDirs) posSet.add(d);
+  for (const d of repo.backupDirs) posSet.add(d); // well-known output dirs only; guesses live in suggestDirs
   for (const t of repo.largeTraps) if (t.base64) posSet.add(t.rel);
   for (const g of repo.generatedHints) posSet.add(g);
   return {
     patterns: [...posSet, ...negSet],
+    suggestDirs: repo.suggestDirs.filter(d => !posSet.has(d)),
+    truncated: repo.truncated,
     existingIgnore,
     existingContext: parseLinesFile(path.join(root, '.contextignore')).map(normalizePattern),
     jcmPath: path.join(root, '.jcodemunch.jsonc'),
@@ -602,7 +637,7 @@ function insertJcmExtraPatterns(rawJcm, arrLiteral) {
 }
 
 function cmdSyncIgnores(opts) {
-  const { patterns, existingIgnore, existingContext, jcmPath, jcmObj } = computeIgnoreTargets(opts.root);
+  const { patterns, suggestDirs, truncated, existingIgnore, existingContext, jcmPath, jcmObj } = computeIgnoreTargets(opts.root);
   const { hasTokenOpt, hasJcm } = detectHostTools(opts.root);
   const syncCtx = Boolean(opts.allIgnores || hasTokenOpt);
   const syncJcm = Boolean(opts.allIgnores || hasJcm);
@@ -618,7 +653,8 @@ function cmdSyncIgnores(opts) {
       `.ignore missing (${mIg.length}): ${mIg.join(', ') || 'none'}`,
       `.contextignore ${syncCtx ? `missing (${mCtx.length}): ${mCtx.join(', ') || 'none'}` : '(skipped: Token Optimizer not detected)'}`,
       `.jcodemunch.jsonc ${syncJcm ? `missing (${mJcm.length}): ${mJcm.join(', ') || 'none'}` : '(skipped: jCodemunch not detected)'}`,
-      'Re-run with --write to write/update files.'
+      ...(suggestDirs.length ? [`Review (guessed backup/heavy dirs, NOT written; add to .ignore by hand if junk): ${suggestDirs.join(', ')}`] : []),
+      `Re-run with --write to write/update files.${partialNote(truncated)}`
     ].join('\n');
     console.log(capOutput(out));
     return;
@@ -654,7 +690,8 @@ function cmdSyncIgnores(opts) {
     written.push('.jcodemunch.jsonc');
   }
 
-  console.log(`PASS sync-ignores: wrote ${written.join(', ')} (${patterns.length} patterns)`);
+  const review = suggestDirs.length ? ` | review ${suggestDirs.length} guessed dir(s) via dry run` : '';
+  console.log(`PASS sync-ignores: wrote ${written.join(', ')} (${patterns.length} patterns)${review}${partialNote(truncated)}`);
 }
 
 function cmdMap(opts) {
@@ -666,7 +703,7 @@ function cmdMap(opts) {
     .slice(0, 30);
   const lines = [
     '=== REPO-INDEX --MAP ===',
-    `Root: ${opts.root} | Stack: ${detectStack(opts.root).join(', ') || 'generic'}`,
+    `Root: ${opts.root} | Stack: ${detectStack(opts.root).join(', ') || 'generic'}${partialNote(repo.truncated)}`,
     `Git dirs: ${repo.gitDirs.join(', ') || 'none'} | AGENTS.md: ${repo.agents.join(', ') || 'none'}`,
     `INDEX.md: ${repo.indexFiles.join(', ') || 'none'} | Traps: ${repo.largeTraps.map(t => `${t.rel}(${Math.round(t.bytes / 1024)}KB)`).join(', ') || 'none'}`,
     ...(repo.dotSourceDirs.length ? [`Dot-dirs (rg needs --hidden or explicit path): ${repo.dotSourceDirs.join(', ')}`] : []),
@@ -769,7 +806,7 @@ function stripJsStringsAndComments(line, state, ext = '.js') {
       }
       continue;
     }
-    if (ch === '/' && next === '/') break;
+    if (ch === '/' && next === '/' && ext !== '.css') break; // CSS has no line comments: `url(https://…)`
     if (ch === '/' && next === '*') { state.inBlockComment = true; i++; continue; }
     if (isJsLike && ch === '/' && canStartRegex(prevSig, exprOut)) {
       inRegex = true;
@@ -884,9 +921,18 @@ function findBestOutlineEntry(entries, symQuery) {
     || null;
 }
 
+function isRelPathIgnored(ig, rel) {
+  const parts = rel.split('/');
+  for (let i = 0; i < parts.length - 1; i++) {
+    if (parts[i] === '.git' || SKIP_WALK_DIRS.has(parts[i])) return true;
+    if (isDirIgnored(ig, parts.slice(0, i + 1).join('/'), parts[i])) return true;
+  }
+  return isFileIgnored(ig, rel, parts[parts.length - 1]);
+}
+
 function cmdSlice(opts) {
-  const { hasTokenOpt } = detectHostTools(opts.root);
-  if (hasTokenOpt && opts.pos.some(a => /\.json(?:$|:)/i.test(a))) {
+  const { hasTokenOptInstall } = detectHostTools(opts.root);
+  if (hasTokenOptInstall && opts.pos.some(a => /\.json(?:$|:)/i.test(a))) {
     console.error('REFUSED: Do not pass raw .json paths to --slice when Token Optimizer is active (triggers bash_compress on node args). Pass logical module IDs instead.');
     process.exit(2);
   }
@@ -897,7 +943,8 @@ function cmdSlice(opts) {
     console.error(`REFUSED: Secret/credential scope blocked by security guard: ${scopeArg}`);
     process.exit(2);
   }
-  if ((spec.scopeRaw.includes('..') || path.isAbsolute(spec.scopeRaw)) && !isInsideRoot(opts.root, path.resolve(opts.root, spec.scopeRaw))) {
+  const resolvedDirect = path.resolve(opts.root, spec.scopeRaw);
+  if ((spec.scopeRaw.includes('..') || path.isAbsolute(spec.scopeRaw)) && !isInsideRoot(opts.root, resolvedDirect)) {
     console.error(`REFUSED: Path outside repository root: ${scopeArg}`);
     process.exit(2);
   }
@@ -905,32 +952,43 @@ function cmdSlice(opts) {
   const candidates = [];
   let blockedSecret = false;
   const ig = loadIgnoreRules(opts.root);
-  (function findMod(dir, depth) {
-    if (depth > 5 || candidates.length >= 50) return;
-    let entries;
-    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
-    for (const e of entries) {
-      if (SKIP_WALK_DIRS.has(e.name) || e.name === '.git' || BACKUP_DIR_RE.test(e.name)) continue;
-      const p = path.join(dir, e.name);
-      const rel = normalizePattern(path.relative(opts.root, p));
-      if (e.isDirectory()) {
-        if (!isDirIgnored(ig, rel, e.name)) findMod(p, depth + 1);
-      } else if (e.name.toLowerCase().includes(spec.scope) || rel.toLowerCase().includes(spec.scope)) {
-        if (isSecretPath(rel)) {
-          blockedSecret = true;
-          continue;
-        }
-        if (
-          !isFileIgnored(ig, rel, e.name) &&
-          !(rel === 'scripts/repo-index.cjs' && !spec.scope.includes('repo-index')) &&
-          SLICE_EXTS.test(e.name) &&
-          !LOCKFILE_RE.test(e.name)
-        ) {
-          candidates.push(p);
+  const directRel = normalizePattern(path.relative(opts.root, resolvedDirect));
+  let directIsFile = false;
+  try { directIsFile = isInsideRoot(opts.root, resolvedDirect) && fs.statSync(resolvedDirect).isFile(); } catch {}
+  if (directIsFile && isSecretPath(directRel)) {
+    blockedSecret = true;
+  } else if (directIsFile && !isRelPathIgnored(ig, directRel) && SLICE_EXTS.test(resolvedDirect) && !LOCKFILE_RE.test(path.basename(resolvedDirect))) {
+    candidates.push(resolvedDirect);
+  } else {
+    let visits = 0;
+    (function findMod(dir, depth) {
+      if (depth > 5 || candidates.length >= 50 || visits >= MAX_WALK_VISITS) return;
+      let entries;
+      try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+      for (const e of entries) {
+        if (visits++ >= MAX_WALK_VISITS || candidates.length >= 50) return;
+        if (SKIP_WALK_DIRS.has(e.name) || e.name === '.git') continue;
+        const p = path.join(dir, e.name);
+        const rel = normalizePattern(path.relative(opts.root, p));
+        if (e.isDirectory()) {
+          if (!isDirIgnored(ig, rel, e.name)) findMod(p, depth + 1);
+        } else if (e.name.toLowerCase().includes(spec.scope) || rel.toLowerCase().includes(spec.scope)) {
+          if (isSecretPath(rel)) {
+            blockedSecret = true;
+            continue;
+          }
+          if (
+            !isFileIgnored(ig, rel, e.name) &&
+            !(rel === 'scripts/repo-index.cjs' && !spec.scope.includes('repo-index')) &&
+            SLICE_EXTS.test(e.name) &&
+            !LOCKFILE_RE.test(e.name)
+          ) {
+            candidates.push(p);
+          }
         }
       }
-    }
-  })(opts.root, 0);
+    })(opts.root, 0);
+  }
 
   if (!candidates.length) {
     if (blockedSecret) {
@@ -967,7 +1025,13 @@ function cmdSlice(opts) {
     if (data !== null) {
       const arrKey = Object.keys(data).find(k => Array.isArray(data[k]) && data[k].length);
       const list = Array.isArray(data) ? data : (arrKey ? data[arrKey] : [data]);
-      const item = (effectiveId && list.find(x => x && (x.id === effectiveId || x.name === effectiveId || x.tagName === effectiveId || x.tag === effectiveId || x.slug === effectiveId))) || (effectiveId && data && typeof data === 'object' && data[effectiveId] ? { [effectiveId]: data[effectiveId] } : list[0]);
+      const byKey = effectiveId && list.find(x => x && (x.id === effectiveId || x.name === effectiveId || x.tagName === effectiveId || x.tag === effectiveId || x.slug === effectiveId));
+      const byProp = effectiveId && data && typeof data === 'object' && Object.prototype.hasOwnProperty.call(data, effectiveId) ? { [effectiveId]: data[effectiveId] } : null;
+      if (effectiveId && !byKey && !byProp) {
+        console.error(`Slice target id "${effectiveId}" not found in ${rel}`);
+        process.exit(1);
+      }
+      const item = byKey || byProp || list[0];
       const keyVal = item?.id || item?.name || item?.tagName || item?.tag || item?.slug;
       const escId = keyVal ? String(keyVal).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') : '';
       const span = escId ? findObjectSpan(target, new RegExp(`"(?:id|name|tagName|tag|slug)"\\s*:\\s*"${escId}"`)) : `${path.basename(target)}:L1-L40`;
@@ -1031,11 +1095,12 @@ function updatePyTriple(line, inTriple) {
 }
 
 let cachedTs = undefined;
-function loadTypeScript(targetPath) {
+function loadTypeScript() {
   if (process.env.ANTIS_FORCE_LEXER === '1') return null;
   if (cachedTs !== undefined) return cachedTs;
-  const searchPaths = [__dirname, process.cwd()];
-  if (targetPath) searchPaths.unshift(path.dirname(path.resolve(targetPath)));
+  // Only the tool's own install or the global npm dir: resolving from the target repo/cwd would
+  // require() (execute) whatever an untrusted clone ships as node_modules/typescript.
+  const searchPaths = [__dirname];
   if (process.env.APPDATA) searchPaths.push(path.join(process.env.APPDATA, 'npm', 'node_modules'));
   for (const base of searchPaths) {
     try {
@@ -1049,7 +1114,7 @@ function loadTypeScript(targetPath) {
 }
 
 function tryParseTypeScriptAst(fullPath, raw, lines) {
-  const ts = loadTypeScript(fullPath);
+  const ts = loadTypeScript();
   if (!ts) return null;
   try {
     const sf = ts.createSourceFile(fullPath, raw, ts.ScriptTarget.Latest, true);
@@ -1897,6 +1962,7 @@ if (require.main === module) {
     detectInstallMode,
     getUpgradeCommand,
     formatUpdateReport,
-    httpsGetPinnedJson
+    httpsGetPinnedJson,
+    readHead
   };
 }

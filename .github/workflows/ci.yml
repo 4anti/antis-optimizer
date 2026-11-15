@@ -29,6 +29,8 @@ jobs:
         run: npm test
 
       - name: Run TypeScript Compiler AST suite
+        env:
+          ANTIS_EXPECT_AST: "1"
         run: |
-          npm install --no-save --no-package-lock typescript
+          npm install --no-save --no-package-lock typescript@5
           npm test

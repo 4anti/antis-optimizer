@@ -2,7 +2,7 @@
 'use strict';
 
 /**
- * Antis-Optimizer — Comprehensive Automated Test Suite (38 Self-Contained Tests)
+ * Antis-Optimizer — Comprehensive Automated Test Suite (46 Self-Contained Tests)
  * Zero personal paths; runs entirely inside an isolated OS temp directory.
  */
 
@@ -15,8 +15,8 @@ const targetCli = path.resolve(__dirname, '..', 'scripts', 'repo-index.cjs');
 const pkg = require(path.resolve(__dirname, '..', 'package.json'));
 const lib = require(targetCli);
 
-console.log(`=== ANTIS-OPTIMIZER v${pkg.version} TEST SUITE (38 TESTS) ===`);
-let passed = 0, total = 38;
+console.log(`=== ANTIS-OPTIMIZER v${pkg.version} TEST SUITE (46 TESTS) ===`);
+let passed = 0, total = 46;
 
 (async function main() {
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'antis-opt-test-'));
@@ -40,10 +40,11 @@ try {
   ].join('\n'));
   const astParsed = lib.parseFileOutline(path.join(tmp, 'src', 'engine.ts'));
   const out1 = spawnSync('node', [targetCli, '--root', tmp, '--outline', 'src/engine.ts'], { encoding: 'utf8' }).stdout || '';
+  const expectAst = process.env.ANTIS_EXPECT_AST === '1';
   const t1 = out1.includes('L1-L10: export async function initializeEngine') &&
              out1.includes('L6-L8: function innerHelper') &&
              out1.includes('L11-L13: export function destroyEngine') &&
-             (astParsed.astEngine === 'typescript-compiler' || astParsed.entries.length === 3);
+             (expectAst ? astParsed.astEngine === 'typescript-compiler' : (astParsed.astEngine === 'typescript-compiler' || astParsed.entries.length === 3));
   if (t1) passed++;
   console.log(`[Test 1: TypeScript Compiler AST & Multi-Line Function Spans (engine=${astParsed.astEngine || 'lexer'})] ${t1 ? 'PASS' : 'FAIL'}`);
 
@@ -553,10 +554,13 @@ try {
   const t33BlockJson = spawnSync('node', [targetCli, '--root', t33Dir, '--slice', 'secrets.json'], { encoding: 'utf8' });
   const t33JsonNoOpt = spawnSync('node', [targetCli, '--root', t33Dir, '--slice', 'data/tricky-data.json', 'item-1'], { encoding: 'utf8', env: cleanEnv });
   fs.writeFileSync(path.join(t33Dir, '.contextignore'), 'node_modules/\n');
+  const t33JsonCtxOnly = spawnSync('node', [targetCli, '--root', t33Dir, '--slice', 'data/tricky-data.json', 'item-1'], { encoding: 'utf8', env: cleanEnv });
+  fs.mkdirSync(path.join(cleanHome, '.claude', 'token-optimizer'), { recursive: true });
   const t33JsonWithOpt = spawnSync('node', [targetCli, '--root', t33Dir, '--slice', 'data/tricky-data.json', 'item-1'], { encoding: 'utf8', env: cleanEnv });
   const t33 = t33AllowCode.status === 0 && t33AllowCode.stdout.includes('rotateSalt') &&
               t33BlockJson.status === 2 &&
               t33JsonNoOpt.status === 0 && t33JsonNoOpt.stdout.includes('"item-1"') &&
+              t33JsonCtxOnly.status === 0 && t33JsonCtxOnly.stdout.includes('"item-1"') &&
               t33JsonWithOpt.status === 2 && t33JsonWithOpt.stderr.includes('REFUSED');
   if (t33) passed++;
   console.log(`[Test 33: secretManager.ts Allow vs secrets.json Block & hasTokenOpt .json Gate] ${t33 ? 'PASS' : 'FAIL'}`);
@@ -653,6 +657,109 @@ try {
               t38Help.stdout.includes('--critical-only');
   if (t38) passed++;
   console.log(`[Test 38: --critical-only Output Filtering & --help Parity] ${t38 ? 'PASS' : 'FAIL'}`);
+
+  // 39. Guessed Backup & 400+ Entry Source Dirs Suggested Only (Never Auto-Written to Ignores)
+  const t39Dir = path.join(tmp, 't39-suggest');
+  fs.mkdirSync(path.join(t39Dir, 'src', 'features', 'archive'), { recursive: true });
+  fs.mkdirSync(path.join(t39Dir, 'src', 'icons'), { recursive: true });
+  fs.writeFileSync(path.join(t39Dir, 'src', 'features', 'archive', 'ArchivePage.tsx'), 'export const ArchivePage = () => null;\n');
+  for (let i = 0; i < 400; i++) fs.writeFileSync(path.join(t39Dir, 'src', 'icons', `i${i}.tsx`), 'export const a = 1;\n');
+  const t39Sync = spawnSync('node', [targetCli, '--root', t39Dir, '--sync-ignores', '--write', '--all-ignores'], { encoding: 'utf8' });
+  const t39Audit = spawnSync('node', [targetCli, '--root', t39Dir, '--audit'], { encoding: 'utf8' });
+  const t39Ig = fs.readFileSync(path.join(t39Dir, '.ignore'), 'utf8');
+  const t39Ctx = fs.readFileSync(path.join(t39Dir, '.contextignore'), 'utf8');
+  const t39 = t39Sync.status === 0 && t39Sync.stdout.includes('review 2 guessed dir(s)') &&
+              !t39Ig.includes('src/features/archive/') && !t39Ig.includes('src/icons/') &&
+              !t39Ctx.includes('src/features/archive/') && !t39Ctx.includes('src/icons/') &&
+              t39Audit.stdout.includes('Review guessed dirs') && t39Audit.stdout.includes('src/icons/');
+  if (t39) passed++;
+  console.log(`[Test 39: Heavy & Backup-Named Source Dirs Suggested Only, Never Auto-Ignored] ${t39 ? 'PASS' : 'FAIL'}`);
+
+  // 40. Untrusted Target Repo node_modules/typescript Is Never Executed
+  const t40Dir = path.join(tmp, 't40-untrusted-ts');
+  fs.mkdirSync(path.join(t40Dir, 'node_modules', 'typescript'), { recursive: true });
+  fs.mkdirSync(path.join(t40Dir, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(t40Dir, 'node_modules', 'typescript', 'package.json'), '{"name":"typescript","main":"index.js"}\n');
+  fs.writeFileSync(path.join(t40Dir, 'node_modules', 'typescript', 'index.js'), "require('fs').writeFileSync(__dirname + '/../../PWNED.txt', 'ran'); module.exports = {};\n");
+  fs.writeFileSync(path.join(t40Dir, 'src', 'a.ts'), 'export function safeOutline() { return 1; }\n');
+  const t40Out = spawnSync('node', [targetCli, '--root', t40Dir, '--outline', 'src/a.ts'], { cwd: t40Dir, encoding: 'utf8' });
+  const t40 = t40Out.status === 0 && t40Out.stdout.includes('safeOutline') && !fs.existsSync(path.join(t40Dir, 'PWNED.txt'));
+  if (t40) passed++;
+  console.log(`[Test 40: Target Repo node_modules/typescript Not Executed on --outline] ${t40 ? 'PASS' : 'FAIL'}`);
+
+  // 41. JSON --slice Missing ID Exits 1 Instead of Returning First Item
+  const t41Dir = path.join(tmp, 't41-json-miss');
+  fs.mkdirSync(t41Dir, { recursive: true });
+  fs.writeFileSync(path.join(t41Dir, 'items.json'), JSON.stringify({ items: [{ id: 'alpha', v: 1 }, { id: 'beta', v: 2 }] }, null, 2));
+  const t41Hit = spawnSync('node', [targetCli, '--root', t41Dir, '--slice', 'items', 'beta'], { encoding: 'utf8', env: cleanEnv });
+  const t41Miss = spawnSync('node', [targetCli, '--root', t41Dir, '--slice', 'items', 'does-not-exist'], { encoding: 'utf8', env: cleanEnv });
+  const t41 = t41Hit.status === 0 && t41Hit.stdout.includes('"beta"') &&
+              t41Miss.status === 1 && t41Miss.stderr.includes('not found') && !t41Miss.stdout.includes('"alpha"');
+  if (t41) passed++;
+  console.log(`[Test 41: JSON --slice Missing ID Exits 1 (No Silent Fallback to list[0])] ${t41 ? 'PASS' : 'FAIL'}`);
+
+  // 42. Partial Scan Warning When Depth/Visit Cap Is Hit
+  const t42Dir = path.join(tmp, 't42-partial');
+  const deepSub = path.join(t42Dir, 'd1', 'd2', 'd3', 'd4', 'd5', 'd6', 'd7');
+  fs.mkdirSync(deepSub, { recursive: true });
+  fs.writeFileSync(path.join(deepSub, 'deep.ts'), 'export const deep = 1;\n');
+  const t42Audit = spawnSync('node', [targetCli, '--root', t42Dir, '--audit'], { encoding: 'utf8' });
+  const t42Map = spawnSync('node', [targetCli, '--root', t42Dir, '--map'], { encoding: 'utf8' });
+  const t42Detect = spawnSync('node', [targetCli, '--root', t42Dir, '--detect'], { encoding: 'utf8' });
+  const t42 = t42Audit.stdout.includes('[partial scan:') &&
+              t42Map.stdout.includes('[partial scan:') &&
+              t42Detect.stdout.includes('[partial scan:');
+  if (t42) passed++;
+  console.log(`[Test 42: Partial Scan Warning Emitted When Walk Cap Is Hit] ${t42 ? 'PASS' : 'FAIL'}`);
+
+  // 43. --slice Exact Path Priority Over 50-Hit Cap, Archive Dirs & Ignored Dir Guard
+  const t43Dir = path.join(tmp, 't43-slice-exact');
+  for (let i = 0; i < 55; i++) {
+    fs.mkdirSync(path.join(t43Dir, 'components', `c${i}`), { recursive: true });
+    fs.writeFileSync(path.join(t43Dir, 'components', `c${i}`, 'index.ts'), `export const c = ${i};\n`);
+  }
+  fs.mkdirSync(path.join(t43Dir, 'src', 'features', 'archive'), { recursive: true });
+  fs.mkdirSync(path.join(t43Dir, 'dist'), { recursive: true });
+  fs.writeFileSync(path.join(t43Dir, 'src', 'index.ts'), 'export const rootEntry = true;\n');
+  fs.writeFileSync(path.join(t43Dir, 'src', 'features', 'archive', 'ArchivePage.tsx'), 'export const arch = true;\n');
+  fs.writeFileSync(path.join(t43Dir, 'dist', 'bundle.js'), 'export const built = 1;\n');
+  const t43Exact = spawnSync('node', [targetCli, '--root', t43Dir, '--slice', 'src/index.ts'], { encoding: 'utf8' });
+  const t43Arch = spawnSync('node', [targetCli, '--root', t43Dir, '--slice', 'ArchivePage'], { encoding: 'utf8' });
+  const t43Ignored = spawnSync('node', [targetCli, '--root', t43Dir, '--slice', 'dist/bundle.js'], { encoding: 'utf8' });
+  const t43 = t43Exact.status === 0 && t43Exact.stdout.includes('rootEntry') &&
+              t43Arch.status === 0 && t43Arch.stdout.includes('ArchivePage.tsx') &&
+              t43Ignored.status === 1;
+  if (t43) passed++;
+  console.log(`[Test 43: --slice Exact Path Priority, Archive Dir Access & Ignored Dir Guard] ${t43 ? 'PASS' : 'FAIL'}`);
+
+  // 44. CSS Outline Ignores // Inside url(https://...)
+  const t44Css = path.join(tmp, 't44-url.css');
+  fs.writeFileSync(t44Css, [
+    '.hero { background: url(https://cdn.example.com/a.png); }',
+    '@media (max-width: 600px) {',
+    '  .hero { display: none; }',
+    '}'
+  ].join('\n'));
+  const t44Out = spawnSync('node', [targetCli, '--root', tmp, '--outline', 't44-url.css'], { encoding: 'utf8' });
+  const t44 = t44Out.status === 0 && t44Out.stdout.includes('L2-L4: @media (max-width: 600px)');
+  if (t44) passed++;
+  console.log(`[Test 44: CSS Outline Preserves Sections After url(https://...)] ${t44 ? 'PASS' : 'FAIL'}`);
+
+  // 45. **/ Glob Segment Boundary Precision
+  const rxLogs = lib.globToRegExp('**/logs');
+  const rxDeep = lib.globToRegExp('a/**/b');
+  const t45 = rxLogs.test('logs') && rxLogs.test('a/logs') && !rxLogs.test('src/catalogs') &&
+              rxDeep.test('a/b') && rxDeep.test('a/x/b') && !rxDeep.test('a/xb');
+  if (t45) passed++;
+  console.log(`[Test 45: **/ Glob Matches Whole Path Segments Only] ${t45 ? 'PASS' : 'FAIL'}`);
+
+  // 46. readHead Reads Bounded Prefix Without Loading Full File
+  const t46File = path.join(tmp, 't46-head.txt');
+  fs.writeFileSync(t46File, 'A'.repeat(100) + 'B'.repeat(8192));
+  const headStr = lib.readHead(t46File, 128);
+  const t46 = headStr.length === 128 && headStr.startsWith('AAAA') && lib.readHead(path.join(tmp, 'missing.txt')) === '';
+  if (t46) passed++;
+  console.log(`[Test 46: readHead Bounded 4KB/Prefix Read Safety] ${t46 ? 'PASS' : 'FAIL'}`);
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true });
 }

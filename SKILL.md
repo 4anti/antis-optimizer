@@ -28,7 +28,7 @@ Cut context, tool-output, and compaction tokens across **ChatGPT/Codex**, **Clau
 Run `node <skill-dir>/scripts/repo-index.cjs --root . --detect` and `--audit`:
 - **Mathematical Break-Even Tiering (`--audit`):**
   - *Tier 0 (`IGNORE-ONLY`):* `0` monoliths (`>= 15KB`), `< 5k` trap tokens, and (`< 25` active files or `< 5k` active tokens) -> sync ignores only (skip `AGENTS.md`/`INDEX.md`; `--verify` passes with `0` docs).
-  - *Tier 1 (`LEAN ZERO-COPY`):* `<= 2` monoliths and `< 25k` trap tokens (outside Tier 0) -> root `AGENTS.md` (`<= 35L`) + synced ignores; run `<skill-dir>/scripts/repo-index.cjs` globally without copying `scripts/repo-index.cjs` or `INDEX.md`.
+  - *Tier 1 (`LEAN ZERO-COPY`):* `<= 2` monoliths and `< 25k` trap tokens (outside Tier 0) -> root `AGENTS.md` (target `<= 35L`, hard cap `80L`) + synced ignores; run `<skill-dir>/scripts/repo-index.cjs` globally without copying `scripts/repo-index.cjs` or `INDEX.md`.
   - *Tier 2 (`FULL 4-LAYER`):* `>= 3` monoliths or `>= 25k` trap tokens -> full `AGENTS.md` + `INDEX.md` + local/global CLI (`R* < 1` monolith read break-even).
 - **Model/tool profile:**
   - *Claude / Gemini:* omit prose-brevity/style rules in repo `AGENTS.md` when `Ponytail` or `Caveman` is active (avoid stacking). Load `references/tool-coop-matrix.md` only for MCP/hook setup.
