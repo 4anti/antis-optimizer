@@ -2,7 +2,7 @@
 'use strict';
 
 /**
- * Antis-Optimizer — Comprehensive Automated Test Suite (60 Self-Contained Tests)
+ * Antis-Optimizer — Comprehensive Automated Test Suite (61 Self-Contained Tests)
  * Zero personal paths; runs entirely inside an isolated OS temp directory.
  */
 
@@ -15,8 +15,8 @@ const targetCli = path.resolve(__dirname, '..', 'scripts', 'repo-index.cjs');
 const pkg = require(path.resolve(__dirname, '..', 'package.json'));
 const lib = require(targetCli);
 
-console.log(`=== ANTIS-OPTIMIZER v${pkg.version} TEST SUITE (60 TESTS) ===`);
-let passed = 0, total = 60;
+console.log(`=== ANTIS-OPTIMIZER v${pkg.version} TEST SUITE (61 TESTS) ===`);
+let passed = 0, total = 61;
 
 (async function main() {
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'antis-opt-test-'));
@@ -1466,6 +1466,39 @@ try {
               !/L23[-:].*call/.test(t60Out);
   if (t60) passed++;
   console.log(`[Test 60: Lexer TS Alias Ends, Tabbed/Wrapped Methods & Next-Line Arrow Bodies] ${t60 ? 'PASS' : 'FAIL'}`);
+
+  // 61. --sync-ignores --write Keeps User-Only Patterns (.contextignore, .jcodemunch.jsonc), Is Idempotent & Refuses Symlink Escapes
+  const t61Dir = path.join(tmp, 't61-sync-safety');
+  const t61Outside = path.join(tmp, 't61-outside');
+  fs.mkdirSync(t61Dir, { recursive: true });
+  fs.mkdirSync(t61Outside, { recursive: true });
+  fs.writeFileSync(path.join(t61Dir, '.contextignore'), '# ctx only\nprivate-notes/\n');
+  fs.writeFileSync(path.join(t61Dir, '.jcodemunch.jsonc'), '{\n  // keep me\n  "extra_ignore_patterns": ["mine/"],\n  "other": 1\n}\n');
+  const t61Sync = () => spawnSync('node', [targetCli, '--root', t61Dir, '--sync-ignores', '--write', '--all-ignores'], { encoding: 'utf8' });
+  const t61Read = () => ['.ignore', '.contextignore', '.jcodemunch.jsonc'].map(f => fs.readFileSync(path.join(t61Dir, f), 'utf8')).join('\u0000');
+  const t61First = t61Sync();
+  const t61Snap = t61Read();
+  const t61Second = t61Sync();
+  const t61Jcm = JSON.parse(lib.stripJsonc(fs.readFileSync(path.join(t61Dir, '.jcodemunch.jsonc'), 'utf8')));
+  const t61Keeps = t61First.status === 0 && t61Second.status === 0 && t61Read() === t61Snap &&
+                   fs.readFileSync(path.join(t61Dir, '.contextignore'), 'utf8').includes('private-notes/') &&
+                   t61Jcm.extra_ignore_patterns.includes('mine/') && t61Jcm.extra_ignore_patterns.includes('node_modules/') &&
+                   t61Jcm.other === 1 && t61Snap.includes('// keep me');
+  // Symlink escape: skipped only where the OS refuses to create symlinks (unprivileged Windows).
+  const t61Link = path.join(tmp, 't61-link');
+  const t61Victim = path.join(t61Outside, 'victim.txt');
+  fs.mkdirSync(t61Link, { recursive: true });
+  fs.writeFileSync(t61Victim, 'PRECIOUS');
+  let t61LinkOk = true;
+  let t61CanLink = true;
+  try { fs.symlinkSync(t61Victim, path.join(t61Link, '.ignore'), 'file'); } catch { t61CanLink = false; }
+  if (t61CanLink) {
+    const r = spawnSync('node', [targetCli, '--root', t61Link, '--sync-ignores', '--write'], { encoding: 'utf8' });
+    t61LinkOk = r.status === 2 && (r.stderr || '').includes('REFUSED') && fs.readFileSync(t61Victim, 'utf8') === 'PRECIOUS';
+  }
+  const t61 = t61Keeps && t61LinkOk;
+  if (t61) passed++;
+  console.log(`[Test 61: Sync Keeps User Patterns, Idempotent & Symlink Escape Refused${t61CanLink ? '' : ' (symlink part skipped: OS)'}] ${t61 ? 'PASS' : 'FAIL'}`);
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true });
 }

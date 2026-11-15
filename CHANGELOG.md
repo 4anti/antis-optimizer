@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 
 ## [Unreleased]
 
+### Security
+- All repository writes (`--sync-ignores --write`, `--sync-landmarks --write`, `--handoff --out`) now refuse symlinks and paths that resolve outside the repository root. Previously a repository shipping `.ignore` as a symlink could make `--sync-ignores --write` overwrite a file outside the repo.
+
+### Fixed
+- `--sync-ignores --write` no longer deletes patterns that exist only in `.contextignore` or in the user's own `extra_ignore_patterns` in `.jcodemunch.jsonc`; they are merged, as already done for the other tool ignore files.
+
 ### Changed
 - `typescript` is no longer an optional dependency: installs are truly zero-dependency (no ~20 MB download on `npx`). Compiler-AST mode is opt-in via a global `typescript` install, now also detected in the macOS/Linux global npm directory.
 - CI: macOS added, Node 18/20/22/24 matrix, least-privilege token permissions, superseded PR runs cancelled, Actions bumped to v5, Dependabot for workflow actions.
