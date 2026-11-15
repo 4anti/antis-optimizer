@@ -37,3 +37,6 @@ jobs:
         run: |
           npm install --no-save --no-package-lock typescript@5
           npm test
+
+      - name: Lexer accuracy corpus (must not drop below baseline)
+        run: node test/accuracy.cjs --require-all
