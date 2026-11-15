@@ -5,6 +5,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 
 ## [Unreleased]
 
+### Changed
+- `typescript` is no longer an optional dependency: installs are truly zero-dependency (no ~20 MB download on `npx`). Compiler-AST mode is opt-in via a global `typescript` install, now also detected in the macOS/Linux global npm directory.
+- CI: macOS added, Node 18/20/22/24 matrix, least-privilege token permissions, superseded PR runs cancelled, Actions bumped to v5, Dependabot for workflow actions.
+
 ## [1.3.1] - 2026-11-15
 
 ### Added

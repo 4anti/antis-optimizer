@@ -52,7 +52,7 @@ Run a read-only audit on any repo — nothing is written to your project:
 npx antis-optimizer --audit
 ```
 
-Or install globally so `antis-optimizer` is always available (npm installs optional `typescript` by default for Compiler AST parsing; pass `--omit=optional` for zero downloads using the built-in lexer):
+Or install globally so `antis-optimizer` is always available. The install has **zero dependencies** and uses the built-in lexer; add `typescript` globally (`npm install -g typescript`) only if you want exact Compiler-AST spans for TS/JS:
 
 ```bash
 npm install -g antis-optimizer
