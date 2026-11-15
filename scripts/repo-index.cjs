@@ -4,18 +4,20 @@
 /**
  * Antis-Optimizer CLI — Universal Off-Context Repo CLI, AST & Token ROI Engine
  * Subcommands: --audit | --detect | --sync-ignores [--write] | --sync-landmarks [--write]
- *              --map | --slice <scope> [id] | --outline <rel-path> [filter] | --handoff | --verify
+ *              --map | --slice <scope> [id|L-L] | --outline <rel-path> [filter] | --handoff | --verify | --check-update
  * Optional flags: --root <dir> --goal <text> --files <csv> --note <text> --out <rel>
- *                 --exec "<cmd>" --skip-validators --all-ignores --help --version
+ *                 --exec "<cmd>" --skip-validators --all-ignores --critical-only --help --version
  */
 
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const https = require('https');
 const { spawnSync } = require('child_process');
 
 const MAX_CLI_CHARS = 3400; // Stays safely under Token Optimizer 4,096-char archive_result cap.
 const MAX_HANDOFF_BYTES = 2048; // Pre-compaction handoff snapshot cap.
+const MAX_CODE_SLICE_LINES = 120;
 const DOC_MAX_LINES = 80;
 const DOC_MAX_BYTES = 4500;
 const MAX_WALK_VISITS = 3500;
@@ -91,6 +93,7 @@ function parseCli(argv) {
     else if (a === '--write') opts.write = true;
     else if (a === '--all-ignores') opts.allIgnores = true;
     else if (a === '--skip-validators') opts.skipValidators = true;
+    else if (a === '--critical-only') opts.criticalOnly = true;
     else if (!opts.cmd && (a === '-h' || a === '--help')) opts.cmd = '--help';
     else if (!opts.cmd && (a === '-v' || a === '--version')) opts.cmd = '--version';
     else if (!opts.cmd && a.startsWith('--')) opts.cmd = a;
@@ -115,13 +118,14 @@ function cmdHelp() {
     '  --sync-landmarks [--write]  Verify/auto-heal symbol:Lstart-Lend in AGENTS/INDEX.md',
     '  --map                       Compact repo map & domain landmarks (<3.5 KB)',
     '  --outline <rel> [filter]    Compiler-AST / polyglot symbol & line-span outline',
-    '  --slice <scope> [id]        Slice JSON item or bounded code snippet with landmark',
+    '  --slice <scope> [id|L-L]    Slice JSON item, AST symbol span, or :Lstart-Lend range',
     '  --handoff [--goal "..."]    Emit <=2 KB pre-compaction JSON state snapshot',
     '  --verify [--exec "<cmd>"]   1-line PASS verification of budgets, landmarks & ignores',
+    '  --check-update              Check GitHub Releases for updates (read-only)',
     '  --help | -h                 Show this help',
     '  --version | -v              Print CLI version',
     '',
-    'Options: --root <dir> --goal <text> --files <csv> --note <text> --out <rel> --all-ignores --skip-validators'
+    'Options: --root <dir> --goal <text> --files <csv> --note <text> --out <rel> --all-ignores --skip-validators --critical-only'
   ].join('\n'));
 }
 
@@ -161,9 +165,9 @@ function parseLinesFile(filePath) {
 }
 
 function globToRegExp(glob) {
-  const anchored = glob.startsWith('/');
   const clean = glob.replace(/^\//, '').replace(/\/$/, '');
   if (!clean) return null;
+  const anchored = glob.startsWith('/') || (clean.includes('/') && !clean.startsWith('**/'));
   let reStr = '';
   for (let i = 0; i < clean.length; i++) {
     const c = clean[i];
@@ -196,32 +200,39 @@ function globToRegExp(glob) {
 }
 
 function loadIgnoreRules(root) {
-  const dirRels = new Set(), dirNames = new Set(), fileRels = new Set(), fileNames = new Set();
-  const dirGlobRes = [], fileGlobRes = [];
-  const gitLines = parseLinesFile(path.join(root, '.gitignore')).filter(p => !p.startsWith('!'));
-  const lines = [...BASE_TRAPS, ...gitLines, ...parseLinesFile(path.join(root, '.ignore'))];
+  const rules = [];
+  const gitLines = parseLinesFile(path.join(root, '.gitignore')).map(normalizePattern).filter(Boolean);
+  const igLines = parseLinesFile(path.join(root, '.ignore')).map(normalizePattern).filter(Boolean);
+  const lines = [...BASE_TRAPS, ...gitLines, ...igLines];
   for (const raw of lines) {
-    const p = normalizePattern(raw);
+    const neg = raw.startsWith('!');
+    const p = neg ? raw.slice(1).trim() : raw;
     if (!p) continue;
     const isDirOnly = p.endsWith('/');
     if (/[*?[\]]/.test(p)) {
       const rx = globToRegExp(p);
-      if (rx) {
-        dirGlobRes.push(rx);
-        if (!isDirOnly) fileGlobRes.push(rx);
-      }
+      if (rx) rules.push({ neg, isDirOnly, rx });
       continue;
     }
     const clean = (isDirOnly ? p.slice(0, -1) : p).replace(/^\//, '');
     if (!clean) continue;
     const isAnchored = p.startsWith('/') || clean.includes('/');
-    (isAnchored ? dirRels : dirNames).add(clean);
-    if (!isDirOnly) (isAnchored ? fileRels : fileNames).add(clean);
+    rules.push({ neg, isDirOnly, isAnchored, clean });
   }
-  return { dirRels, dirNames, fileRels, fileNames, dirGlobRes, fileGlobRes };
+  return { rules };
 }
-const isDirIgnored = (ig, rel, name) => ig.dirRels.has(rel) || ig.dirNames.has(name) || ig.dirGlobRes.some(r => r.test(rel));
-const isFileIgnored = (ig, rel, name) => ig.fileRels.has(rel) || ig.fileNames.has(name) || ig.fileGlobRes.some(r => r.test(rel));
+
+function matchIgnoreRules(ig, rel, name, isDir) {
+  let ignored = false;
+  for (const r of ig.rules) {
+    if (!isDir && r.isDirOnly) continue;
+    const hit = r.rx ? r.rx.test(rel) : (r.isAnchored ? rel === r.clean : (name === r.clean || rel === r.clean));
+    if (hit) ignored = !r.neg;
+  }
+  return ignored;
+}
+const isDirIgnored = (ig, rel, name) => matchIgnoreRules(ig, rel, name, true);
+const isFileIgnored = (ig, rel, name) => matchIgnoreRules(ig, rel, name, false);
 
 function isDynamicTextTrap(fullPath, fileName, sizeBytes) {
   if (LOCKFILE_RE.test(fileName) || /\.min\.(?:js|css)$/i.test(fileName)) return true;
@@ -319,8 +330,9 @@ function detectStack(root) {
   return stack;
 }
 
-function cmdAudit(opts) {
-  const ig = loadIgnoreRules(opts.root);
+function collectAuditStats(root) {
+  const ig = loadIgnoreRules(root);
+  const seenRealDirs = new Set();
   let rawFiles = 0, rawBytes = 0, activeFiles = 0, activeBytes = 0;
   let trapTextFiles = 0, trapTextBytes = 0, trapBinaryBytes = 0;
   let visits = 0;
@@ -329,13 +341,18 @@ function cmdAudit(opts) {
 
   function scanAll(dir, depth, parentIgnored, bucketName) {
     if (depth > 6 || visits >= MAX_WALK_VISITS * 3) return;
+    try {
+      const rp = fs.realpathSync(dir);
+      if (seenRealDirs.has(rp)) return;
+      seenRealDirs.add(rp);
+    } catch { return; }
     let entries;
     try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
     for (const e of entries) {
       if (visits++ >= MAX_WALK_VISITS * 3) return;
       if (e.name === '.git' || e.name === 'node_modules' || e.name === '.venv' || e.name === 'venv') continue;
       const full = path.join(dir, e.name);
-      const rel = normalizePattern(path.relative(opts.root, full));
+      const rel = normalizePattern(path.relative(root, full));
       if (e.isDirectory()) {
         const dirIg = parentIgnored || isDirIgnored(ig, rel, e.name) || BACKUP_DIR_RE.test(e.name) || SKIP_WALK_DIRS.has(e.name);
         const bName = bucketName || (dirIg ? rel + '/' : '');
@@ -366,34 +383,69 @@ function cmdAudit(opts) {
       }
     }
   }
-  scanAll(opts.root, 0, false, '');
+  scanAll(root, 0, false, '');
   monoliths.sort((a, b) => b.bytes - a.bytes);
 
-  const trapTextTokens = Math.ceil(trapTextBytes / 4);
-  const activeTokens = Math.ceil(activeBytes / 4);
+  return {
+    rawFiles,
+    rawBytes,
+    activeFiles,
+    activeBytes,
+    activeTokens: Math.ceil(activeBytes / 4),
+    trapTextFiles,
+    trapTextBytes,
+    trapTextTokens: Math.ceil(trapTextBytes / 4),
+    trapBinaryBytes,
+    trapBuckets,
+    monoliths
+  };
+}
+
+function classifyRepoTier({ activeFiles, activeTokens, monoliths, trapTextTokens }) {
+  if (monoliths.length === 0 && trapTextTokens < 5000 && (activeFiles < 25 || activeTokens < 5000)) {
+    return {
+      key: 0,
+      label: 'TIER 0 (IGNORE-ONLY)',
+      estDocTokens: 0,
+      reason: `Small/clean repo (${activeFiles} files, 0 monoliths) — INDEX.md doc tax would exceed read savings`
+    };
+  }
+  if (monoliths.length <= 2 && trapTextTokens < 25000) {
+    return {
+      key: 1,
+      label: 'TIER 1 (LEAN ZERO-COPY)',
+      estDocTokens: 450,
+      reason: `Moderate repo (${activeFiles} files, ${monoliths.length} monoliths) — use root AGENTS.md only + global CLI`
+    };
+  }
+  return {
+    key: 2,
+    label: 'TIER 2 (FULL 4-LAYER)',
+    estDocTokens: 1900,
+    reason: `${monoliths.length} monoliths (>=15KB) & ${(trapTextTokens / 1000).toFixed(1)}k trap tokens quarantined`
+  };
+}
+
+function cmdAudit(opts) {
+  const stats = collectAuditStats(opts.root);
+  const {
+    rawFiles, rawBytes, activeFiles, activeBytes, activeTokens,
+    trapTextFiles, trapTextBytes, trapTextTokens, trapBinaryBytes, trapBuckets, monoliths
+  } = stats;
   const sliceCostTokens = 450;
   const avgMonoSave = monoliths.length
     ? Math.round(monoliths.reduce((s, m) => s + Math.max(0, m.estTokens - sliceCostTokens), 0) / monoliths.length)
     : 0;
 
+  const tierInfo = classifyRepoTier(stats);
   let docBytes = 0;
   for (const d of ['AGENTS.md', 'INDEX.md', 'CLAUDE.md']) {
     const p = path.join(opts.root, d);
     if (fs.existsSync(p)) docBytes += fs.statSync(p).size;
   }
-  const actualOrEstDocTokens = docBytes > 0 ? Math.ceil(docBytes / 4) : (monoliths.length >= 3 ? 1900 : 450);
+  const actualOrEstDocTokens = docBytes > 0 ? Math.ceil(docBytes / 4) : tierInfo.estDocTokens;
   const sessionTaxTokens = Math.ceil(actualOrEstDocTokens * 1.5);
   const breakEvenReads = avgMonoSave > 0 ? (sessionTaxTokens / avgMonoSave).toFixed(1) : 'N/A';
-
-  let tier = 'TIER 2 (FULL 4-LAYER)';
-  let tierReason = `${monoliths.length} monoliths (>=15KB) & ${(trapTextTokens / 1000).toFixed(1)}k trap tokens quarantined`;
-  if (activeFiles < 25 && monoliths.length === 0 && trapTextTokens < 5000) {
-    tier = 'TIER 0 (IGNORE-ONLY)';
-    tierReason = `Small clean repo (${activeFiles} files, 0 monoliths) — INDEX.md doc tax would exceed read savings`;
-  } else if (monoliths.length <= 2 && activeFiles < 50) {
-    tier = 'TIER 1 (LEAN ZERO-COPY)';
-    tierReason = `Moderate repo (${activeFiles} files, ${monoliths.length} monoliths) — use root AGENTS.md only + global CLI`;
-  }
 
   const topTraps = Object.entries(trapBuckets)
     .sort((a, b) => b[1] - a[1])
@@ -414,7 +466,7 @@ function cmdAudit(opts) {
     `├─ Monoliths (>=15KB):      ${monoliths.length} files (${monoliths.slice(0, 5).map(m => `${m.rel}:${Math.round(m.bytes / 1024)}KB`).join(', ') || 'none'})`,
     `├─ Mathematical ROI model:  Session doc tax = ~${fmtInt(sessionTaxTokens)} tok (1.5x compact) | Avg monolith slice save = ~${fmtInt(avgMonoSave)} tok/read`,
     `├─ Break-even threshold:    R* = ${breakEvenReads} monolith reads/session (plus 100% protection against ${fmtInt(trapTextTokens)}-tok trap reads)`,
-    `└─ Optimal configuration:   ${tier} — ${tierReason}`
+    `└─ Optimal configuration:   ${tierInfo.label} — ${tierInfo.reason}`
   ];
   console.log(capOutput(out.join('\n')));
 }
@@ -470,13 +522,19 @@ function extractUserComments(filePath) {
 
 function computeIgnoreTargets(root) {
   const repo = walkRepo(root, 5);
-  const existingIgnore = parseLinesFile(path.join(root, '.ignore')).map(normalizePattern);
-  const rootGitIgnore = parseLinesFile(path.join(root, '.gitignore')).filter(p => !p.startsWith('!')).map(normalizePattern);
-  const merged = new Set([...BASE_TRAPS, ...existingIgnore, ...rootGitIgnore, ...repo.backupDirs]);
-  for (const t of repo.largeTraps) if (t.base64) merged.add(t.rel);
-  for (const g of repo.generatedHints) merged.add(g);
+  const existingIgnore = parseLinesFile(path.join(root, '.ignore')).map(normalizePattern).filter(Boolean);
+  const rootGitIgnore = parseLinesFile(path.join(root, '.gitignore')).map(normalizePattern).filter(Boolean);
+  const posSet = new Set(BASE_TRAPS);
+  const negSet = new Set();
+  for (const p of [...existingIgnore, ...rootGitIgnore]) {
+    if (p.startsWith('!')) negSet.add(p);
+    else posSet.add(p);
+  }
+  for (const d of repo.backupDirs) posSet.add(d);
+  for (const t of repo.largeTraps) if (t.base64) posSet.add(t.rel);
+  for (const g of repo.generatedHints) posSet.add(g);
   return {
-    patterns: [...merged],
+    patterns: [...posSet, ...negSet],
     existingIgnore,
     existingContext: parseLinesFile(path.join(root, '.contextignore')).map(normalizePattern),
     jcmPath: path.join(root, '.jcodemunch.jsonc'),
@@ -512,6 +570,35 @@ function replaceJcmExtraPatterns(rawJcm, arrLiteral) {
     }
   }
   return null;
+}
+
+function insertJcmExtraPatterns(rawJcm, arrLiteral) {
+  const closeIdx = rawJcm.lastIndexOf('}');
+  if (closeIdx < 0) return null;
+  let inStr = false, inBlk = false, lastCodeIdx = -1;
+  for (let i = 0; i < closeIdx; i++) {
+    const ch = rawJcm[i], nx = rawJcm[i + 1];
+    if (inBlk) { if (ch === '*' && nx === '/') { inBlk = false; i++; } continue; }
+    if (inStr) {
+      if (ch === '\\') { i++; continue; }
+      if (ch === '"') { inStr = false; lastCodeIdx = i; }
+      continue;
+    }
+    if (ch === '"') { inStr = true; continue; }
+    if (ch === '/' && nx === '/') { while (i < closeIdx && rawJcm[i] !== '\n') i++; continue; }
+    if (ch === '/' && nx === '*') { inBlk = true; i++; continue; }
+    if (!/\s/.test(ch)) lastCodeIdx = i;
+  }
+  const lastCh = lastCodeIdx >= 0 ? rawJcm[lastCodeIdx] : '';
+  const propLine = `  "extra_ignore_patterns": ${arrLiteral}\n`;
+  if (!lastCh || lastCh === '{' || lastCh === ',') {
+    const prefix = rawJcm.slice(0, closeIdx);
+    const sep = prefix.endsWith('\n') ? '' : '\n';
+    return prefix + sep + propLine + rawJcm.slice(closeIdx);
+  }
+  const withComma = rawJcm.slice(0, lastCodeIdx + 1) + ',' + rawJcm.slice(lastCodeIdx + 1, closeIdx);
+  const sep = withComma.endsWith('\n') ? '' : '\n';
+  return withComma + sep + propLine + rawJcm.slice(closeIdx);
 }
 
 function cmdSyncIgnores(opts) {
@@ -553,7 +640,7 @@ function cmdSyncIgnores(opts) {
     if (fs.existsSync(jcmPath)) {
       const rawJcm = fs.readFileSync(jcmPath, 'utf8');
       const arrLiteral = JSON.stringify(patterns, null, 4).replace(/\n\]$/, '\n  ]');
-      const spliced = replaceJcmExtraPatterns(rawJcm, arrLiteral);
+      const spliced = replaceJcmExtraPatterns(rawJcm, arrLiteral) ?? insertJcmExtraPatterns(rawJcm, arrLiteral);
       if (spliced !== null) {
         fs.writeFileSync(jcmPath, spliced);
       } else {
@@ -774,20 +861,49 @@ function trimValue(v, depth = 0) {
   return v;
 }
 
+function parseSliceTargetSpec(raw) {
+  const m = String(raw || '').match(/^(.*?)(?:#([^:#]+))?(?::L(\d+)(?:-L(\d+))?)?$/i);
+  if (!m || !m[1]) return null;
+  const start = m[3] ? parseInt(m[3], 10) : null;
+  const end = m[4] ? parseInt(m[4], 10) : start;
+  return {
+    scopeRaw: m[1],
+    scope: normalizePattern(m[1]).toLowerCase(),
+    inlineSym: m[2] || '',
+    explicitStart: start,
+    explicitEnd: end
+  };
+}
+
+function findBestOutlineEntry(entries, symQuery) {
+  const q = symQuery.toLowerCase();
+  const strip = s => s.toLowerCase().replace(/^[#.]/, '');
+  return entries.find(e => e.symbol.toLowerCase() === q || strip(e.symbol) === q)
+    || entries.find(e => strip(e.symbol).startsWith(q))
+    || entries.find(e => e.symbol.toLowerCase().includes(q) || e.text.toLowerCase().includes(q))
+    || null;
+}
+
 function cmdSlice(opts) {
-  if (opts.pos.some(a => /\.json$/i.test(a))) {
-    console.error('REFUSED: Do not pass raw .json paths to --slice (triggers bash_compress on node args). Pass logical module IDs instead.');
+  const { hasTokenOpt } = detectHostTools(opts.root);
+  if (hasTokenOpt && opts.pos.some(a => /\.json(?:$|:)/i.test(a))) {
+    console.error('REFUSED: Do not pass raw .json paths to --slice when Token Optimizer is active (triggers bash_compress on node args). Pass logical module IDs instead.');
     process.exit(2);
   }
-  const [scopeRaw, idArg] = opts.pos;
-  const scope = (scopeRaw || '').toLowerCase();
-  if (!scope) { console.error('Usage: --slice <scope> [id]'); process.exit(1); }
-  if (/(?:^|\/)\.env|secret|credential|private[-_]?key/i.test(scope)) {
-    console.error(`REFUSED: Secret/credential scope blocked by security guard: ${scopeRaw}`);
+  const [scopeArg, idArg] = opts.pos;
+  const spec = parseSliceTargetSpec(scopeArg);
+  if (!spec) { console.error('Usage: --slice <scope> [id] | <file>:Lstart-Lend'); process.exit(1); }
+  if (/(?:^|\/)\.env(?:\.|$)/i.test(spec.scope) || isSecretPath(spec.scope)) {
+    console.error(`REFUSED: Secret/credential scope blocked by security guard: ${scopeArg}`);
+    process.exit(2);
+  }
+  if ((spec.scopeRaw.includes('..') || path.isAbsolute(spec.scopeRaw)) && !isInsideRoot(opts.root, path.resolve(opts.root, spec.scopeRaw))) {
+    console.error(`REFUSED: Path outside repository root: ${scopeArg}`);
     process.exit(2);
   }
 
   const candidates = [];
+  let blockedSecret = false;
   const ig = loadIgnoreRules(opts.root);
   (function findMod(dir, depth) {
     if (depth > 5 || candidates.length >= 50) return;
@@ -799,37 +915,59 @@ function cmdSlice(opts) {
       const rel = normalizePattern(path.relative(opts.root, p));
       if (e.isDirectory()) {
         if (!isDirIgnored(ig, rel, e.name)) findMod(p, depth + 1);
-      } else if (
-        !isFileIgnored(ig, rel, e.name) &&
-        !isSecretPath(rel) &&
-        !(rel === 'scripts/repo-index.cjs' && !scope.includes('repo-index')) &&
-        (e.name.toLowerCase().includes(scope) || rel.toLowerCase().includes(scope)) &&
-        SLICE_EXTS.test(e.name) &&
-        !LOCKFILE_RE.test(e.name)
-      ) {
-        candidates.push(p);
+      } else if (e.name.toLowerCase().includes(spec.scope) || rel.toLowerCase().includes(spec.scope)) {
+        if (isSecretPath(rel)) {
+          blockedSecret = true;
+          continue;
+        }
+        if (
+          !isFileIgnored(ig, rel, e.name) &&
+          !(rel === 'scripts/repo-index.cjs' && !spec.scope.includes('repo-index')) &&
+          SLICE_EXTS.test(e.name) &&
+          !LOCKFILE_RE.test(e.name)
+        ) {
+          candidates.push(p);
+        }
       }
     }
   })(opts.root, 0);
 
-  if (!candidates.length) { console.error(`Slice target not found: ${scope}`); process.exit(1); }
+  if (!candidates.length) {
+    if (blockedSecret) {
+      console.error(`REFUSED: Secret/credential file blocked by security guard: ${scopeArg}`);
+      process.exit(2);
+    }
+    console.error(`Slice target not found: ${spec.scope}`);
+    process.exit(1);
+  }
   const rank = p => {
     const rel = normalizePattern(path.relative(opts.root, p)).toLowerCase();
     const base = path.basename(p).toLowerCase();
-    if (path.parse(base).name === scope || base === scope || rel === scope) return 0;
-    if (base.startsWith(scope)) return 1;
+    if (rel === spec.scope) return -1;
+    if (path.parse(base).name === spec.scope || base === spec.scope) return 0;
+    if (base.startsWith(spec.scope)) return 1;
     return 2;
   };
   candidates.sort((a, b) => rank(a) - rank(b));
   const target = candidates[0];
   const rel = normalizePattern(path.relative(opts.root, target));
+  const effectiveId = idArg || spec.inlineSym;
+
+  if (spec.explicitStart !== null) {
+    const lines = fs.readFileSync(target, 'utf8').replace(/^\uFEFF/, '').split(/\r?\n/);
+    const startIdx = Math.max(0, Math.min(lines.length - 1, spec.explicitStart - 1));
+    const reqEnd = Math.max(startIdx + 1, Math.min(lines.length, spec.explicitEnd || spec.explicitStart));
+    const endIdx = Math.min(reqEnd, startIdx + MAX_CODE_SLICE_LINES);
+    console.log(capOutput(`landmark: ${rel}:L${startIdx + 1}-L${endIdx}\n` + lines.slice(startIdx, endIdx).join('\n')));
+    return;
+  }
 
   if (target.endsWith('.json')) {
     const data = readJsonSafe(target, true);
     if (data !== null) {
       const arrKey = Object.keys(data).find(k => Array.isArray(data[k]) && data[k].length);
       const list = Array.isArray(data) ? data : (arrKey ? data[arrKey] : [data]);
-      const item = (idArg && list.find(x => x && (x.id === idArg || x.name === idArg || x.tagName === idArg || x.tag === idArg || x.slug === idArg))) || (idArg && data && typeof data === 'object' && data[idArg] ? { [idArg]: data[idArg] } : list[0]);
+      const item = (effectiveId && list.find(x => x && (x.id === effectiveId || x.name === effectiveId || x.tagName === effectiveId || x.tag === effectiveId || x.slug === effectiveId))) || (effectiveId && data && typeof data === 'object' && data[effectiveId] ? { [effectiveId]: data[effectiveId] } : list[0]);
       const keyVal = item?.id || item?.name || item?.tagName || item?.tag || item?.slug;
       const escId = keyVal ? String(keyVal).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') : '';
       const span = escId ? findObjectSpan(target, new RegExp(`"(?:id|name|tagName|tag|slug)"\\s*:\\s*"${escId}"`)) : `${path.basename(target)}:L1-L40`;
@@ -839,11 +977,30 @@ function cmdSlice(opts) {
     }
   }
 
-  const lines = fs.readFileSync(target, 'utf8').split(/\r?\n/);
+  const lines = fs.readFileSync(target, 'utf8').replace(/^\uFEFF/, '').split(/\r?\n/);
+  const ext = path.extname(target).toLowerCase();
+  if (effectiveId && CODE_EXTS.has(ext)) {
+    const { entries } = parseFileOutline(target);
+    const entry = findBestOutlineEntry(entries, effectiveId);
+    if (entry) {
+      const startIdx = Math.max(0, entry.startLine - 1);
+      const isMarker = /^(?:<!--|\/\*|<script\b|<style\b)/i.test(entry.symbol);
+      const endIdx = entry.endLine > entry.startLine
+        ? Math.min(lines.length, entry.endLine, startIdx + MAX_CODE_SLICE_LINES)
+        : (isMarker ? Math.min(lines.length, startIdx + 40) : Math.min(lines.length, entry.endLine));
+      console.log(capOutput(`landmark: ${rel}:L${startIdx + 1}-L${endIdx}\n` + lines.slice(startIdx, endIdx).join('\n')));
+      return;
+    }
+  }
+
   let start = 0;
-  if (idArg) {
-    const idx = lines.findIndex(l => l.toLowerCase().includes(idArg.toLowerCase()));
-    if (idx >= 0) start = Math.max(0, idx - 3);
+  if (effectiveId) {
+    const idx = lines.findIndex(l => l.toLowerCase().includes(effectiveId.toLowerCase()));
+    if (idx < 0) {
+      console.error(`Slice target symbol/pattern "${effectiveId}" not found in ${rel}`);
+      process.exit(1);
+    }
+    start = Math.max(0, idx - 3);
   }
   const end = Math.min(lines.length, start + 40);
   console.log(capOutput(`landmark: ${rel}:L${start + 1}-L${end}\n` + lines.slice(start, end).join('\n')));
@@ -1497,11 +1654,12 @@ function cmdVerify(opts) {
     const lc = s.split('\n').length, bc = Buffer.byteLength(s, 'utf8');
     if (lc > DOC_MAX_LINES || bc > DOC_MAX_BYTES) badDocs.push(`${rel}(${lc}L/${bc}B)`);
   }
-  if (badDocs.length || !docs.length) {
+  const tierInfo = !docs.length ? classifyRepoTier(collectAuditStats(opts.root)) : null;
+  if (badDocs.length || (!docs.length && tierInfo.key > 0)) {
     ok = false;
-    lines.push(`FAIL doc-budgets: ${!docs.length ? 'no AGENTS.md/INDEX.md found' : badDocs.join(', ')}`);
+    lines.push(`FAIL doc-budgets: ${!docs.length ? `no AGENTS.md/INDEX.md found (recommended: ${tierInfo.label})` : badDocs.join(', ')}`);
   } else {
-    lines.push(`PASS doc-budgets: ${docs.length} files <=${DOC_MAX_LINES}L/${DOC_MAX_BYTES}B`);
+    lines.push(`PASS doc-budgets: ${docs.length ? `${docs.length}<=${DOC_MAX_LINES}L` : 'tier-0(0)'}`);
   }
 
   const { issues: staleLandmarks } = inspectAndHealLandmarks(opts.root, docs, false);
@@ -1509,7 +1667,7 @@ function cmdVerify(opts) {
     ok = false;
     lines.push(`FAIL landmarks: ${staleLandmarks.join(', ')} (run --sync-landmarks --write)`);
   } else {
-    lines.push('PASS landmarks: all file & symbol line landmarks verified');
+    lines.push(`PASS landmarks: ${docs.length ? 'verified' : '0(tier-0)'}`);
   }
 
   const unguardedGit = repo.gitDirs
@@ -1520,7 +1678,7 @@ function cmdVerify(opts) {
     ok = false;
     lines.push(`FAIL nested-git: missing AGENTS.md in ${unguardedGit.join(', ')}`);
   } else {
-    lines.push(`PASS nested-git: ${repo.gitDirs.length} boundary(s) covered`);
+    lines.push(`PASS nested-git: ${repo.gitDirs.length}`);
   }
 
   const ig = computeIgnoreTargets(opts.root);
@@ -1532,8 +1690,8 @@ function cmdVerify(opts) {
     ok = false;
     lines.push(`FAIL ignore-parity: missing .ignore(${mIg.length}) .contextignore(${mCtx.length}) .jcodemunch.jsonc(${mJcm.length})`);
   } else {
-    const syncedCount = 1 + (hasTokenOpt ? 1 : 0) + (hasJcm ? 1 : 0);
-    lines.push(`PASS ignore-parity: ${syncedCount} file(s) synced (${ig.patterns.length} patterns)`);
+    const syncedCount = 1 + ((opts.allIgnores || hasTokenOpt) ? 1 : 0) + ((opts.allIgnores || hasJcm) ? 1 : 0);
+    lines.push(`PASS ignore-parity: ${syncedCount}(${ig.patterns.length})`);
   }
 
   if (!opts.skipValidators) {
@@ -1550,8 +1708,162 @@ function cmdVerify(opts) {
     }
   }
 
-  console.log(capOutput(lines.join('\n')));
+  console.log(capOutput(ok ? lines.join(' | ') : lines.join('\n')));
   if (!ok) process.exit(1);
+}
+
+const UPDATE_API_URL = 'https://api.github.com/repos/4anti/antis-optimizer/releases?per_page=15';
+const RELEASES_PAGE_URL = 'https://github.com/4anti/antis-optimizer/releases';
+const MAX_UPDATE_BYTES = 262144;
+const UPDATE_TIMEOUT_MS = 2500;
+
+function parseSemver(raw) {
+  const m = /^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?/.exec(String(raw || '').trim());
+  return m ? { major: +m[1], minor: +m[2], patch: +m[3], pre: m[4] || '' } : null;
+}
+
+function compareSemver(a, b) {
+  const pa = parseSemver(a), pb = parseSemver(b);
+  if (!pa || !pb) return 0;
+  for (const k of ['major', 'minor', 'patch']) {
+    if (pa[k] !== pb[k]) return pa[k] > pb[k] ? 1 : -1;
+  }
+  if (!pa.pre && pb.pre) return 1;
+  if (pa.pre && !pb.pre) return -1;
+  return pa.pre === pb.pre ? 0 : (pa.pre > pb.pre ? 1 : -1);
+}
+
+function parseReleaseSeverity(release) {
+  const body = String(release?.body || '');
+  const metaMatch = /<!--\s*antis-release\s*:\s*(\{[^}]*\})\s*-->/i.exec(body);
+  if (metaMatch) {
+    try {
+      const sev = String(JSON.parse(metaMatch[1]).severity || '').toLowerCase();
+      if (sev === 'critical' || sev === 'security') return 'critical';
+      if (sev === 'recommended' || sev === 'breaking') return 'recommended';
+      if (sev === 'normal') return 'normal';
+    } catch {}
+  }
+  const head = `${release?.name || ''}\n${body.slice(0, 600)}`;
+  if (/\[(?:CRITICAL|SECURITY)\]|^#{1,3}\s*(?:CRITICAL|SECURITY)\b/im.test(head)) return 'critical';
+  if (/\[(?:BREAKING|RECOMMENDED)\]|^#{1,3}\s*(?:BREAKING|RECOMMENDED)\b/im.test(head)) return 'recommended';
+  return 'normal';
+}
+
+function summarizeReleases(releases, localVer) {
+  const newer = (Array.isArray(releases) ? releases : [])
+    .filter(r => r && !r.draft && !r.prerelease)
+    .filter(r => {
+      const sv = parseSemver(r.tag_name);
+      return sv && !sv.pre && compareSemver(r.tag_name, localVer) > 0;
+    })
+    .sort((a, b) => compareSemver(b.tag_name, a.tag_name))
+    .map(r => ({
+      tag: r.tag_name,
+      name: r.name || r.tag_name,
+      severity: parseReleaseSeverity(r),
+      url: r.html_url || `${RELEASES_PAGE_URL}/tag/${r.tag_name}`
+    }));
+  const criticalReleases = newer.filter(r => r.severity === 'critical');
+  return {
+    localVersion: localVer,
+    latestTag: newer[0]?.tag || null,
+    newerReleases: newer,
+    criticalReleases,
+    hasCritical: criticalReleases.length > 0
+  };
+}
+
+function detectInstallMode(installRoot = path.resolve(__dirname, '..')) {
+  const root = path.resolve(installRoot);
+  const norm = normalizePattern(root);
+  const pkg = readJsonSafe(path.join(root, 'package.json'));
+  const hasSkill = fs.existsSync(path.join(root, 'SKILL.md'));
+  if (/(?:^|\/)node_modules\/antis-optimizer(?:$|\/)|\/\.npm\/_npx\//i.test(norm)) return { mode: 'npm-managed', root };
+  if (pkg?.name !== 'antis-optimizer' || !hasSkill) return { mode: 'repo-local', root };
+  if (fs.existsSync(path.join(root, '.git'))) return { mode: 'git-clone', root };
+  return { mode: 'standalone-skill', root };
+}
+
+function getUpgradeCommand(modeInfo, targetTag) {
+  if (modeInfo.mode === 'git-clone') return `git -C "${modeInfo.root}" fetch --tags && git -C "${modeInfo.root}" pull --ff-only`;
+  if (modeInfo.mode === 'npm-managed') return `npm install -g git+https://github.com/4anti/antis-optimizer.git#${targetTag}`;
+  if (modeInfo.mode === 'repo-local') return `Update global skill first, then copy scripts/repo-index.cjs into "${path.join(modeInfo.root, 'scripts', 'repo-index.cjs')}"`;
+  return `Review release notes and re-sync "${modeInfo.root}" from ${RELEASES_PAGE_URL}/tag/${targetTag}`;
+}
+
+function formatUpdateReport(summary, modeInfo, opts = {}) {
+  if (opts.criticalOnly && !summary.hasCritical) return '';
+  if (!summary.newerReleases.length) return `antis-optimizer v${summary.localVersion} (${modeInfo.mode}): up to date.`;
+  const head = summary.hasCritical
+    ? `[!] CRITICAL UPDATE AVAILABLE: antis-optimizer v${summary.localVersion} -> ${summary.latestTag} (${modeInfo.mode})`
+    : `Update available: antis-optimizer v${summary.localVersion} -> ${summary.latestTag} (${modeInfo.mode})`;
+  const rows = summary.newerReleases.slice(0, 5).map(r => `  - ${r.tag} [${r.severity.toUpperCase()}] ${r.name}`);
+  const focusUrl = summary.criticalReleases[0]?.url || `${RELEASES_PAGE_URL}/tag/${summary.latestTag}`;
+  return [
+    head,
+    ...rows,
+    `Upgrade manually (no auto-write): ${getUpgradeCommand(modeInfo, summary.latestTag)}`,
+    `Release notes: ${focusUrl}`
+  ].join('\n');
+}
+
+function httpsGetPinnedJson(urlStr, opts = {}, hops = 0) {
+  return new Promise((resolve, reject) => {
+    let u;
+    try { u = new URL(urlStr); } catch { return reject(new Error('Invalid update URL')); }
+    if (u.protocol !== 'https:' || u.hostname !== 'api.github.com') {
+      return reject(new Error('Blocked unpinned update endpoint: only https://api.github.com is allowed'));
+    }
+    const req = https.request(u, {
+      method: 'GET',
+      timeout: opts.timeoutMs || UPDATE_TIMEOUT_MS,
+      headers: {
+        'User-Agent': `antis-optimizer/${getPkgVersion()}`,
+        Accept: 'application/vnd.github+json'
+      }
+    }, res => {
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        res.resume();
+        if (hops >= 2) return reject(new Error('Too many redirects'));
+        let nextUrl;
+        try { nextUrl = new URL(res.headers.location, u).toString(); } catch { return reject(new Error('Invalid redirect')); }
+        return httpsGetPinnedJson(nextUrl, opts, hops + 1).then(resolve, reject);
+      }
+      if (res.statusCode !== 200) {
+        res.resume();
+        return reject(new Error(`GitHub API HTTP ${res.statusCode}`));
+      }
+      const chunks = [];
+      let bytes = 0;
+      res.on('data', chunk => {
+        bytes += chunk.length;
+        if (bytes > MAX_UPDATE_BYTES) {
+          res.destroy();
+          return reject(new Error(`Update payload exceeded ${MAX_UPDATE_BYTES} bytes`));
+        }
+        chunks.push(chunk);
+      });
+      res.on('end', () => {
+        try { resolve(JSON.parse(Buffer.concat(chunks).toString('utf8'))); }
+        catch (e) { reject(new Error(`Invalid JSON from GitHub API: ${e.message}`)); }
+      });
+    });
+    req.on('timeout', () => req.destroy(new Error('Update check timed out')));
+    req.on('error', reject);
+    req.end();
+  });
+}
+
+async function cmdCheckUpdate(opts) {
+  try {
+    const releases = await httpsGetPinnedJson(UPDATE_API_URL);
+    const report = formatUpdateReport(summarizeReleases(releases, getPkgVersion()), detectInstallMode(), opts);
+    if (report) console.log(capOutput(report));
+  } catch (err) {
+    console.error(`Update check failed: ${err.message} (check manually: ${RELEASES_PAGE_URL})`);
+    process.exit(1);
+  }
 }
 
 if (require.main === module) {
@@ -1565,6 +1877,7 @@ if (require.main === module) {
   else if (opts.cmd === '--outline') cmdOutline(opts);
   else if (opts.cmd === '--handoff') cmdHandoff(opts);
   else if (opts.cmd === '--verify') cmdVerify(opts);
+  else if (opts.cmd === '--check-update') cmdCheckUpdate(opts);
   else if (opts.cmd === '--help') cmdHelp();
   else if (opts.cmd === '--version') console.log(`antis-optimizer v${getPkgVersion()}`);
   else { console.error(`Unknown subcommand: ${opts.cmd} (try --help)`); process.exit(1); }
@@ -1577,6 +1890,13 @@ if (require.main === module) {
     updatePyTriple,
     loadIgnoreRules,
     isDirIgnored,
-    isFileIgnored
+    isFileIgnored,
+    compareSemver,
+    parseReleaseSeverity,
+    summarizeReleases,
+    detectInstallMode,
+    getUpgradeCommand,
+    formatUpdateReport,
+    httpsGetPinnedJson
   };
 }

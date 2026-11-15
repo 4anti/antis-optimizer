@@ -66,12 +66,14 @@ antis-optimizer --audit
 
 1. **Audit your repo (`--audit`):** Counts real source files vs. junk, flags large files (`>= 15 KB`), and recommends a right-sized setup (for tiny repos, it skips extra docs completely so setup never costs more tokens than it saves).
 2. **Sync ignore rules everywhere (`--sync-ignores --write`):** Mirrors your exclusions across `.ignore`, `.contextignore`, and `.jcodemunch.jsonc` while keeping your own comments untouched.
-3. **Jump straight to exact lines (`--outline`, `--slice`):** Lists every function, class, HTML section, CSS block, or JSON section with exact `file:Lstart-Lend` ranges across TS/JS/JSX/TSX, Python, Rust, Go, C/C++, C#, HTML, CSS, and JSON. Uses the TypeScript Compiler when installed, with a fast built-in parser fallback.
-4. **Keep docs fresh automatically (`--sync-landmarks --write`, `--verify`):** Re-anchors shifted line numbers after you edit code and confirms everything passes in a single line.
+3. **Jump straight to exact lines (`--outline`, `--slice`):** Lists every function, class, HTML section, CSS block, or JSON section with exact `file:Lstart-Lend` ranges across TS/JS/JSX/TSX, Python, Rust, Go, C/C++, C#, HTML, CSS, and JSON, and slices exact AST/lexer symbol spans or `:Lstart-Lend` line ranges. Uses the TypeScript Compiler when installed, with a fast built-in parser fallback.
+4. **Keep docs fresh automatically (`--sync-landmarks --write`, `--verify`):** Re-anchors shifted line numbers after you edit code and confirms everything passes in a single line (including `0`-doc Tier 0 repos).
 
 ---
 
-## 📊 Real Impact
+## 📊 Modeled Impact
+
+*Representative scenario comparisons (~4 chars/token) contrasting full-file reads and verbose logs against capped CLI outputs:*
 
 | Common Task | Without `antis-optimizer` | With `antis-optimizer` | Saved |
 | :--- | :--- | :--- | :---: |
@@ -93,11 +95,12 @@ Every command caps its output below `3,500` characters (and `--handoff` below `2
 | `antis-optimizer --detect` | Detects which AI tools, MCP servers, and nested `.git` folders are present |
 | `antis-optimizer --sync-ignores --write` | Syncs ignore patterns across `.ignore`, `.contextignore`, and `.jcodemunch.jsonc` |
 | `antis-optimizer --outline <file> [filter]` | Shows symbols/sections and exact `Lstart-Lend` line numbers |
-| `antis-optimizer --slice <name> [key]` | Extracts one JSON section or bounded code slice with line coordinates |
+| `antis-optimizer --slice <scope> [symbol]` / `<file>:Lstart-Lend` | Extracts one JSON section, AST/lexer symbol span, or explicit line range |
 | `antis-optimizer --map` | Prints a compact overview map and landmarks of the project |
 | `antis-optimizer --sync-landmarks --write` | Updates shifted `file:Lstart-Lend` references in `AGENTS.md` / `INDEX.md` |
 | `antis-optimizer --verify [--exec "<cmd>"]` | Verifies doc size caps, line numbers, and ignore sync in one line |
 | `antis-optimizer --handoff --goal "..."` | Creates a compact `<= 2 KB` JSON checkpoint before context resets |
+| `antis-optimizer --check-update [--critical-only]` | Checks GitHub Releases (read-only; warns on `[CRITICAL]` fixes without modifying files) |
 
 ---
 
