@@ -16,7 +16,7 @@ Scan bloat, sync ignore rules across every AI tool, and jump straight to the exa
 
 <br/>
 
-**[Interactive Website & Diff Simulator](https://4anti.github.io/antis-optimizer/)** · **[v1.0.0 Release](https://github.com/4anti/antis-optimizer/releases/tag/v1.0.0)** · **[Contributing Guide](./CONTRIBUTING.md)**
+**[Interactive Website & Diff Simulator](https://4anti.github.io/antis-optimizer/)** · **[v1.1.0 Release](https://github.com/4anti/antis-optimizer/releases/tag/v1.1.0)** · **[Contributing Guide](./CONTRIBUTING.md)**
 
 <br/>
 
