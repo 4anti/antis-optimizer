@@ -2840,7 +2840,7 @@ function detectInstallMode(installRoot = path.resolve(__dirname, '..')) {
 
 function getUpgradeCommand(modeInfo, targetTag) {
   if (modeInfo.mode === 'git-clone') return `git -C "${modeInfo.root}" fetch --tags && git -C "${modeInfo.root}" pull --ff-only`;
-  if (modeInfo.mode === 'npm-managed') return `npm install -g git+https://github.com/4anti/antis-optimizer.git#${targetTag}`;
+  if (modeInfo.mode === 'npm-managed') return `npm install -g antis-optimizer@${String(targetTag).replace(/^v/, "")}`;
   if (modeInfo.mode === 'repo-local') return `Update global skill first, then copy scripts/repo-index.cjs into "${path.join(modeInfo.root, 'scripts', 'repo-index.cjs')}"`;
   return `Review release notes and re-sync "${modeInfo.root}" from ${RELEASES_PAGE_URL}/tag/${targetTag}`;
 }
