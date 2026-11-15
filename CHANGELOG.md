@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-11-15
+
+### Added
+- Release automation: pushing a `vX.Y.Z` tag tests, creates the GitHub Release from this file, and publishes to npm with provenance.
+- `SECURITY.md`, `CODE_OF_CONDUCT.md`, and this changelog.
+
+### Changed
+- `--audit` slice savings are now measured from each monolith's real symbol spans instead of a fixed 450-token constant; the line is labelled as an estimate and states its basis. Break-even shows two decimals.
+- `--help` groups commands by purpose, leading with `--outline` / `--slice`.
+- README: real output examples, supported-languages table, Safety & Limits section.
+
 ## [1.2.0] - 2026-11-15
 
 ### Added
@@ -37,7 +48,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 ### Added
 - Initial release: `--audit`, `--detect`, `--sync-ignores`, `--sync-landmarks`, `--map`, `--slice`, `--outline`, `--handoff`, `--verify`.
 
-[Unreleased]: https://github.com/4anti/antis-optimizer/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/4anti/antis-optimizer/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/4anti/antis-optimizer/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/4anti/antis-optimizer/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/4anti/antis-optimizer/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/4anti/antis-optimizer/releases/tag/v1.0.0

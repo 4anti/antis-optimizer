@@ -18,6 +18,7 @@ const { spawnSync } = require('child_process');
 const MAX_CLI_CHARS = 3400; // Stays safely under Token Optimizer 4,096-char archive_result cap.
 const MAX_HANDOFF_BYTES = 2048; // Pre-compaction handoff snapshot cap.
 const MAX_CODE_SLICE_LINES = 120;
+const DEFAULT_SLICE_TOKENS = 450; // fallback when a monolith has no parseable symbols
 const DOC_MAX_LINES = 80;
 const DOC_MAX_BYTES = 4500;
 const MAX_WALK_VISITS = 3500;
@@ -139,16 +140,20 @@ function getPkgVersion() {
 
 function cmdHelp() {
   console.log([
-    `antis-optimizer v${getPkgVersion()} — Off-Context Repo CLI & Token ROI Engine`,
+    `antis-optimizer v${getPkgVersion()} — give AI agents the exact lines, not the whole file`,
     '',
-    'Commands:',
+    'Core (read the right lines):',
+    '  --outline <rel> [filter]    List symbols/sections with exact Lstart-Lend line spans',
+    '  --slice <scope> [id|L-L]    Print one symbol, JSON item, or :Lstart-Lend range',
+    '',
+    'Repo hygiene:',
     '  --audit                     Audit bloat traps, monoliths & ROI break-even tier',
-    '  --detect                    Detect agent hosts, MCP servers & nested .git dirs',
     '  --sync-ignores [--write]    Sync .ignore + present tool ignores (no opencode.json[c] mutation)',
+    '',
+    'Agent docs & sessions:',
+    '  --detect                    Detect agent hosts, MCP servers & nested .git dirs',
     '  --sync-landmarks [--write]  Verify/auto-heal symbol:Lstart-Lend in AGENTS/INDEX.md',
     '  --map                       Compact repo map & domain landmarks (<3.5 KB)',
-    '  --outline <rel> [filter]    Compiler-AST / polyglot symbol & line-span outline',
-    '  --slice <scope> [id|L-L]    Slice JSON item, AST symbol span, or :Lstart-Lend range',
     '  --handoff [--goal "..."]    Emit <=2 KB pre-compaction JSON state snapshot',
     '  --verify [--exec "<cmd>"]   1-line PASS verification of budgets, landmarks & ignores',
     '  --check-update              Check GitHub Releases for updates (read-only)',
@@ -518,10 +523,23 @@ function cmdAudit(opts) {
     rawFiles, rawBytes, activeFiles, activeBytes, activeTokens,
     trapTextFiles, trapTextBytes, trapTextTokens, trapBinaryBytes, trapBuckets, monoliths
   } = stats;
-  const sliceCostTokens = 450;
-  const avgMonoSave = monoliths.length
-    ? Math.round(monoliths.reduce((s, m) => s + Math.max(0, m.estTokens - sliceCostTokens), 0) / monoliths.length)
+  // Slice cost is measured per monolith (median real symbol span); the default only covers files with no parsed symbols.
+  let measuredSpans = 0;
+  const sliceCostOf = m => {
+    try {
+      const o = parseFileOutline(path.join(opts.root, m.rel));
+      const spans = o.entries.map(e => Math.min(MAX_CODE_SLICE_LINES, (e.endLine || e.startLine) - e.startLine + 1)).sort((a, b) => a - b);
+      const lineCount = Array.isArray(o.lines) ? o.lines.length : o.lines;
+      if (!spans.length || !lineCount) return DEFAULT_SLICE_TOKENS;
+      measuredSpans += spans.length;
+      return Math.ceil(spans[spans.length >> 1] * (m.bytes / lineCount) / 4);
+    } catch { return DEFAULT_SLICE_TOKENS; }
+  };
+  const sampled = monoliths.slice(0, 8); // shortcut: samples the 8 largest monoliths, raise if audits need full precision
+  const avgMonoSave = sampled.length
+    ? Math.round(sampled.reduce((s, m) => s + Math.max(0, m.estTokens - sliceCostOf(m)), 0) / sampled.length)
     : 0;
+  const saveBasis = measuredSpans ? `measured over ${fmtInt(measuredSpans)} symbol spans` : 'default slice estimate';
 
   const tierInfo = classifyRepoTier(stats);
   let docBytes = 0;
@@ -531,7 +549,7 @@ function cmdAudit(opts) {
   }
   const actualOrEstDocTokens = docBytes > 0 ? Math.ceil(docBytes / 4) : tierInfo.estDocTokens;
   const sessionTaxTokens = Math.ceil(actualOrEstDocTokens * 1.5);
-  const breakEvenReads = avgMonoSave > 0 ? (sessionTaxTokens / avgMonoSave).toFixed(1) : 'N/A';
+  const breakEvenReads = avgMonoSave > 0 ? (sessionTaxTokens / avgMonoSave).toFixed(2) : 'N/A';
 
   const topTraps = Object.entries(trapBuckets)
     .sort((a, b) => b[1] - a[1])
@@ -542,7 +560,7 @@ function cmdAudit(opts) {
   const mbQuarantined = ((rawBytes - activeBytes) / 1048576).toFixed(1);
 
   const out = [
-    `=== ANTIS-OPTIMIZER AUDIT & TOKEN ROI MODEL ===`,
+    `=== ANTIS-OPTIMIZER AUDIT & TOKEN ROI ESTIMATE ===`,
     `Repo: ${path.basename(opts.root)} | Stack: ${detectStack(opts.root).join(', ') || 'generic'}`,
     `├─ Search noise filtered:  ${fmtInt(rawFiles)} raw files ──► ${fmtInt(activeFiles)} active files (▼ ${fileReductionPct}% file noise)`,
     `├─ Total bloat quarantined: ${mbQuarantined} MB (${(trapBinaryBytes / 1048576).toFixed(1)} MB media/fonts + ${fmtInt(Math.round(trapTextBytes / 1024))} KB text/JSON/bundles)`,
@@ -550,7 +568,7 @@ function cmdAudit(opts) {
     `├─ Top quarantined paths:   ${topTraps.join(', ') || 'none'}`,
     `├─ Active source footprint: ${fmtInt(activeFiles)} files (~${fmtInt(activeTokens)} tokens total)`,
     `├─ Monoliths (>=15KB):      ${monoliths.length} files (${monoliths.slice(0, 5).map(m => `${m.rel}:${Math.round(m.bytes / 1024)}KB`).join(', ') || 'none'})`,
-    `├─ Mathematical ROI model:  Session doc tax = ~${fmtInt(sessionTaxTokens)} tok (1.5x compact) | Avg monolith slice save = ~${fmtInt(avgMonoSave)} tok/read`,
+    `├─ Estimated ROI (bytes/4): Session doc tax = ~${fmtInt(sessionTaxTokens)} tok (1.5x compact) | Avg monolith slice save = ~${fmtInt(avgMonoSave)} tok/read (${saveBasis})`,
     `├─ Break-even threshold:    R* = ${breakEvenReads} monolith reads/session (plus ~${fmtInt(trapTextTokens)} tok of trap files kept out of searches)`,
     `└─ Optimal configuration:   ${tierInfo.label} — ${tierInfo.reason}`,
     ...(stats.suggestDirs.length ? [`⚠ Review guessed dirs (not auto-ignored): ${stats.suggestDirs.slice(0, 6).join(', ')}`] : []),

@@ -4,9 +4,9 @@
 
 # antis-optimizer
 
-**Stop AI coding agents from wasting tokens on junk folders and oversized files.**
+**Give AI coding agents the exact lines, not the whole file.**
 
-Scan bloat, sync ignore rules across every AI tool, and jump straight to the exact lines of code you need.
+One command lists every symbol with its line range; one more prints just that function. Around that core: scan repo bloat and sync ignore rules across every AI tool so agents stop wasting tokens on junk folders and oversized files.
 
 [![GitHub Release](https://img.shields.io/github/v/release/4anti/antis-optimizer?style=flat-square&label=release&color=2563eb)](https://github.com/4anti/antis-optimizer/releases)
 [![CI](https://img.shields.io/github/actions/workflow/status/4anti/antis-optimizer/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/4anti/antis-optimizer/actions)
@@ -16,7 +16,7 @@ Scan bloat, sync ignore rules across every AI tool, and jump straight to the exa
 
 <br/>
 
-**[Interactive Website & Diff Simulator](https://4anti.github.io/antis-optimizer/)** · **[v1.2.0 Release](https://github.com/4anti/antis-optimizer/releases/tag/v1.2.0)** · **[Changelog](./CHANGELOG.md)** · **[Contributing Guide](./CONTRIBUTING.md)** · **[Security](./SECURITY.md)**
+**[Interactive Website & Diff Simulator](https://4anti.github.io/antis-optimizer/)** · **[v1.3.0 Release](https://github.com/4anti/antis-optimizer/releases/tag/v1.3.0)** · **[Changelog](./CHANGELOG.md)** · **[Contributing Guide](./CONTRIBUTING.md)** · **[Security](./SECURITY.md)**
 
 <br/>
 
