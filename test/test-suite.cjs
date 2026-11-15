@@ -922,6 +922,7 @@ try {
   fs.mkdirSync(t50Clean, { recursive: true });
   fs.writeFileSync(path.join(t50Clean, 'index.ts'), 'export const clean = 1;\n');
   const t50Dry = spawnSync('node', [targetCli, '--root', t50Clean, '--sync-ignores'], { encoding: 'utf8', env: t49Env });
+  const t50CleanDetect = spawnSync('node', [targetCli, '--root', t50Clean, '--detect'], { encoding: 'utf8', env: t49Env });
   spawnSync('node', [targetCli, '--root', t50Clean, '--sync-ignores', '--write', '--all-ignores'], { encoding: 'utf8', env: t49Env });
   const t50CleanVerify = spawnSync('node', [targetCli, '--root', t50Clean, '--verify', '--all-ignores'], { encoding: 'utf8', env: t49Env });
   const t50AllToolIgnores = ['.cursorignore', '.cursorindexingignore', '.geminiignore', '.aiexclude', '.codeiumignore', '.rooignore', '.clineignore', '.aiderignore', '.claudeignore', 'opencode.json', 'opencode.jsonc'];
@@ -940,6 +941,7 @@ try {
   const t50Verify2 = spawnSync('node', [targetCli, '--root', t50Active, '--verify'], { encoding: 'utf8', env: t49Env });
   const t50ClineTxt = fs.readFileSync(path.join(t50Active, '.clineignore'), 'utf8');
   const t50 = (t50Dry.stdout || '').includes('Skipped absent tools (anti-bloat') &&
+              !(t50CleanDetect.stdout || '').includes('.contextignore') && !(t50CleanDetect.stdout || '').includes('.jcodemunch.jsonc') &&
               t50NoneCreated && t50CleanVerify.status === 0 &&
               ['.cursorignore', '.cursorindexingignore', '.codeiumignore', '.clineignore'].every(f => fs.existsSync(path.join(t50Active, f))) &&
               ['.geminiignore', '.aiexclude', '.rooignore', '.aiderignore', '.claudeignore', 'opencode.json', 'opencode.jsonc'].every(f => !fs.existsSync(path.join(t50Active, f))) &&

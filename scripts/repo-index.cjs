@@ -946,7 +946,7 @@ function detectHostTools(root) {
 
 function cmdDetect(opts) {
   const hosts = detectHostTools(opts.root);
-  const { home, has, claudeMcp, claudeSignals, claudeSettings, agyMcp, opencode, cursor, gemini, codex, copilot, windsurf, editorAgents, rtk } = hosts;
+  const { home, has, claudeMcp, claudeSignals, claudeSettings, agyMcp, hasTokenOpt, hasJcm, opencode, cursor, gemini, codex, copilot, windsurf, editorAgents, rtk } = hosts;
   const caveman = has('.claude/.caveman-active') ? fs.readFileSync(path.join(home, '.claude/.caveman-active'), 'utf8').trim() : 'off';
   const enabledPlugins = Object.keys(claudeSettings.enabledPlugins || {}).filter(k => claudeSettings.enabledPlugins[k]);
   const repo = walkRepo(opts.root, 5);
@@ -956,7 +956,13 @@ function cmdDetect(opts) {
   const activeExtraIgnores = EXTRA_IGNORE_SPECS
     .filter(s => HU.existsFile(path.join(opts.root, s.file)) || s.dirs.some(d => HU.existsDir(path.join(opts.root, d))))
     .map(s => s.file);
-  const syncList = ['.ignore', '.contextignore', '.jcodemunch.jsonc', ...activeExtraIgnores, ...opencode.projectConfigs.map(c => c.label)];
+  const syncList = [
+    '.ignore',
+    ...(hasTokenOpt ? ['.contextignore'] : []),
+    ...(hasJcm ? ['.jcodemunch.jsonc'] : []),
+    ...activeExtraIgnores,
+    ...opencode.projectConfigs.map(c => c.label)
+  ];
 
   const ocLabels = HU.uniq([...opencode.configs.map(c => c.label), ...opencode.dirs]);
   const ocGuardSummary = `env-deny=${opencode.hasEnvReadGuard}, watcher-ignore=${opencode.hasWatcherIgnore}, opencode-ignore=${opencode.hasOpencodeIgnore}`;
