@@ -1092,7 +1092,7 @@
       npx: {
         label: 'Instant npx',
         desc: 'Zero install: run a full repo bloat audit straight from GitHub in 10 seconds.',
-        cmd: 'npx github:4anti/antis-optimizer --audit'
+        cmd: 'npx antis-optimizer --audit'
       },
       opencode: {
         label: 'OpenCode',
@@ -1102,7 +1102,7 @@
       claude: {
         label: 'Claude Code',
         desc: 'Audit junk and conditionally sync .ignore, .contextignore, .claudeignore, and .jcodemunch.jsonc only when present.',
-        cmd: 'npx github:4anti/antis-optimizer --audit && npx github:4anti/antis-optimizer --sync-ignores --write'
+        cmd: 'npx antis-optimizer --audit && npx antis-optimizer --sync-ignores --write'
       },
       cursor: {
         label: 'Cursor',
@@ -1112,7 +1112,7 @@
       codex: {
         label: 'Codex',
         desc: 'Generate pointer-only AGENTS.md / AGENTS.override.md landmarks and verify token caps in one line.',
-        cmd: 'npx github:4anti/antis-optimizer --map && npx github:4anti/antis-optimizer --verify'
+        cmd: 'npx antis-optimizer --map && npx antis-optimizer --verify'
       },
       gemini: {
         label: 'Gemini CLI',
@@ -1168,7 +1168,7 @@
 
     // T1 Slim Ghostty macOS Terminal
     function svgT1() {
-      const c1 = makeTyping('npx github:4anti/antis-optimizer --audit', 164, 7.0, 0.015, 0.10);
+      const c1 = makeTyping('npx antis-optimizer --audit', 164, 7.0, 0.015, 0.10);
       const c2 = makeTyping('antis-optimizer --outline src/auth.ts', 164, 7.0, 0.28, 0.36);
       const c3 = makeTyping('antis-optimizer --verify', 164, 7.0, 0.50, 0.56);
       const glyphs = ['⠋','⠙','⠸','⠴','⠦','⠏'];
@@ -1206,7 +1206,7 @@
 
           <!-- 1. AUDIT -->
           <text x="36" y="82" textLength="119" lengthAdjust="spacing">${promptTxt}</text>
-          <text x="164" y="82" fill="${P.primary}" font-weight="600" textLength="${c1.totalW}" lengthAdjust="spacing" clip-path="url(#t1_c1)">npx github:4anti/antis-optimizer --audit</text>
+          <text x="164" y="82" fill="${P.primary}" font-weight="600" textLength="${c1.totalW}" lengthAdjust="spacing" clip-path="url(#t1_c1)">npx antis-optimizer --audit</text>
           <text x="922" y="82" text-anchor="end" font-size="10.2" fill="${P.muted}" opacity="0">0.4s<animate attributeName="opacity" values="0;0;1;1" keyTimes="0;0.158;0.168;1" dur="14s" repeatCount="indefinite"/></text>
           <rect x="164" y="70.5" width="7.2" height="14.5" rx="1.2" fill="${P.good}">
             <animate attributeName="x" calcMode="discrete" values="${c1.xValues}" keyTimes="${c1.keyTimes}" dur="14s" repeatCount="indefinite"/>
@@ -1475,9 +1475,9 @@
               <li><span class="chk">+</span><span>Auto-heals shifted <code>file:Lstart-Lend</code> landmarks</span></li>
             </ul>
             <div class="cta-row">
-              <button type="button" class="cmd-copy-btn" data-copy="npx github:4anti/antis-optimizer --audit">
+              <button type="button" class="cmd-copy-btn" data-copy="npx antis-optimizer --audit">
                 <span class="prompt">$</span>
-                <span>npx github:4anti/antis-optimizer --audit</span>
+                <span>npx antis-optimizer --audit</span>
                 <span class="copy-state">Copy</span>
               </button>
             </div>
@@ -1495,9 +1495,9 @@
               <h1 class="hero-h1">Precision context for coding agents.</h1>
               <p class="hero-p">Repo auditing, conditional ignore parity, and AST/lexer line slicing for OpenCode, Claude Code, Cursor, Codex, Gemini CLI, Antigravity, Copilot, and Windsurf.</p>
               <div class="cta-row">
-                <button type="button" class="cmd-copy-btn" data-copy="npx github:4anti/antis-optimizer --audit">
+                <button type="button" class="cmd-copy-btn" data-copy="npx antis-optimizer --audit">
                   <span class="prompt">$</span>
-                  <span>npx github:4anti/antis-optimizer --audit</span>
+                  <span>npx antis-optimizer --audit</span>
                   <span class="copy-state">Copy</span>
                 </button>
                 <a href="#install" class="ctrl-btn">Setup guides</a>
@@ -1521,9 +1521,9 @@
             <h1 class="hero-h1">Precision context for AI coding agents.</h1>
             <p class="hero-p">Quarantine build bloat everywhere, then slice only the symbol lines you need under 3.5 KB.</p>
             <div class="cta-row">
-              <button type="button" class="cmd-copy-btn" data-copy="npx github:4anti/antis-optimizer --audit">
+              <button type="button" class="cmd-copy-btn" data-copy="npx antis-optimizer --audit">
                 <span class="prompt">$</span>
-                <span>npx github:4anti/antis-optimizer --audit</span>
+                <span>npx antis-optimizer --audit</span>
                 <span class="copy-state">Copy</span>
               </button>
               <a href="#simulator" class="ctrl-btn">See live diff</a>

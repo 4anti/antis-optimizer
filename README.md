@@ -9,6 +9,7 @@
 One command lists every symbol with its line range; one more prints just that function. Around that core: scan repo bloat and sync ignore rules across every AI tool so agents stop wasting tokens on junk folders and oversized files.
 
 [![GitHub Release](https://img.shields.io/github/v/release/4anti/antis-optimizer?style=flat-square&label=release&color=2563eb)](https://github.com/4anti/antis-optimizer/releases)
+[![npm](https://img.shields.io/npm/v/antis-optimizer?style=flat-square&color=cb3837&logo=npm)](https://www.npmjs.com/package/antis-optimizer)
 [![CI](https://img.shields.io/github/actions/workflow/status/4anti/antis-optimizer/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/4anti/antis-optimizer/actions)
 [![Node >= 18](https://img.shields.io/badge/node-%3E%3D18-339933?style=flat-square&logo=node.js)](./package.json)
 [![Zero Required Deps](https://img.shields.io/badge/dependencies-0%20required-2ea043?style=flat-square)](./package.json)
@@ -48,13 +49,13 @@ When you ask an AI assistant (**OpenCode**, **Claude Code**, **Cursor**, **Codex
 Run a read-only audit on any repo — nothing is written to your project:
 
 ```bash
-npx github:4anti/antis-optimizer --audit
+npx antis-optimizer --audit
 ```
 
 Or install globally so `antis-optimizer` is always available (npm installs optional `typescript` by default for Compiler AST parsing; pass `--omit=optional` for zero downloads using the built-in lexer):
 
 ```bash
-npm install -g git+https://github.com/4anti/antis-optimizer.git
+npm install -g antis-optimizer
 antis-optimizer --audit
 ```
 

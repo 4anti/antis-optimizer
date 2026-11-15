@@ -5,6 +5,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 
 ## [Unreleased]
 
+### Changed
+- Install instructions, site, demo, and the `--check-update` upgrade hint now use the npm package (`npx antis-optimizer`, `npm install -g antis-optimizer`).
+- Release workflow stages the npm publish for maintainer 2FA approval.
+
 ## [1.3.0] - 2026-11-15
 
 ### Added
