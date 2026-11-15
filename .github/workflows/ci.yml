@@ -28,6 +28,9 @@ jobs:
           ANTIS_FORCE_LEXER: "1"
         run: npm test
 
+      - name: Dogfood self-verify
+        run: node scripts/repo-index.cjs --verify
+
       - name: Run TypeScript Compiler AST suite
         env:
           ANTIS_EXPECT_AST: "1"

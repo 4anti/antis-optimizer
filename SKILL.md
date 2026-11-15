@@ -1,54 +1,51 @@
 ---
 name: antis-optimizer
 description: >-
-  Audit any repository and install a low-token 4-layer agent stack (triple-synced
-  ignores, model/tool-aware AGENTS.md & INDEX.md, scoped rules, MCP/AST routing,
-  and a Hybrid Compiler-AST + Stateful-Lexer CLI for --audit, --detect,
-  --sync-ignores, --sync-landmarks, --map, --slice, --outline, --handoff, and
-  compact --verify) across ChatGPT/Codex, Claude Code, and Gemini/Antigravity,
-  cooperating with jcodemunch, ponytail, caveman, and hooks.
+  Audit any repo and install a low-token 4-layer stack (conditional multi-tool
+  ignores, model-aware AGENTS.md/INDEX.md, MCP/AST routing, and zero-dep CLI for
+  --audit, --detect, --sync-ignores, --sync-landmarks, --map, --slice, --outline,
+  --handoff, --verify) across OpenCode, Claude Code, Codex, Cursor,
+  Gemini/Antigravity, Copilot, and Windsurf with jcodemunch/ponytail/caveman/RTK.
 ---
 
 # Antis-Optimizer
 
-Cut context, tool-output, and compaction tokens across **ChatGPT/Codex**, **Claude Code**, and **Gemini/Antigravity** while cooperating with installed MCPs, plugins, and hooks.
+Cut context, tool-output, and compaction tokens across AI coding agents while cooperating with installed MCPs, plugins, and hooks.
 
 ## Hard Budgets
 
 | Artifact | Cap | Purpose |
 | :--- | :--- | :--- |
-| Root / Scoped `AGENTS.md`, `INDEX.md` | `<= 80L / <= 4,500B` | Invariants, excludes, router, maps, landmarks. |
-| `CLAUDE.md` *(optional)* | `1L / <= 20B` | `@./AGENTS.md` pointer only. Never add `GEMINI.md`. |
-| CLI `--audit`/`--map`/`--slice`/`--outline`/`--verify` | `< 3,500 chars` | Clears `Token Optimizer` `4,096`-char `archive_result` cap. |
-| CLI `--handoff` | `<= 2,048B` | Pre-compaction snapshot (`Context-Mode` pattern). |
+| `AGENTS.md`, `AGENTS.override.md`, `INDEX.md` | `<= 80L / <= 4,500B` | Invariants, excludes, router, landmarks. |
+| `CLAUDE.md` *(opt)* | `1L / <= 20B` | `@./AGENTS.md` pointer; never add `GEMINI.md`. |
+| `--audit`/`--map`/`--slice`/`--outline`/`--verify` | `< 3,500 chars` | Clears `Token Optimizer` `4,096`-char cap. |
+| `--handoff` | `<= 2,048B` | Pre-compaction snapshot (`Context-Mode`). |
 
 ## Workflow
 
-### 1. Detect Tooling & Run Mathematical Token ROI Audit
+### 1. Detect & Audit
 Run `node <skill-dir>/scripts/repo-index.cjs --root . --detect` and `--audit`:
-- **Mathematical Break-Even Tiering (`--audit`):**
-  - *Tier 0 (`IGNORE-ONLY`):* `0` monoliths (`>= 15KB`), `< 5k` trap tokens, and (`< 25` active files or `< 5k` active tokens) -> sync ignores only (skip `AGENTS.md`/`INDEX.md`; `--verify` passes with `0` docs).
-  - *Tier 1 (`LEAN ZERO-COPY`):* `<= 2` monoliths and `< 25k` trap tokens (outside Tier 0) -> root `AGENTS.md` (target `<= 35L`, hard cap `80L`) + synced ignores; run `<skill-dir>/scripts/repo-index.cjs` globally without copying `scripts/repo-index.cjs` or `INDEX.md`.
-  - *Tier 2 (`FULL 4-LAYER`):* `>= 3` monoliths or `>= 25k` trap tokens -> full `AGENTS.md` + `INDEX.md` + local/global CLI (`R* < 1` monolith read break-even).
-- **Model/tool profile:**
-  - *Claude / Gemini:* omit prose-brevity/style rules in repo `AGENTS.md` when `Ponytail` or `Caveman` is active (avoid stacking). Load `references/tool-coop-matrix.md` only for MCP/hook setup.
-  - *ChatGPT / Codex (GPT reasoning):* keep root `AGENTS.md` pointer-only (invariants, excludes, CLI commands); skip verbose rules (`+26–39%` GPT-5 regression in Ponytail benchmarks).
-- **Boundaries & dot-dirs:** Antigravity stops at nearest `.git` (add `AGENTS.md` per nested `.git`). If source lives in a `.dot-dir/`, note `rg`/`Grep` needs `--hidden` or explicit path (Windows `rg` prints `\` paths).
+- **Tiering (`--audit`):**
+  - *Tier 0 (`IGNORE-ONLY`):* `0` monoliths (`>=15KB`), `<5k` trap tokens, and (`<25` active files or `<5k` active tokens) -> ignores only (`--verify` passes at `0` docs).
+  - *Tier 1 (`LEAN ZERO-COPY`):* `<=2` monoliths & `<25k` trap tokens -> root `AGENTS.md` (target `<=35L`, cap `80L`) + ignores; run global `<skill-dir>/scripts/repo-index.cjs` (no copied CLI/`INDEX.md`).
+  - *Tier 2 (`FULL 4-LAYER`):* `>=3` monoliths or `>=25k` trap tokens -> `AGENTS.md` + `INDEX.md` + CLI (`R*<1` break-even).
+- **Profile:** omit prose-brevity rules in `AGENTS.md` when `Ponytail`/`Caveman`/`opencode-dcp`/`RTK`/`openrtk` active; keep Codex/GPT `AGENTS.md` (`AGENTS.override.md`) pointer-only (`+26–39%` GPT-5 regression). Load `references/tool-coop-matrix.md` only for MCP/hook/plugin setup.
+- **Scope:** Antigravity stops at nearest `.git` (add `AGENTS.md` per nested `.git`); OpenCode auto-loads `AGENTS.md` & `.opencode/skills/`. `.dot-dir/` search needs `rg --hidden` (Windows `rg` prints `\`).
 
 ### 2. Decision Gate
-Before editing repo files, present the `--audit` scoreboard and confirm: (1) Tier 0 vs Tier 1 (Zero-Copy) vs Tier 2 (Full 4-Layer); (2) keep monoliths with `file:L-L` landmarks + `--slice` vs split; (3) apply triple-ignore sync + optional host configs (`references/templates.md`).
+Present `--audit` scoreboard; confirm: (1) Tier 0 vs 1 vs 2; (2) `file:L-L` + `--slice` vs split monoliths; (3) conditional ignore sync + optional host configs (`references/templates.md`).
 
-### 3. Build the Co-op Layers
-- **Triple Ignore Sync (`--sync-ignores --write`):** mirror patterns across `.ignore` (`rg`), `.contextignore` (`Token Optimizer` `read_cache.py`), and `.jcodemunch.jsonc` (`extra_ignore_patterns`), preserving user `#` and `//` comments and `.gitignore` rules.
-- **Tier 0/1/2 + Artifact Router:** put invariants, Do-Not-Read paths, CLI commands, and symbol-anchored landmarks (`` `sym` `Lstart-Lend` ``) in `AGENTS.md` + `INDEX.md`:
-  - *IDs, JSON/HTML monoliths, docs* -> CLI `--map`/`--slice`/`--outline` + `Read(file, offset, limit)`.
-  - *Code callers / blast radius* -> `jcodemunch` (`route`/`order` on `counter` door) when indexed; else `--outline <file> [filter]` + `Read(offset, limit)`. Small known `<15`-line targets -> native `Grep`/`Read`.
-  - Never run `/caveman-compress` on `AGENTS.md`, `INDEX.md`, or `SKILL.md` (breaks tables, globs, and line landmarks).
-- **Self-Healing Off-Context CLI (`scripts/repo-index.cjs`):**
-  1. Cap outputs `< 3,500 chars` and auto-redact secrets (`ghp_`, `sk-`, `AIza`, JWTs; refuse `.env`/`.pem`/`.key`).
-  2. Print `file:Lstart-Lend` landmarks on `--slice`/`--outline` via Compiler AST (`ts.createSourceFile`) + Polyglot Stateful Lexer (TS/JS/JSX/TSX, Python, Rust, Go, C/C++ `#ifdef`-balanced, C#, HTML closing-tag spans, CSS).
-  3. Pass logical IDs or `<file>:Lstart-Lend` to `--slice` (avoid raw `.json` CLI args when Token Optimizer is active, as `pipeline_analyzer.py` enables `bash_compress`).
-  4. Auto-heal drifted symbol/section line ranges in `AGENTS.md` and `INDEX.md` via `--sync-landmarks --write`.
+### 3. Build Co-op Layers
+- **Conditional Ignore Sync (`--sync-ignores --write`):** writes `.ignore`; syncs `.contextignore`/`.jcodemunch.jsonc` when detected (or `--all-ignores`), plus repo-present `.cursorignore`, `.cursorindexingignore`, `.geminiignore`, `.aiexclude`, `.codeiumignore`, `.rooignore`, `.clineignore`, `.aiderignore`, `.claudeignore` ONLY when active (`opencode.json[c]` stays read-only; `--verify` checks `opencode-ignore`/existing `watcher.ignore` + `.env` deny). Preserves `#` headers, JSONC `//` comments, and `!negations`.
+- **Router (`AGENTS.md` / `INDEX.md`):** invariants, Do-Not-Read paths, CLI commands, and `` `sym` `Lstart-Lend` `` landmarks:
+  - IDs, JSON/config/doc monoliths -> `--map`/`--slice`/`--outline` + `Read(file, offset, limit)`.
+  - Callers / impact -> `jcodemunch` when indexed; else `--outline <file> [filter]` + `Read(offset, limit)`. `<15L` targets -> `Grep`/`Read`.
+  - Never run `/caveman-compress` on `AGENTS.md`, `INDEX.md`, or `SKILL.md`.
+- **Off-Context CLI (`scripts/repo-index.cjs`):**
+  1. Caps stdout `<3,500 chars`; redacts secrets (`ghp_`, `sk-`, `AIza`, `AKIA`, JWTs; refuses `.env`/`.pem`/`.key`).
+  2. Prints `file:Lstart-Lend` via optional `typescript` Compiler AST + built-in Polyglot Lexer: TS/JS/JSX/TSX, Python, Rust, Go, C/C++, C#, Java, Kotlin, Swift, PHP, Ruby, Elixir, SQL, Shell/Bash, HTML/Svelte/Vue/Astro, CSS, JSON/JSONC, YAML, TOML, Markdown.
+  3. Pass logical IDs or `<file>:Lstart-Lend` to `--slice` (avoid raw `.json` args under `Token Optimizer`).
+  4. Auto-heals drifted line ranges via `--sync-landmarks --write`.
 
 ### 4. Verify & Measure
-Run `--sync-landmarks --write`, `--verify`, `--audit`, and `--handoff`. Report measured bytes (`bytes / 4` est. tokens), break-even $R^*$, skipped checks, and any remaining risks.
+Run `--sync-landmarks --write`, `--verify`, `--audit`, `--handoff`. Report bytes (`bytes/4` est. tokens), $R^*$, skipped checks, and risks.

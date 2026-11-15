@@ -2,7 +2,7 @@
 'use strict';
 
 /**
- * Antis-Optimizer — Comprehensive Automated Test Suite (46 Self-Contained Tests)
+ * Antis-Optimizer — Comprehensive Automated Test Suite (59 Self-Contained Tests)
  * Zero personal paths; runs entirely inside an isolated OS temp directory.
  */
 
@@ -15,8 +15,8 @@ const targetCli = path.resolve(__dirname, '..', 'scripts', 'repo-index.cjs');
 const pkg = require(path.resolve(__dirname, '..', 'package.json'));
 const lib = require(targetCli);
 
-console.log(`=== ANTIS-OPTIMIZER v${pkg.version} TEST SUITE (46 TESTS) ===`);
-let passed = 0, total = 46;
+console.log(`=== ANTIS-OPTIMIZER v${pkg.version} TEST SUITE (59 TESTS) ===`);
+let passed = 0, total = 59;
 
 (async function main() {
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'antis-opt-test-'));
@@ -760,6 +760,669 @@ try {
   const t46 = headStr.length === 128 && headStr.startsWith('AAAA') && lib.readHead(path.join(tmp, 'missing.txt')) === '';
   if (t46) passed++;
   console.log(`[Test 46: readHead Bounded 4KB/Prefix Read Safety] ${t46 ? 'PASS' : 'FAIL'}`);
+
+  // 47. OpenCode Detection (Project + XDG/OPENCODE_CONFIG_DIR/OPENCODE_CONFIG + JSONC + MCP/Plugins + .opencode/skills)
+  const t47Home = path.join(tmp, 't47-home');
+  const t47Xdg = path.join(tmp, 't47-xdg');
+  const t47OcDir = path.join(tmp, 't47-ocdir');
+  const t47Repo = path.join(tmp, 't47-repo');
+  for (const d of [
+    path.join(t47Home, '.config', 'opencode'),
+    path.join(t47Xdg, 'opencode'),
+    t47OcDir,
+    path.join(t47Repo, '.opencode', 'skills', 'my-skill')
+  ]) fs.mkdirSync(d, { recursive: true });
+  const t47BadCfg = path.join(tmp, 't47-bad-opencode.jsonc');
+  fs.writeFileSync(t47BadCfg, '{ "mcp": { broken ');
+  fs.writeFileSync(path.join(t47Home, '.config', 'opencode', 'opencode.json'), JSON.stringify({ mcp: { home_mcp: { type: 'local' } } }));
+  fs.writeFileSync(path.join(t47OcDir, 'opencode.json'), JSON.stringify({ mcp: { oc_dir_mcp: { type: 'remote' } } }));
+  fs.writeFileSync(path.join(t47Xdg, 'opencode', 'opencode.jsonc'), '// XDG JSONC\n{\n  "plugin": ["opencode-ignore",],\n}\n');
+  fs.writeFileSync(path.join(t47Repo, 'opencode.jsonc'), [
+    '// Project OpenCode config',
+    '{',
+    '  /* trailing comma & mcp key */',
+    '  "mcp": { "jcodemunch": { "type": "local" }, },',
+    '  "plugin": ["opencode-dcp@1.2.0", "openrtk",],',
+    '  "permission": { "read": { ".env": "deny", "*.env.*": "deny" } },',
+    '}'
+  ].join('\n'));
+  fs.writeFileSync(path.join(t47Repo, '.opencode', 'skills', 'my-skill', 'SKILL.md'), '---\nname: my-skill\n---\n');
+  fs.writeFileSync(path.join(t47Repo, 'app.ts'), 'export const ok = true;\n');
+  const t47Env = { ...process.env, HOME: t47Home, USERPROFILE: t47Home, XDG_CONFIG_HOME: t47Xdg, OPENCODE_CONFIG_DIR: t47OcDir, OPENCODE_CONFIG: t47BadCfg };
+  const t47Detect = spawnSync('node', [targetCli, '--root', t47Repo, '--detect'], { encoding: 'utf8', env: t47Env });
+  const t47Map = spawnSync('node', [targetCli, '--root', t47Repo, '--map'], { encoding: 'utf8', env: t47Env });
+  const t47Out = t47Detect.stdout || '';
+  const t47 = t47Detect.status === 0 && t47Out.length < 3400 &&
+              t47Out.includes('$OPENCODE_CONFIG_DIR/opencode.json') &&
+              t47Out.includes('$XDG_CONFIG_HOME/opencode/opencode.jsonc') &&
+              t47Out.includes('~/.config/opencode/opencode.json') &&
+              t47Out.includes('opencode.jsonc') &&
+              t47Out.includes('oc_dir_mcp') && t47Out.includes('home_mcp') && t47Out.includes('jcodemunch') &&
+              t47Out.includes('opencode-ignore') && t47Out.includes('opencode-dcp@1.2.0') && t47Out.includes('openrtk') &&
+              t47Out.includes('env-deny=true') && t47Out.includes('opencode-ignore=true') && t47Out.includes('skills=my-skill') &&
+              t47Out.includes('RTK: openrtk') &&
+              t47Map.status === 0 && t47Map.stdout.includes('OpenCode skills: my-skill') && !t47Map.stdout.includes('Dot-dirs');
+  if (t47) passed++;
+  console.log(`[Test 47: OpenCode Multi-Source Detection, JSONC Parse Safety & .opencode/skills] ${t47 ? 'PASS' : 'FAIL'}`);
+
+  // 48. Read-Only OpenCode Verify, Guard Last-Rule-Wins & Never Creating/Mutating opencode.json[c]
+  const t48Env = { ...process.env, HOME: t47Home, USERPROFILE: t47Home, XDG_CONFIG_HOME: '', OPENCODE_CONFIG_DIR: '', OPENCODE_CONFIG: '' };
+  const t48NoOc = path.join(tmp, 't48-no-oc');
+  fs.mkdirSync(t48NoOc, { recursive: true });
+  fs.writeFileSync(path.join(t48NoOc, 'a.ts'), 'export const a = 1;\n');
+  spawnSync('node', [targetCli, '--root', t48NoOc, '--sync-ignores', '--write', '--all-ignores'], { encoding: 'utf8', env: t48Env });
+  const t48Json = path.join(tmp, 't48-oc-json');
+  fs.mkdirSync(t48Json, { recursive: true });
+  fs.writeFileSync(path.join(t48Json, 'a.ts'), 'export const a = 1;\n');
+  const t48JsonBeforeRaw = JSON.stringify({
+    theme: 'tokyonight',
+    mcp: { custom_srv: { type: 'local' } },
+    watcher: { ignore: ['custom-watch/**'] }
+  }, null, 2);
+  fs.writeFileSync(path.join(t48Json, 'opencode.json'), t48JsonBeforeRaw);
+  const t48VerifyBefore = spawnSync('node', [targetCli, '--root', t48Json, '--verify'], { encoding: 'utf8', env: t48Env });
+  spawnSync('node', [targetCli, '--root', t48Json, '--sync-ignores', '--write'], { encoding: 'utf8', env: t48Env });
+  const t48JsonUntouched = fs.readFileSync(path.join(t48Json, 'opencode.json'), 'utf8') === t48JsonBeforeRaw;
+  // Last matching permission.read rule wins: allow after '*' deny must warn!
+  fs.writeFileSync(path.join(t48Json, 'opencode.json'), JSON.stringify({
+    plugin: ['opencode-ignore'],
+    permission: { read: { '*': 'deny', '.env': 'allow' } }
+  }, null, 2));
+  const t48VerifyAllowWarn = spawnSync('node', [targetCli, '--root', t48Json, '--verify'], { encoding: 'utf8', env: t48Env });
+  fs.writeFileSync(path.join(t48Json, 'opencode.json'), JSON.stringify({
+    plugin: ['opencode-ignore'],
+    permission: { read: { '*.env': 'deny', '*.env.*': 'deny', '*.env.example': 'allow' } }
+  }, null, 2));
+  const t48VerifyAfter = spawnSync('node', [targetCli, '--root', t48Json, '--verify'], { encoding: 'utf8', env: t48Env });
+  const t48Jsonc = path.join(tmp, 't48-oc-jsonc');
+  fs.mkdirSync(t48Jsonc, { recursive: true });
+  fs.writeFileSync(path.join(t48Jsonc, 'a.ts'), 'export const a = 1;\n');
+  const t48JsoncBeforeRaw = '// Header comment\n{\n  // Keep inline\n  "plugin": ["opencode-dcp"],\n  "permission": { "read": { ".env": "deny" } }\n}\n';
+  fs.writeFileSync(path.join(t48Jsonc, 'opencode.jsonc'), t48JsoncBeforeRaw);
+  const t48JsoncSync = spawnSync('node', [targetCli, '--root', t48Jsonc, '--sync-ignores', '--write'], { encoding: 'utf8', env: t48Env });
+  const t48JsoncRaw = fs.readFileSync(path.join(t48Jsonc, 'opencode.jsonc'), 'utf8');
+  const t48JsoncVerify = spawnSync('node', [targetCli, '--root', t48Jsonc, '--verify'], { encoding: 'utf8', env: t48Env });
+  const t48 = !fs.existsSync(path.join(t48NoOc, 'opencode.json')) && !fs.existsSync(path.join(t48NoOc, 'opencode.jsonc')) &&
+              t48VerifyBefore.status === 1 && t48VerifyBefore.stdout.includes('opencode.json(') && t48VerifyBefore.stdout.includes('permission.read') &&
+              t48JsonUntouched &&
+              (t48VerifyAllowWarn.stdout || '').includes('WARN opencode-guard:') &&
+              t48VerifyAfter.status === 0 && (t48VerifyAfter.stdout || '').includes('PASS opencode-guard: .env protected') &&
+              t48JsoncRaw === t48JsoncBeforeRaw &&
+              (t48JsoncSync.stdout || '').includes('read-only') &&
+              t48JsoncVerify.status === 0 && (t48JsoncVerify.stdout || '').includes('WARN opencode-ignore:');
+  if (t48) passed++;
+  console.log(`[Test 48: Read-Only OpenCode Verify, Guard Last-Rule-Wins & Non-Mutation] ${t48 ? 'PASS' : 'FAIL'}`);
+
+  // 49. Multi-Host Detection (Cursor/Gemini/Codex/Claude/Copilot/Windsurf/Cline/Roo/Aider/RTK) & AGENTS.override.md
+  const t49Home = path.join(tmp, 't49-home');
+  const t49Repo = path.join(tmp, 't49-repo');
+  for (const d of [
+    path.join(t49Home, '.cursor'),
+    path.join(t49Home, '.gemini'),
+    path.join(t49Home, '.codex'),
+    path.join(t49Home, '.codeium', 'windsurf'),
+    path.join(t49Home, '.config', 'rtk'),
+    path.join(t49Repo, 'src'),
+    path.join(t49Repo, '.cursor', 'rules'),
+    path.join(t49Repo, '.gemini'),
+    path.join(t49Repo, '.claude'),
+    path.join(t49Repo, '.vscode'),
+    path.join(t49Repo, '.github', 'instructions'),
+    path.join(t49Repo, '.windsurf'),
+    path.join(t49Repo, '.kiro'),
+    path.join(t49Repo, '.factory'),
+    path.join(t49Repo, '.rtk')
+  ]) fs.mkdirSync(d, { recursive: true });
+  fs.writeFileSync(path.join(t49Home, '.cursor', 'mcp.json'), JSON.stringify({ mcpServers: { cur_global: {} } }));
+  fs.writeFileSync(path.join(t49Repo, '.cursor', 'mcp.json'), JSON.stringify({ mcpServers: { cur_proj: {} } }));
+  fs.writeFileSync(path.join(t49Repo, '.cursorignore'), 'dist/\n');
+  fs.writeFileSync(path.join(t49Repo, '.cursorindexingignore'), 'dist/\n');
+  fs.writeFileSync(path.join(t49Home, '.gemini', 'settings.json'), JSON.stringify({ mcpServers: { gem_global: {} } }));
+  fs.writeFileSync(path.join(t49Repo, '.gemini', 'settings.json'), JSON.stringify({ mcpServers: { gem_proj: {} } }));
+  fs.writeFileSync(path.join(t49Repo, '.geminiignore'), 'dist/\n');
+  fs.writeFileSync(path.join(t49Repo, '.aiexclude'), 'dist/\n');
+  fs.writeFileSync(path.join(t49Repo, 'GEMINI.md'), '# Gem\n');
+  fs.writeFileSync(path.join(t49Home, '.codex', 'config.toml'), '[mcp_servers.codex_srv]\ncommand = "npx"\n[tools]\nweb_search = true\n');
+  fs.writeFileSync(path.join(t49Home, '.codex', 'hooks.json'), '{}');
+  fs.writeFileSync(path.join(t49Repo, 'src', 'h.ts'), 'export function helper() {\n  return 1;\n}\n');
+  fs.writeFileSync(path.join(t49Repo, 'AGENTS.override.md'), '# Override\n- `src/h.ts#helper:L9-L9`\n');
+  fs.writeFileSync(path.join(t49Repo, '.mcp.json'), JSON.stringify({ mcpServers: { claude_proj: {} } }));
+  fs.writeFileSync(path.join(t49Repo, '.claude', 'settings.local.json'), JSON.stringify({ hooks: { PreToolUse: [{ command: 'rtk-rewrite.sh' }] } }));
+  fs.writeFileSync(path.join(t49Repo, '.claudeignore'), 'dist/\n');
+  fs.writeFileSync(path.join(t49Repo, '.vscode', 'mcp.json'), JSON.stringify({ servers: { vsc_srv: {} } }));
+  fs.writeFileSync(path.join(t49Repo, '.github', 'copilot-instructions.md'), '# Copilot\n');
+  fs.writeFileSync(path.join(t49Home, '.codeium', 'windsurf', 'mcp_config.json'), JSON.stringify({ mcpServers: { ws_srv: {} } }));
+  fs.writeFileSync(path.join(t49Repo, '.codeiumignore'), 'dist/\n');
+  fs.writeFileSync(path.join(t49Repo, '.rooignore'), 'dist/\n');
+  fs.writeFileSync(path.join(t49Repo, '.clineignore'), 'dist/\n');
+  fs.writeFileSync(path.join(t49Repo, '.aiderignore'), 'dist/\n');
+  fs.writeFileSync(path.join(t49Home, '.config', 'rtk', 'config.toml'), 'enabled = true\n');
+  const t49Env = { ...process.env, HOME: t49Home, USERPROFILE: t49Home, XDG_CONFIG_HOME: '', OPENCODE_CONFIG_DIR: '', OPENCODE_CONFIG: '' };
+  const t49Detect = spawnSync('node', [targetCli, '--root', t49Repo, '--detect'], { encoding: 'utf8', env: t49Env });
+  const t49Map = spawnSync('node', [targetCli, '--root', t49Repo, '--map'], { encoding: 'utf8', env: t49Env });
+  const t49VerifyDrift = spawnSync('node', [targetCli, '--root', t49Repo, '--verify'], { encoding: 'utf8', env: t49Env });
+  spawnSync('node', [targetCli, '--root', t49Repo, '--sync-landmarks', '--write'], { encoding: 'utf8', env: t49Env });
+  spawnSync('node', [targetCli, '--root', t49Repo, '--sync-ignores', '--write'], { encoding: 'utf8', env: t49Env });
+  const t49VerifyOk = spawnSync('node', [targetCli, '--root', t49Repo, '--verify'], { encoding: 'utf8', env: t49Env });
+  const t49D = t49Detect.stdout || '';
+  const t49 = t49Detect.status === 0 && t49D.length < 3400 &&
+              t49D.includes('cur_global') && t49D.includes('cur_proj') && t49D.includes('.cursor/rules') &&
+              t49D.includes('gem_global') && t49D.includes('gem_proj') && t49D.includes('.aiexclude') && t49D.includes('GEMINI.md') &&
+              t49D.includes('codex_srv') && t49D.includes('web_search=true') && t49D.includes('AGENTS.override.md') &&
+              t49D.includes('claude_proj') && t49D.includes('.claude/settings.local.json') &&
+              t49D.includes('vsc_srv') && t49D.includes('.github/copilot-instructions.md') && t49D.includes('.github/instructions/') &&
+              t49D.includes('ws_srv') && t49D.includes('.windsurf/') && t49D.includes('.codeiumignore') &&
+              t49D.includes('.rooignore') && t49D.includes('.clineignore') && t49D.includes('.aiderignore') &&
+              t49D.includes('~/.config/rtk/') && t49D.includes('claude-hooks') &&
+              t49Map.stdout.includes('AGENTS.override.md') && !t49Map.stdout.includes('Dot-dirs') &&
+              t49VerifyDrift.status === 1 && t49VerifyDrift.stdout.includes('drifted to L1-L3') &&
+              fs.readFileSync(path.join(t49Repo, 'AGENTS.override.md'), 'utf8').includes('src/h.ts#helper:L1-L3') &&
+              t49VerifyOk.status === 0;
+  if (t49) passed++;
+  console.log(`[Test 49: Multi-Host/RTK Detection, TOOL_DOT_DIRS & AGENTS.override.md Landmark Verify] ${t49 ? 'PASS' : 'FAIL'}`);
+
+  // 50. Anti-Bloat Conditional Multi-Tool Ignore Sync (Absent Tools Stay Clean; Present Tools Sync & Verify)
+  const t50Clean = path.join(tmp, 't50-clean');
+  fs.mkdirSync(t50Clean, { recursive: true });
+  fs.writeFileSync(path.join(t50Clean, 'index.ts'), 'export const clean = 1;\n');
+  const t50Dry = spawnSync('node', [targetCli, '--root', t50Clean, '--sync-ignores'], { encoding: 'utf8', env: t49Env });
+  const t50CleanDetect = spawnSync('node', [targetCli, '--root', t50Clean, '--detect'], { encoding: 'utf8', env: t49Env });
+  spawnSync('node', [targetCli, '--root', t50Clean, '--sync-ignores', '--write', '--all-ignores'], { encoding: 'utf8', env: t49Env });
+  const t50CleanVerify = spawnSync('node', [targetCli, '--root', t50Clean, '--verify', '--all-ignores'], { encoding: 'utf8', env: t49Env });
+  const t50AllToolIgnores = ['.cursorignore', '.cursorindexingignore', '.geminiignore', '.aiexclude', '.codeiumignore', '.rooignore', '.clineignore', '.aiderignore', '.claudeignore', 'opencode.json', 'opencode.jsonc'];
+  const t50NoneCreated = t50AllToolIgnores.every(f => !fs.existsSync(path.join(t50Clean, f)));
+
+  const t50Active = path.join(tmp, 't50-active');
+  fs.mkdirSync(path.join(t50Active, '.cursor'), { recursive: true });
+  fs.mkdirSync(path.join(t50Active, '.windsurf'), { recursive: true });
+  fs.writeFileSync(path.join(t50Active, 'index.ts'), 'export const active = 1;\n');
+  fs.writeFileSync(path.join(t50Active, '.clineignore'), '# Custom cline\ncustom-cline/\n');
+  spawnSync('node', [targetCli, '--root', t50Active, '--sync-ignores', '--write'], { encoding: 'utf8', env: t49Env });
+  const t50Verify1 = spawnSync('node', [targetCli, '--root', t50Active, '--verify'], { encoding: 'utf8', env: t49Env });
+  fs.writeFileSync(path.join(t50Active, '.codeiumignore'), '');
+  const t50VerifyDrift = spawnSync('node', [targetCli, '--root', t50Active, '--verify'], { encoding: 'utf8', env: t49Env });
+  spawnSync('node', [targetCli, '--root', t50Active, '--sync-ignores', '--write'], { encoding: 'utf8', env: t49Env });
+  const t50Verify2 = spawnSync('node', [targetCli, '--root', t50Active, '--verify'], { encoding: 'utf8', env: t49Env });
+  const t50ClineTxt = fs.readFileSync(path.join(t50Active, '.clineignore'), 'utf8');
+  const t50 = (t50Dry.stdout || '').includes('Skipped absent tools (anti-bloat') &&
+              !(t50CleanDetect.stdout || '').includes('.contextignore') && !(t50CleanDetect.stdout || '').includes('.jcodemunch.jsonc') &&
+              t50NoneCreated && t50CleanVerify.status === 0 &&
+              ['.cursorignore', '.cursorindexingignore', '.codeiumignore', '.clineignore'].every(f => fs.existsSync(path.join(t50Active, f))) &&
+              ['.geminiignore', '.aiexclude', '.rooignore', '.aiderignore', '.claudeignore', 'opencode.json', 'opencode.jsonc'].every(f => !fs.existsSync(path.join(t50Active, f))) &&
+              t50ClineTxt.includes('# Custom cline') && t50ClineTxt.includes('custom-cline/') &&
+              t50Verify1.status === 0 &&
+              t50VerifyDrift.status === 1 && t50VerifyDrift.stdout.includes('.codeiumignore(') &&
+              t50Verify2.status === 0;
+  if (t50) passed++;
+  console.log(`[Test 50: Anti-Bloat Conditional Ignore Sync & --verify Parity] ${t50 ? 'PASS' : 'FAIL'}`);
+
+  const tParserHome = path.join(tmp, 'parser-clean-home');
+  fs.mkdirSync(tParserHome, { recursive: true });
+  const tParserEnv = { ...process.env, HOME: tParserHome, USERPROFILE: tParserHome };
+
+  // 51. Markdown & YAML/YML Outline + Fenced Code / Block Scalar Immunity
+  const t51Dir = path.join(tmp, 't51-md-yaml');
+  fs.mkdirSync(t51Dir, { recursive: true });
+  fs.writeFileSync(path.join(t51Dir, 'guide.md'), [
+    '---',
+    'title: Architecture',
+    '---',
+    '# Top Guide',
+    'Intro.',
+    '```bash',
+    '# Fake Fence Heading',
+    'echo ok',
+    '```',
+    '~~~markdown',
+    '## Fake Tilde Heading',
+    '~~~',
+    '## Setup Steps',
+    'Install deps.',
+    '### Verify CLI',
+    'Run test.',
+    '#### Deep Note',
+    'Tail.'
+  ].join('\n'));
+  fs.writeFileSync(path.join(t51Dir, 'compose.yaml'), [
+    '# header comment',
+    'name: stack',
+    'command: |',
+    '  fake_block_key: 1',
+    '  # inside scalar',
+    'services:',
+    '  api:',
+    '    image: node:22',
+    '  worker:',
+    '    image: node:22',
+    'version: 3'
+  ].join('\n'));
+  fs.writeFileSync(path.join(t51Dir, 'ci.yml'), 'on:\n  push:\n    branches: [main]\njobs:\n  build:\n    runs-on: ubuntu-latest\n');
+  const t51MdOut = spawnSync(process.execPath, [targetCli, '--root', t51Dir, '--outline', 'guide.md'], { encoding: 'utf8', env: tParserEnv });
+  const t51MdSlice = spawnSync(process.execPath, [targetCli, '--root', t51Dir, '--slice', 'guide.md', 'Setup Steps'], { encoding: 'utf8', env: tParserEnv });
+  const t51YamlOut = spawnSync(process.execPath, [targetCli, '--root', t51Dir, '--outline', 'compose.yaml'], { encoding: 'utf8', env: tParserEnv });
+  const t51YamlSlice = spawnSync(process.execPath, [targetCli, '--root', t51Dir, '--slice', 'compose.yaml', 'services'], { encoding: 'utf8', env: tParserEnv });
+  const t51YmlOut = spawnSync(process.execPath, [targetCli, '--root', t51Dir, '--outline', 'ci.yml'], { encoding: 'utf8', env: tParserEnv });
+  const t51 = t51MdOut.status === 0 && t51MdOut.stdout.includes('[sec] # Top Guide') &&
+              t51MdOut.stdout.includes('[sec] ## Setup Steps') && t51MdOut.stdout.includes('[sec] #### Deep Note') &&
+              !t51MdOut.stdout.includes('Fake Fence Heading') && !t51MdOut.stdout.includes('Fake Tilde Heading') &&
+              t51MdSlice.status === 0 && t51MdSlice.stdout.includes('Install deps.') && !t51MdSlice.stdout.includes('Fake Tilde') &&
+              t51YamlOut.status === 0 && t51YamlOut.stdout.includes('services:') && t51YamlOut.stdout.includes('api:') &&
+              !t51YamlOut.stdout.includes('fake_block_key') &&
+              t51YamlSlice.status === 0 && t51YamlSlice.stdout.includes('worker:') && !t51YamlSlice.stdout.includes('version: 3') &&
+              t51YmlOut.status === 0 && t51YmlOut.stdout.includes('jobs:') && t51YmlOut.stdout.includes('build:');
+  if (t51) passed++;
+  console.log(`[Test 51: Markdown & YAML Outline/Slice (Fences & Block Scalars)] ${t51 ? 'PASS' : 'FAIL'}`);
+
+  // 52. TOML, JSON & JSONC Outline + Preserved JSON Slice Semantics
+  const t52Dir = path.join(tmp, 't52-toml-json');
+  fs.mkdirSync(t52Dir, { recursive: true });
+  fs.writeFileSync(path.join(t52Dir, 'settings.toml'), [
+    'title = "demo"',
+    'notes = """',
+    '[FakeTable]',
+    'fake_key = true',
+    '"""',
+    '',
+    '[server]',
+    'host = "127.0.0.1"',
+    '',
+    '[[routes]]',
+    'path = "/health"'
+  ].join('\n'));
+  fs.writeFileSync(path.join(t52Dir, 'tsconfig.jsonc'), [
+    '{',
+    '  // leading comment',
+    '  "extends": "./base.json",',
+    '  /* brace in comment } */',
+    '  "compilerOptions": {',
+    '    "strict": true,',
+    '    "note": "{braces}"',
+    '  },',
+    '  "include": ["src"]',
+    '}'
+  ].join('\n'));
+  fs.writeFileSync(path.join(t52Dir, 'users.json'), JSON.stringify({
+    users: [{ id: 'u1', role: 'admin' }, { id: 'u2', role: 'user' }],
+    meta: { version: 2 }
+  }, null, 2));
+  const t52TomlOut = spawnSync(process.execPath, [targetCli, '--root', t52Dir, '--outline', 'settings.toml'], { encoding: 'utf8', env: tParserEnv });
+  const t52TomlSlice = spawnSync(process.execPath, [targetCli, '--root', t52Dir, '--slice', 'settings.toml', 'server'], { encoding: 'utf8', env: tParserEnv });
+  const t52JsoncOut = spawnSync(process.execPath, [targetCli, '--root', t52Dir, '--outline', 'tsconfig.jsonc'], { encoding: 'utf8', env: tParserEnv });
+  const t52JsoncSlice = spawnSync(process.execPath, [targetCli, '--root', t52Dir, '--slice', 'tsconfig.jsonc', 'compilerOptions'], { encoding: 'utf8', env: tParserEnv });
+  const t52JsonOut = spawnSync(process.execPath, [targetCli, '--root', t52Dir, '--outline', 'users.json'], { encoding: 'utf8', env: tParserEnv });
+  const t52JsonSlice = spawnSync(process.execPath, [targetCli, '--root', t52Dir, '--slice', 'users.json', 'u1'], { encoding: 'utf8', env: tParserEnv });
+  let t52JsonObj = null;
+  try { t52JsonObj = JSON.parse(t52JsonSlice.stdout); } catch {}
+  const t52 = t52TomlOut.status === 0 && t52TomlOut.stdout.includes('title =') &&
+              t52TomlOut.stdout.includes('[server]') && t52TomlOut.stdout.includes('[[routes]]') &&
+              !t52TomlOut.stdout.includes('FakeTable') && !t52TomlOut.stdout.includes('fake_key') &&
+              t52TomlSlice.status === 0 && t52TomlSlice.stdout.includes('host = "127.0.0.1"') &&
+              t52JsoncOut.status === 0 && t52JsoncOut.stdout.includes('"extends"') && t52JsoncOut.stdout.includes('"compilerOptions"') &&
+              !t52JsoncOut.stdout.includes('"strict"') &&
+              t52JsoncSlice.status === 0 && t52JsoncSlice.stdout.includes('"strict": true') &&
+              t52JsonOut.status === 0 && t52JsonOut.stdout.includes('"users"') && t52JsonOut.stdout.includes('"meta"') &&
+              t52JsonSlice.status === 0 && t52JsonObj && t52JsonObj.sample && t52JsonObj.sample.id === 'u1';
+  if (t52) passed++;
+  console.log(`[Test 52: TOML/JSON/JSONC Outline & Safe JSON Slice Preservation] ${t52 ? 'PASS' : 'FAIL'}`);
+
+  // 53. Modern Web SFCs (.vue, .svelte, .astro) Outline & Slice
+  const t53Dir = path.join(tmp, 't53-sfc');
+  fs.mkdirSync(t53Dir, { recursive: true });
+  fs.writeFileSync(path.join(t53Dir, 'Panel.vue'), [
+    '<template>',
+    '  <section id="hero">Hi</section>',
+    '</template>',
+    '<script setup lang="ts">',
+    'interface Props { count: number; }',
+    'function savePanel(n: number) {',
+    '  return n + 1;',
+    '}',
+    '</script>',
+    '<style scoped>.hero { color: red; }</style>'
+  ].join('\n'));
+  fs.writeFileSync(path.join(t53Dir, 'Badge.svelte'), [
+    '<script>',
+    '  export function formatBadge(label) {',
+    '    return `[${label}]`;',
+    '  }',
+    '</script>',
+    '<main>',
+    '  <header>Title</header>',
+    '</main>'
+  ].join('\n'));
+  fs.writeFileSync(path.join(t53Dir, 'Home.astro'), [
+    '---',
+    'function loadCards() {',
+    '  return ["a"];',
+    '}',
+    '---',
+    '<main>',
+    '  <section>Body</section>',
+    '</main>'
+  ].join('\n'));
+  const t53VueOut = spawnSync(process.execPath, [targetCli, '--root', t53Dir, '--outline', 'Panel.vue'], { encoding: 'utf8', env: tParserEnv });
+  const t53VueSlice = spawnSync(process.execPath, [targetCli, '--root', t53Dir, '--slice', 'Panel.vue', 'savePanel'], { encoding: 'utf8', env: tParserEnv });
+  const t53SvelteOut = spawnSync(process.execPath, [targetCli, '--root', t53Dir, '--outline', 'Badge.svelte'], { encoding: 'utf8', env: tParserEnv });
+  const t53AstroOut = spawnSync(process.execPath, [targetCli, '--root', t53Dir, '--outline', 'Home.astro'], { encoding: 'utf8', env: tParserEnv });
+  const t53AstroSlice = spawnSync(process.execPath, [targetCli, '--root', t53Dir, '--slice', 'Home.astro', 'loadCards'], { encoding: 'utf8', env: tParserEnv });
+  const t53 = t53VueOut.status === 0 && t53VueOut.stdout.includes('<template>') && t53VueOut.stdout.includes('[ts] function savePanel') && t53VueOut.stdout.includes('<section id="hero">') &&
+              t53VueSlice.status === 0 && t53VueSlice.stdout.includes('return n + 1;') &&
+              t53SvelteOut.status === 0 && t53SvelteOut.stdout.includes('[js] export function formatBadge') && t53SvelteOut.stdout.includes('<header>') &&
+              t53AstroOut.status === 0 && t53AstroOut.stdout.includes('--- (frontmatter)') && t53AstroOut.stdout.includes('[ts] function loadCards()') &&
+              t53AstroSlice.status === 0 && t53AstroSlice.stdout.includes('return ["a"];');
+  if (t53) passed++;
+  console.log(`[Test 53: Modern Web SFCs (.vue, .svelte, .astro) Outline & Slice] ${t53 ? 'PASS' : 'FAIL'}`);
+
+  // 54. JVM, Swift & PHP Brace Languages (.java, .kt, .kts, .swift, .php)
+  const t54Dir = path.join(tmp, 't54-jvm-swift-php');
+  fs.mkdirSync(t54Dir, { recursive: true });
+  fs.writeFileSync(path.join(t54Dir, 'Service.java'), [
+    'package com.example;',
+    'public class Service {',
+    '  private final String tpl = """',
+    '    class FakeInner { void nope() {} }',
+    '  """;',
+    '  public int compute(int x) {',
+    '    return x * 2;',
+    '  }',
+    '}'
+  ].join('\n'));
+  fs.writeFileSync(path.join(t54Dir, 'Repo.kt'), [
+    'package com.example.kt',
+    'data class Item(val id: Int)',
+    'class Repo {',
+    '  suspend fun loadItem(id: Int): Item? {',
+    '    return null',
+    '  }',
+    '  companion object {',
+    '    fun empty(): Repo = Repo()',
+    '  }',
+    '}'
+  ].join('\n'));
+  fs.writeFileSync(path.join(t54Dir, 'build.gradle.kts'), 'plugins {\n  id("org.example")\n}\nfun helperTask() {\n  println("ok")\n}\n');
+  fs.writeFileSync(path.join(t54Dir, 'Card.swift'), [
+    'protocol Renderable {',
+    '  func render() -> String',
+    '}',
+    'struct Card: Renderable {',
+    '  let s = #"func fakeRaw() {}"#',
+    '  init(id: Int) {}',
+    '  func render() -> String {',
+    '    return "ok"',
+    '  }',
+    '}'
+  ].join('\n'));
+  fs.writeFileSync(path.join(t54Dir, 'Handler.php'), [
+    '<?php',
+    'namespace App\\Http;',
+    '# function fakeHashComment() {}',
+    'class Handler {',
+    '  #[Route("/health")]',
+    '  public function health(): string {',
+    '    return "ok";',
+    '  }',
+    '}'
+  ].join('\n'));
+  const t54Java = spawnSync(process.execPath, [targetCli, '--root', t54Dir, '--outline', 'Service.java'], { encoding: 'utf8', env: tParserEnv });
+  const t54JavaSlice = spawnSync(process.execPath, [targetCli, '--root', t54Dir, '--slice', 'Service.java', 'compute'], { encoding: 'utf8', env: tParserEnv });
+  const t54Kt = spawnSync(process.execPath, [targetCli, '--root', t54Dir, '--outline', 'Repo.kt'], { encoding: 'utf8', env: tParserEnv });
+  const t54Kts = spawnSync(process.execPath, [targetCli, '--root', t54Dir, '--outline', 'build.gradle.kts'], { encoding: 'utf8', env: tParserEnv });
+  const t54Swift = spawnSync(process.execPath, [targetCli, '--root', t54Dir, '--outline', 'Card.swift'], { encoding: 'utf8', env: tParserEnv });
+  const t54Php = spawnSync(process.execPath, [targetCli, '--root', t54Dir, '--outline', 'Handler.php'], { encoding: 'utf8', env: tParserEnv });
+  const t54 = t54Java.status === 0 && t54Java.stdout.includes('package com.example;') && t54Java.stdout.includes('public class Service') &&
+              !t54Java.stdout.includes('FakeInner') && t54JavaSlice.status === 0 && t54JavaSlice.stdout.includes('return x * 2;') &&
+              t54Kt.status === 0 && t54Kt.stdout.includes('data class Item') && t54Kt.stdout.includes('suspend fun loadItem') && t54Kt.stdout.includes('companion object') &&
+              t54Kts.status === 0 && t54Kts.stdout.includes('fun helperTask()') &&
+              t54Swift.status === 0 && t54Swift.stdout.includes('protocol Renderable') && t54Swift.stdout.includes('struct Card') && !t54Swift.stdout.includes('fakeRaw') &&
+              t54Php.status === 0 && t54Php.stdout.includes('namespace App\\Http;') && t54Php.stdout.includes('public function health') && !t54Php.stdout.includes('fakeHashComment');
+  if (t54) passed++;
+  console.log(`[Test 54: Java, Kotlin, KTS, Swift & PHP Outline/Slice] ${t54 ? 'PASS' : 'FAIL'}`);
+
+  // 55. Ruby, Elixir, SQL & Shell Outline/Slice
+  const t55Dir = path.join(tmp, 't55-rb-ex-sql-sh');
+  fs.mkdirSync(t55Dir, { recursive: true });
+  fs.writeFileSync(path.join(t55Dir, 'job.rb'), [
+    '=begin',
+    'def fake_commented',
+    'end',
+    '=end',
+    'module Jobs',
+    '  class Runner',
+    '    def call(arg)',
+    '      return if arg.nil?',
+    '      doc = <<~TXT',
+    '        def fake_heredoc; end',
+    '      TXT',
+    '      arg',
+    '    end',
+    '    def ready?',
+    '      true',
+    '    end',
+    '  end',
+    'end'
+  ].join('\n'));
+  fs.writeFileSync(path.join(t55Dir, 'ops.ex'), [
+    'defmodule Ops do',
+    '  @doc """',
+    '  def fake_doc, do: 0',
+    '  """',
+    '  def add(a, b), do: a + b',
+    '  defp bump(x) do',
+    '    f = fn y -> y + 1 end',
+    '    f.(x)',
+    '  end',
+    '  defmacro tag(x) do',
+    '    quote do: unquote(x)',
+    '  end',
+    'end'
+  ].join('\n'));
+  fs.writeFileSync(path.join(t55Dir, 'ops_test.exs'), 'defmodule OpsTest do\n  def check_ok, do: true\nend\n');
+  fs.writeFileSync(path.join(t55Dir, 'schema.sql'), [
+    '-- CREATE TABLE fake_line (id int);',
+    '/* CREATE TABLE fake_blk (id int); */',
+    'CREATE TABLE items (',
+    '  id INT PRIMARY KEY',
+    ');',
+    'CREATE OR REPLACE VIEW active_items AS SELECT id FROM items;',
+    'CREATE OR REPLACE FUNCTION calc_fn(x INT)',
+    'RETURNS INT AS $$',
+    'BEGIN',
+    '  RETURN x + 1;',
+    'END;',
+    '$$ LANGUAGE plpgsql;',
+    'CREATE INDEX idx_items ON items(id);'
+  ].join('\n'));
+  fs.writeFileSync(path.join(t55Dir, 'deploy.sh'), [
+    '#!/usr/bin/env bash',
+    '# fake_comment() { :; }',
+    'cat <<EOF',
+    'fake_heredoc() { :; }',
+    'EOF',
+    'build_it() {',
+    '  echo build',
+    '}',
+    'function ship_it {',
+    '  build_it',
+    '}'
+  ].join('\n'));
+  fs.writeFileSync(path.join(t55Dir, 'check.bash'), 'verify_all() {\n  echo ok\n}\n');
+  const t55Rb = spawnSync(process.execPath, [targetCli, '--root', t55Dir, '--outline', 'job.rb'], { encoding: 'utf8', env: tParserEnv });
+  const t55RbSlice = spawnSync(process.execPath, [targetCli, '--root', t55Dir, '--slice', 'job.rb', 'call'], { encoding: 'utf8', env: tParserEnv });
+  const t55Ex = spawnSync(process.execPath, [targetCli, '--root', t55Dir, '--outline', 'ops.ex'], { encoding: 'utf8', env: tParserEnv });
+  const t55Exs = spawnSync(process.execPath, [targetCli, '--root', t55Dir, '--outline', 'ops_test.exs'], { encoding: 'utf8', env: tParserEnv });
+  const t55Sql = spawnSync(process.execPath, [targetCli, '--root', t55Dir, '--outline', 'schema.sql'], { encoding: 'utf8', env: tParserEnv });
+  const t55SqlSlice = spawnSync(process.execPath, [targetCli, '--root', t55Dir, '--slice', 'schema.sql', 'calc_fn'], { encoding: 'utf8', env: tParserEnv });
+  const t55Sh = spawnSync(process.execPath, [targetCli, '--root', t55Dir, '--outline', 'deploy.sh'], { encoding: 'utf8', env: tParserEnv });
+  const t55Bash = spawnSync(process.execPath, [targetCli, '--root', t55Dir, '--outline', 'check.bash'], { encoding: 'utf8', env: tParserEnv });
+  const t55 = t55Rb.status === 0 && t55Rb.stdout.includes('module Jobs') && t55Rb.stdout.includes('def call(arg)') && t55Rb.stdout.includes('def ready?') &&
+              !t55Rb.stdout.includes('fake_commented') && !t55Rb.stdout.includes('fake_heredoc') &&
+              t55RbSlice.status === 0 && t55RbSlice.stdout.includes('return if arg.nil?') && !t55RbSlice.stdout.includes('def ready?') &&
+              t55Ex.status === 0 && t55Ex.stdout.includes('defmodule Ops') && t55Ex.stdout.includes('def add') && t55Ex.stdout.includes('defp bump') && t55Ex.stdout.includes('defmacro tag') && !t55Ex.stdout.includes('fake_doc') &&
+              t55Exs.status === 0 && t55Exs.stdout.includes('defmodule OpsTest') &&
+              t55Sql.status === 0 && t55Sql.stdout.includes('CREATE TABLE items') && t55Sql.stdout.includes('CREATE OR REPLACE VIEW active_items') && t55Sql.stdout.includes('CREATE OR REPLACE FUNCTION calc_fn') && t55Sql.stdout.includes('CREATE INDEX idx_items') && !t55Sql.stdout.includes('fake_line') && !t55Sql.stdout.includes('fake_blk') &&
+              t55SqlSlice.status === 0 && t55SqlSlice.stdout.includes('LANGUAGE plpgsql;') &&
+              t55Sh.status === 0 && t55Sh.stdout.includes('build_it()') && t55Sh.stdout.includes('function ship_it') && !t55Sh.stdout.includes('fake_heredoc') && !t55Sh.stdout.includes('fake_comment') &&
+              t55Bash.status === 0 && t55Bash.stdout.includes('verify_all()');
+  if (t55) passed++;
+  console.log(`[Test 55: Ruby, Elixir, SQL & Shell Outline/Slice] ${t55 ? 'PASS' : 'FAIL'}`);
+
+  // 56. detectStack Polyglot Expansion & Secret Guard Preservation
+  const t56StackA = path.join(tmp, 't56-stack-a');
+  fs.mkdirSync(path.join(t56StackA, 'dotnet-api'), { recursive: true });
+  fs.writeFileSync(path.join(t56StackA, 'package.json'), JSON.stringify({ scripts: { test: 'node test.js', build: 'vite build' } }));
+  fs.writeFileSync(path.join(t56StackA, 'pom.xml'), '<project/>');
+  fs.writeFileSync(path.join(t56StackA, 'Package.swift'), '// swift-tools-version:5.9');
+  fs.writeFileSync(path.join(t56StackA, 'Gemfile'), 'source "https://rubygems.org"');
+  fs.writeFileSync(path.join(t56StackA, 'composer.json'), '{}');
+  fs.writeFileSync(path.join(t56StackA, 'mix.exs'), 'defmodule App.MixProject do end');
+  fs.writeFileSync(path.join(t56StackA, 'dotnet-api', 'Api.csproj'), '<Project Sdk="Microsoft.NET.Sdk"/>');
+  const stA = lib.detectStack(t56StackA);
+
+  const t56StackB = path.join(tmp, 't56-stack-b');
+  fs.mkdirSync(path.join(t56StackB, 'android'), { recursive: true });
+  fs.mkdirSync(path.join(t56StackB, 'desktop'), { recursive: true });
+  fs.writeFileSync(path.join(t56StackB, 'pyproject.toml'), '[project]\nname = "x"\n');
+  fs.writeFileSync(path.join(t56StackB, 'Cargo.toml'), '[package]\nname = "x"\n');
+  fs.writeFileSync(path.join(t56StackB, 'go.mod'), 'module x\n');
+  fs.writeFileSync(path.join(t56StackB, 'android', 'build.gradle.kts'), 'plugins {}\n');
+  fs.writeFileSync(path.join(t56StackB, 'desktop', 'Suite.sln'), '');
+  const stB = lib.detectStack(t56StackB);
+
+  const t56SecDir = path.join(tmp, 't56-sec');
+  fs.mkdirSync(t56SecDir, { recursive: true });
+  fs.writeFileSync(path.join(t56SecDir, '.env'), 'SECRET=1\n');
+  fs.writeFileSync(path.join(t56SecDir, 'secrets.yaml'), 'api_key: x\n');
+  fs.writeFileSync(path.join(t56SecDir, 'credentials.toml'), 'token = "x"\n');
+  fs.writeFileSync(path.join(t56SecDir, 'server.pem'), '-----BEGIN KEY-----\n');
+  const sec1 = spawnSync(process.execPath, [targetCli, '--root', t56SecDir, '--outline', 'secrets.yaml'], { encoding: 'utf8', env: tParserEnv });
+  const sec2 = spawnSync(process.execPath, [targetCli, '--root', t56SecDir, '--slice', 'credentials.toml'], { encoding: 'utf8', env: tParserEnv });
+  const sec3 = spawnSync(process.execPath, [targetCli, '--root', t56SecDir, '--slice', '.env'], { encoding: 'utf8', env: tParserEnv });
+  const sec4 = spawnSync(process.execPath, [targetCli, '--root', t56SecDir, '--slice', 'server.pem'], { encoding: 'utf8', env: tParserEnv });
+
+  const t56 = ['node(test/build)', 'java(maven)', 'swift', 'ruby', 'php', 'elixir', 'dotnet'].every(x => stA.includes(x)) &&
+              ['python', 'rust', 'go', 'java(gradle)', 'dotnet'].every(x => stB.includes(x)) &&
+              sec1.status === 2 && sec2.status === 2 && sec3.status === 2 && sec4.status === 2;
+  if (t56) passed++;
+  console.log(`[Test 56: Polyglot detectStack Expansion & Secret Config Refusal] ${t56 ? 'PASS' : 'FAIL'}`);
+
+  // 57. Audit Markdown Non-Monolith, Lockfile/Build Quarantine & Global VS Code MCP + Compact Detect
+  const t57Home = path.join(tmp, 't57-home');
+  const t57Repo = path.join(tmp, 't57-repo');
+  fs.mkdirSync(path.join(t57Home, 'AppData', 'Roaming', 'Code', 'User'), { recursive: true });
+  fs.mkdirSync(path.join(t57Repo, '.github', 'skills', 'demo'), { recursive: true });
+  fs.mkdirSync(path.join(t57Repo, '.svelte-kit'), { recursive: true });
+  fs.mkdirSync(path.join(t57Repo, '_build'), { recursive: true });
+  fs.writeFileSync(path.join(t57Home, 'AppData', 'Roaming', 'Code', 'User', 'mcp.json'), JSON.stringify({ servers: { jcodemunch: {}, vsc_global: {} } }));
+  fs.writeFileSync(path.join(t57Repo, '.github', 'skills', 'demo', 'SKILL.md'), '---\nname: demo\n---\n');
+  fs.writeFileSync(path.join(t57Repo, 'README.md'), '# Big Guide\n' + 'Documentation line.\n'.repeat(1000));
+  fs.writeFileSync(path.join(t57Repo, 'index.ts'), 'export const ok = true;\n');
+  fs.writeFileSync(path.join(t57Repo, 'composer.lock'), '{"packages":[]}\n');
+  fs.writeFileSync(path.join(t57Repo, 'uv.lock'), 'version = 1\n');
+  fs.writeFileSync(path.join(t57Repo, '.svelte-kit', 'generated.js'), 'export const x = 1;\n');
+  fs.writeFileSync(path.join(t57Repo, '_build', 'dev.beam'), 'beam');
+  const t57Env = { ...process.env, HOME: t57Home, USERPROFILE: t57Home, XDG_CONFIG_HOME: '', OPENCODE_CONFIG_DIR: '', OPENCODE_CONFIG: '' };
+  const t57Audit = spawnSync(process.execPath, [targetCli, '--root', t57Repo, '--audit'], { encoding: 'utf8', env: t57Env });
+  const t57Detect = spawnSync(process.execPath, [targetCli, '--root', t57Repo, '--detect'], { encoding: 'utf8', env: t57Env });
+  spawnSync(process.execPath, [targetCli, '--root', t57Repo, '--sync-ignores', '--write'], { encoding: 'utf8', env: t57Env });
+  const t57AuditSynced = spawnSync(process.execPath, [targetCli, '--root', t57Repo, '--audit'], { encoding: 'utf8', env: t57Env });
+  const t57IgTxt = fs.readFileSync(path.join(t57Repo, '.ignore'), 'utf8');
+  const t57A = t57Audit.stdout || '';
+  const t57ASynced = t57AuditSynced.stdout || '';
+  const t57D = t57Detect.stdout || '';
+  const t57 = t57Audit.status === 0 && t57A.includes('TIER 0') && /Monoliths \(>=15KB\):\s*0 files/.test(t57A) &&
+              t57A.includes('composer.lock') && t57A.includes('uv.lock') && t57A.includes('.svelte-kit/') && t57A.includes('_build/') &&
+              t57IgTxt.includes('composer.lock') && t57IgTxt.includes('uv.lock') && t57IgTxt.includes('.svelte-kit/') && t57IgTxt.includes('_build/') &&
+              t57ASynced.includes('across 3 non-source') &&
+              t57Detect.status === 0 && t57D.includes('VS Code / Copilot:') && t57D.includes('vsc_global') && t57D.includes('.github/skills/') &&
+              t57D.includes('.jcodemunch.jsonc') && !t57D.includes('OpenCode:') && !t57D.includes('Cursor:') && t57D.includes('Absent hosts:');
+  if (t57) passed++;
+  console.log(`[Test 57: Audit Markdown Non-Monolith, Lockfiles & Global VS Code + Compact Detect] ${t57 ? 'PASS' : 'FAIL'}`);
+
+  // 58. Parser Edge Fixes: Java Nested Generics, C# Namespace/Methods, YAML List Items & JSON Array/Compact
+  const t58Dir = path.join(tmp, 't58-parsers');
+  fs.mkdirSync(t58Dir, { recursive: true });
+  fs.writeFileSync(path.join(t58Dir, 'Repo.java'), [
+    'public class Repo {',
+    '  public Map<String, List<Integer>> buildIndex(List<String> keys) {',
+    '    return new HashMap<>();',
+    '  }',
+    '}'
+  ].join('\n'));
+  fs.writeFileSync(path.join(t58Dir, 'UserService.cs'), [
+    'namespace App.Services',
+    '{',
+    '  [ApiController]',
+    '  public class UserService',
+    '  {',
+    '    public async Task<Dictionary<string, List<int>>> FetchAsync(int id)',
+    '    {',
+    '      return null;',
+    '    }',
+    '  }',
+    '}'
+  ].join('\n'));
+  fs.writeFileSync(path.join(t58Dir, 'tasks.yaml'), [
+    '- name: play-one',
+    '  hosts: db',
+    '- name: play-two',
+    '  hosts: api'
+  ].join('\n'));
+  fs.writeFileSync(path.join(t58Dir, 'list.json'), JSON.stringify([
+    { id: 'alpha', n: 1 },
+    { id: 'beta', n: 2 }
+  ], null, 2));
+  fs.writeFileSync(path.join(t58Dir, 'compact.json'), '{"alpha":1,"beta":{"x":2}}');
+  const t58Java = spawnSync(process.execPath, [targetCli, '--root', t58Dir, '--outline', 'Repo.java'], { encoding: 'utf8', env: tParserEnv });
+  const t58JavaSlice = spawnSync(process.execPath, [targetCli, '--root', t58Dir, '--slice', 'Repo.java', 'buildIndex'], { encoding: 'utf8', env: tParserEnv });
+  const t58Cs = spawnSync(process.execPath, [targetCli, '--root', t58Dir, '--outline', 'UserService.cs'], { encoding: 'utf8', env: tParserEnv });
+  const t58CsSlice = spawnSync(process.execPath, [targetCli, '--root', t58Dir, '--slice', 'UserService.cs', 'FetchAsync'], { encoding: 'utf8', env: tParserEnv });
+  const t58Yaml = spawnSync(process.execPath, [targetCli, '--root', t58Dir, '--outline', 'tasks.yaml'], { encoding: 'utf8', env: tParserEnv });
+  const t58Arr = spawnSync(process.execPath, [targetCli, '--root', t58Dir, '--outline', 'list.json'], { encoding: 'utf8', env: tParserEnv });
+  const t58Compact = spawnSync(process.execPath, [targetCli, '--root', t58Dir, '--outline', 'compact.json'], { encoding: 'utf8', env: tParserEnv });
+  const t58 = t58Java.status === 0 && (t58Java.stdout || '').includes('L2-L4: public Map<String, List<Integer>> buildIndex') &&
+              t58JavaSlice.status === 0 && (t58JavaSlice.stdout || '').includes('return new HashMap<>();') &&
+              t58Cs.status === 0 && (t58Cs.stdout || '').includes('App.Services') && (t58Cs.stdout || '').includes('UserService') && (t58Cs.stdout || '').includes('L6-L9: public async Task<Dictionary<string, List<int>>> FetchAsync') &&
+              t58CsSlice.status === 0 && (t58CsSlice.stdout || '').includes('return null;') &&
+              t58Yaml.status === 0 && (t58Yaml.stdout || '').includes('L1-L2: - name: play-one') && (t58Yaml.stdout || '').includes('L3-L4: - name: play-two') && !(t58Yaml.stdout || '').includes('hosts:') &&
+              t58Arr.status === 0 && (t58Arr.stdout || '').includes('"id": "alpha"') && (t58Arr.stdout || '').includes('"id": "beta"') &&
+              t58Compact.status === 0 && (t58Compact.stdout || '').includes('"alpha"') && (t58Compact.stdout || '').includes('"beta"');
+  if (t58) passed++;
+  console.log(`[Test 58: Java Generics, C# Namespaces, YAML List Items & JSON Array/Compact Outlines] ${t58 ? 'PASS' : 'FAIL'}`);
+
+  // 59. Extended Secret Redaction (Slack, GitHub fine-grained, Stripe, npm, PEM, URL password) & Credential File Refusal
+  const t59Dir = path.join(tmp, 't59-secrets');
+  fs.mkdirSync(t59Dir, { recursive: true });
+  const t59Fakes = [
+    'xox' + 'b-1234567890-FAKEFAKEFAKEFAKE',
+    'github_' + 'pat_11FAKE0000000000000000_abcdefghijklmnopqrstuvwxyz',
+    'sk_' + 'live_FAKEFAKEFAKEFAKEFAKE1234',
+    'npm' + '_FAKEFAKEFAKEFAKEFAKEFAKE1234',
+    'hunter2pass',
+    'MIIFAKEKEYBODY'
+  ];
+  fs.writeFileSync(path.join(t59Dir, 'cfg.js'), [
+    `const a = "${t59Fakes[0]}";`,
+    `const b = "${t59Fakes[1]}";`,
+    `const c = "${t59Fakes[2]}";`,
+    `const d = "${t59Fakes[3]}";`,
+    `const e = "postgres://admin:${t59Fakes[4]}@db.local/app";`,
+    'const f = `-----BEGIN RSA PRIVATE KEY-----',
+    t59Fakes[5],
+    '-----END RSA PRIVATE KEY-----`;',
+    'const keep = "https://example.com/path";'
+  ].join('\n'));
+  fs.writeFileSync(path.join(t59Dir, '.npmrc'), '//registry.npmjs.org/:_authToken=npm_FAKEFAKEFAKEFAKEFAKEFAKE1234\n');
+  const t59Slice = spawnSync('node', [targetCli, '--root', t59Dir, '--slice', 'cfg.js:L1-L9'], { encoding: 'utf8' });
+  const t59Npmrc = spawnSync('node', [targetCli, '--root', t59Dir, '--slice', '.npmrc:L1-L1'], { encoding: 'utf8' });
+  const t59Out = t59Slice.stdout || '';
+  const t59 = t59Slice.status === 0 &&
+              t59Fakes.every(f => !t59Out.includes(f)) &&
+              t59Out.includes('[REDACTED_SECRET]') &&
+              t59Out.includes('postgres://admin:[REDACTED_SECRET]@db.local/app') &&
+              t59Out.includes('https://example.com/path') &&
+              t59Npmrc.status !== 0 && !((t59Npmrc.stdout || '') + (t59Npmrc.stderr || '')).includes('npm_FAKE');
+  if (t59) passed++;
+  console.log(`[Test 59: Extended Secret Redaction & Credential File Refusal] ${t59 ? 'PASS' : 'FAIL'}`);
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true });
 }

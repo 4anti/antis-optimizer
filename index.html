@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>antis-optimizer: Stop AI coding agents from wasting tokens</title>
-  <meta name="description" content="Audit bloated repos in seconds, sync ignore rules across Claude Code, Cursor, Codex, and Antigravity, and slice exact symbol line ranges under a 3.5 KB cap." />
+  <meta name="description" content="Audit bloated repos in seconds, sync ignore rules across OpenCode, Claude Code, Cursor, Codex, Gemini CLI, Antigravity, Copilot, and Windsurf, and slice exact symbol line ranges under a 3.5 KB cap." />
   <link rel="icon" type="image/svg+xml" href="./assets/logo.svg" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -841,7 +841,7 @@
     <section id="heroMount" aria-label="Introduction"></section>
 
     <!-- Section 2: wc / du Style Bare Telemetry Strip -->
-    <section class="sec sec--compact sec--band" aria-label="Measured repo savings">
+    <section class="sec sec--compact sec--band" aria-label="Modeled repo savings">
       <div class="wrap">
         <div id="telemetryGrid" class="telemetry-grid"></div>
       </div>
@@ -882,7 +882,7 @@
       <div class="wrap">
         <div class="sec-head sec-head--stack">
           <h2 class="sec-title">Quarantine junk downward. Route slices straight.</h2>
-          <p class="sec-copy">One ignore contract locks out build directories, forgotten worktrees, and giant one-line JSON across Claude Code, Cursor, Codex, and Antigravity.</p>
+          <p class="sec-copy">One conditional ignore contract locks out build directories, forgotten worktrees, and giant one-line JSON across OpenCode, Claude Code, Cursor, Codex, Gemini CLI, Antigravity, Copilot, and Windsurf without creating unused dotfiles.</p>
         </div>
         <div id="heroDiagramMount" class="svg-box"></div>
       </div>
@@ -893,13 +893,13 @@
       <div class="wrap">
         <div class="sec-head">
           <h2 class="sec-title">From bloated repo to verified line ranges.</h2>
-          <p class="sec-copy">Supports TS, JS, Python, Rust, Go, C, C++, C#, HTML, CSS, and JSON with zero required runtime packages.</p>
+          <p class="sec-copy">Outlines and slices TS, JS, Python, Rust, Go, C/C++, C#, Java, Kotlin, Swift, PHP, Ruby, Elixir, SQL, Shell, HTML, Svelte, Vue, Astro, CSS, JSON/JSONC, YAML, TOML, and Markdown with optional TypeScript AST and zero required runtime packages.</p>
         </div>
         <div id="workflowMount" class="svg-box"></div>
       </div>
     </section>
 
-    <!-- Section 6: Measured Savings Table + Man-Page Command Rows -->
+    <!-- Section 6: Modeled Savings Table + Man-Page Command Rows -->
     <section id="impact" class="sec">
       <div class="wrap">
         <div class="sec-head">
@@ -958,12 +958,12 @@
             <p>Every flag runs locally via Node 18+ or one npx command with zero install step.</p>
           </div>
           <ol class="man-rows">
-            <li><code class="man-cmd">--audit</code><p class="man-desc">Counts source vs junk, flags files over 15 KB, and recommends the lightest setup tier.</p></li>
-            <li><code class="man-cmd">--detect</code><p class="man-desc">Discovers installed coding agents, MCP servers, and nested worktrees.</p></li>
-            <li><code class="man-cmd">--sync-ignores <span class="arg">--write</span></code><p class="man-desc">Keeps <code>.ignore</code>, <code>.contextignore</code>, and MCP exclusions aligned in one pass.</p></li>
-            <li><code class="man-cmd">--outline <span class="arg">&lt;file&gt; [filter]</span></code><p class="man-desc">Extracts exact symbol bounds via TypeScript Compiler AST or built-in lexer.</p></li>
-            <li><code class="man-cmd">--slice <span class="arg">&lt;scope&gt; [symbol] | &lt;file:Lstart-Lend&gt;</span></code><p class="man-desc">Reads one AST/lexer symbol span, line range, or JSON section under strict byte caps.</p></li>
-            <li><code class="man-cmd">--sync-landmarks <span class="arg">&amp;&amp; --verify</span></code><p class="man-desc">Auto-heals shifted doc line pointers and validates caps in one output line.</p></li>
+            <li><code class="man-cmd">--audit</code><p class="man-desc">Counts source vs junk, flags files over 15 KB, detects 10 language stacks, and recommends the lightest setup tier.</p></li>
+            <li><code class="man-cmd">--detect</code><p class="man-desc">Discovers OpenCode, Claude, Cursor, Gemini CLI, Codex, Copilot, Windsurf, Cline/Roo/Aider, RTK, MCPs, stacks, and nested worktrees.</p></li>
+            <li><code class="man-cmd">--sync-ignores <span class="arg">--write</span></code><p class="man-desc">Aligns <code>.ignore</code> plus active repo tool ignores (<code>.contextignore</code>, <code>.jcodemunch.jsonc</code>, <code>.cursorignore</code>, <code>.geminiignore</code>) without creating unused dotfiles or modifying <code>opencode.json[c]</code>.</p></li>
+            <li><code class="man-cmd">--outline <span class="arg">&lt;file&gt; [filter]</span></code><p class="man-desc">Extracts exact symbol, heading, and config-key bounds via optional TypeScript Compiler AST or built-in polyglot lexer.</p></li>
+            <li><code class="man-cmd">--slice <span class="arg">&lt;scope&gt; [symbol] | &lt;file:Lstart-Lend&gt;</span></code><p class="man-desc">Reads one AST/lexer symbol span, line range, or JSON/JSONC section under strict byte caps.</p></li>
+            <li><code class="man-cmd">--sync-landmarks <span class="arg">&amp;&amp; --verify</span></code><p class="man-desc">Auto-heals shifted doc line pointers and validates caps, conditional ignores, and OpenCode <code>.env</code> guards in one output line.</p></li>
             <li><code class="man-cmd">--check-update <span class="arg">[--critical-only]</span></code><p class="man-desc">Checks GitHub Releases read-only for urgent fixes and prints safe manual upgrade steps.</p></li>
           </ol>
         </div>
@@ -1094,25 +1094,40 @@
         desc: 'Zero install: run a full repo bloat audit straight from GitHub in 10 seconds.',
         cmd: 'npx github:4anti/antis-optimizer --audit'
       },
+      opencode: {
+        label: 'OpenCode',
+        desc: 'Global ~/.config/opencode/skills/antis-optimizer or project .opencode/skills/antis-optimizer; auto-loads AGENTS.md and inspects opencode.json[c] read-only (advises opencode-ignore).',
+        cmd: 'git clone https://github.com/4anti/antis-optimizer.git ~/.config/opencode/skills/antis-optimizer'
+      },
       claude: {
         label: 'Claude Code',
-        desc: 'Audit junk and lock in ignore parity across your local agent config.',
+        desc: 'Audit junk and conditionally sync .ignore, .contextignore, .claudeignore, and .jcodemunch.jsonc only when present.',
         cmd: 'npx github:4anti/antis-optimizer --audit && npx github:4anti/antis-optimizer --sync-ignores --write'
       },
       cursor: {
         label: 'Cursor',
-        desc: 'Keep .ignore, .contextignore, and MCP ignore rules synced automatically.',
-        cmd: 'npx github:4anti/antis-optimizer --sync-ignores --write && npx github:4anti/antis-optimizer --detect'
+        desc: 'Skills in ~/.cursor/skills/ or .cursor/skills/; syncs .ignore, .cursorignore, .cursorindexingignore, and MCP rules only when Cursor is present.',
+        cmd: 'git clone https://github.com/4anti/antis-optimizer.git ~/.cursor/skills/antis-optimizer'
       },
       codex: {
         label: 'Codex',
-        desc: 'Generate compact AGENTS.md landmarks and verify token caps in one line.',
+        desc: 'Generate pointer-only AGENTS.md / AGENTS.override.md landmarks and verify token caps in one line.',
         cmd: 'npx github:4anti/antis-optimizer --map && npx github:4anti/antis-optimizer --verify'
+      },
+      gemini: {
+        label: 'Gemini CLI',
+        desc: 'Detects ~/.gemini/settings.json and syncs .geminiignore / .aiexclude conditionally when present in your repo.',
+        cmd: 'git clone https://github.com/4anti/antis-optimizer.git ~/.gemini/skills/antis-optimizer'
       },
       antigravity: {
         label: 'Antigravity',
         desc: 'Install as a global skill so every repo task starts bounded and verified.',
         cmd: 'git clone https://github.com/4anti/antis-optimizer.git ~/.gemini/config/skills/antis-optimizer'
+      },
+      copilot: {
+        label: 'Copilot / Windsurf',
+        desc: 'Detects workspace & user VS Code mcp.json ("servers"), .github/copilot-instructions.md, .github/skills/, .windsurf/, and syncs .codeiumignore when active.',
+        cmd: 'git clone https://github.com/4anti/antis-optimizer.git .github/skills/antis-optimizer'
       }
     };
 
@@ -1456,7 +1471,7 @@
             <p class="hero-p">Scan repo bloat in 0.4s, lock ignores across tools, and slice exact AST ranges under 3.5 KB.</p>
             <ul class="m2-points">
               <li><span class="chk">+</span><span>Quarantines <code>dist/</code>, worktrees, and one-line JSON</span></li>
-              <li><span class="chk">+</span><span>Syncs <code>.ignore</code>, <code>.contextignore</code>, and MCP rules</span></li>
+              <li><span class="chk">+</span><span>Syncs <code>.ignore</code>, <code>.contextignore</code>, and active tool ignores</span></li>
               <li><span class="chk">+</span><span>Auto-heals shifted <code>file:Lstart-Lend</code> landmarks</span></li>
             </ul>
             <div class="cta-row">
@@ -1478,7 +1493,7 @@
           <div class="m3-head">
             <div>
               <h1 class="hero-h1">Precision context for coding agents.</h1>
-              <p class="hero-p">Repo auditing, ignore parity, and AST line slicing for Claude Code, Cursor, Codex, and Antigravity.</p>
+              <p class="hero-p">Repo auditing, conditional ignore parity, and AST/lexer line slicing for OpenCode, Claude Code, Cursor, Codex, Gemini CLI, Antigravity, Copilot, and Windsurf.</p>
               <div class="cta-row">
                 <button type="button" class="cmd-copy-btn" data-copy="npx github:4anti/antis-optimizer --audit">
                   <span class="prompt">$</span>
