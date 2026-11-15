@@ -2,7 +2,7 @@
 'use strict';
 
 /**
- * Antis-Optimizer — Comprehensive Automated Test Suite (50 Self-Contained Tests)
+ * Antis-Optimizer — Comprehensive Automated Test Suite (56 Self-Contained Tests)
  * Zero personal paths; runs entirely inside an isolated OS temp directory.
  */
 
@@ -15,8 +15,8 @@ const targetCli = path.resolve(__dirname, '..', 'scripts', 'repo-index.cjs');
 const pkg = require(path.resolve(__dirname, '..', 'package.json'));
 const lib = require(targetCli);
 
-console.log(`=== ANTIS-OPTIMIZER v${pkg.version} TEST SUITE (50 TESTS) ===`);
-let passed = 0, total = 50;
+console.log(`=== ANTIS-OPTIMIZER v${pkg.version} TEST SUITE (56 TESTS) ===`);
+let passed = 0, total = 56;
 
 (async function main() {
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'antis-opt-test-'));
@@ -949,6 +949,355 @@ try {
               t50Verify2.status === 0;
   if (t50) passed++;
   console.log(`[Test 50: Anti-Bloat Conditional Ignore Sync & --verify Parity] ${t50 ? 'PASS' : 'FAIL'}`);
+
+  const tParserHome = path.join(tmp, 'parser-clean-home');
+  fs.mkdirSync(tParserHome, { recursive: true });
+  const tParserEnv = { ...process.env, HOME: tParserHome, USERPROFILE: tParserHome };
+
+  // 51. Markdown & YAML/YML Outline + Fenced Code / Block Scalar Immunity
+  const t51Dir = path.join(tmp, 't51-md-yaml');
+  fs.mkdirSync(t51Dir, { recursive: true });
+  fs.writeFileSync(path.join(t51Dir, 'guide.md'), [
+    '---',
+    'title: Architecture',
+    '---',
+    '# Top Guide',
+    'Intro.',
+    '```bash',
+    '# Fake Fence Heading',
+    'echo ok',
+    '```',
+    '~~~markdown',
+    '## Fake Tilde Heading',
+    '~~~',
+    '## Setup Steps',
+    'Install deps.',
+    '### Verify CLI',
+    'Run test.',
+    '#### Deep Note',
+    'Tail.'
+  ].join('\n'));
+  fs.writeFileSync(path.join(t51Dir, 'compose.yaml'), [
+    '# header comment',
+    'name: stack',
+    'command: |',
+    '  fake_block_key: 1',
+    '  # inside scalar',
+    'services:',
+    '  api:',
+    '    image: node:22',
+    '  worker:',
+    '    image: node:22',
+    'version: 3'
+  ].join('\n'));
+  fs.writeFileSync(path.join(t51Dir, 'ci.yml'), 'on:\n  push:\n    branches: [main]\njobs:\n  build:\n    runs-on: ubuntu-latest\n');
+  const t51MdOut = spawnSync(process.execPath, [targetCli, '--root', t51Dir, '--outline', 'guide.md'], { encoding: 'utf8', env: tParserEnv });
+  const t51MdSlice = spawnSync(process.execPath, [targetCli, '--root', t51Dir, '--slice', 'guide.md', 'Setup Steps'], { encoding: 'utf8', env: tParserEnv });
+  const t51YamlOut = spawnSync(process.execPath, [targetCli, '--root', t51Dir, '--outline', 'compose.yaml'], { encoding: 'utf8', env: tParserEnv });
+  const t51YamlSlice = spawnSync(process.execPath, [targetCli, '--root', t51Dir, '--slice', 'compose.yaml', 'services'], { encoding: 'utf8', env: tParserEnv });
+  const t51YmlOut = spawnSync(process.execPath, [targetCli, '--root', t51Dir, '--outline', 'ci.yml'], { encoding: 'utf8', env: tParserEnv });
+  const t51 = t51MdOut.status === 0 && t51MdOut.stdout.includes('[sec] # Top Guide') &&
+              t51MdOut.stdout.includes('[sec] ## Setup Steps') && t51MdOut.stdout.includes('[sec] #### Deep Note') &&
+              !t51MdOut.stdout.includes('Fake Fence Heading') && !t51MdOut.stdout.includes('Fake Tilde Heading') &&
+              t51MdSlice.status === 0 && t51MdSlice.stdout.includes('Install deps.') && !t51MdSlice.stdout.includes('Fake Tilde') &&
+              t51YamlOut.status === 0 && t51YamlOut.stdout.includes('services:') && t51YamlOut.stdout.includes('api:') &&
+              !t51YamlOut.stdout.includes('fake_block_key') &&
+              t51YamlSlice.status === 0 && t51YamlSlice.stdout.includes('worker:') && !t51YamlSlice.stdout.includes('version: 3') &&
+              t51YmlOut.status === 0 && t51YmlOut.stdout.includes('jobs:') && t51YmlOut.stdout.includes('build:');
+  if (t51) passed++;
+  console.log(`[Test 51: Markdown & YAML Outline/Slice (Fences & Block Scalars)] ${t51 ? 'PASS' : 'FAIL'}`);
+
+  // 52. TOML, JSON & JSONC Outline + Preserved JSON Slice Semantics
+  const t52Dir = path.join(tmp, 't52-toml-json');
+  fs.mkdirSync(t52Dir, { recursive: true });
+  fs.writeFileSync(path.join(t52Dir, 'settings.toml'), [
+    'title = "demo"',
+    'notes = """',
+    '[FakeTable]',
+    'fake_key = true',
+    '"""',
+    '',
+    '[server]',
+    'host = "127.0.0.1"',
+    '',
+    '[[routes]]',
+    'path = "/health"'
+  ].join('\n'));
+  fs.writeFileSync(path.join(t52Dir, 'tsconfig.jsonc'), [
+    '{',
+    '  // leading comment',
+    '  "extends": "./base.json",',
+    '  /* brace in comment } */',
+    '  "compilerOptions": {',
+    '    "strict": true,',
+    '    "note": "{braces}"',
+    '  },',
+    '  "include": ["src"]',
+    '}'
+  ].join('\n'));
+  fs.writeFileSync(path.join(t52Dir, 'users.json'), JSON.stringify({
+    users: [{ id: 'u1', role: 'admin' }, { id: 'u2', role: 'user' }],
+    meta: { version: 2 }
+  }, null, 2));
+  const t52TomlOut = spawnSync(process.execPath, [targetCli, '--root', t52Dir, '--outline', 'settings.toml'], { encoding: 'utf8', env: tParserEnv });
+  const t52TomlSlice = spawnSync(process.execPath, [targetCli, '--root', t52Dir, '--slice', 'settings.toml', 'server'], { encoding: 'utf8', env: tParserEnv });
+  const t52JsoncOut = spawnSync(process.execPath, [targetCli, '--root', t52Dir, '--outline', 'tsconfig.jsonc'], { encoding: 'utf8', env: tParserEnv });
+  const t52JsoncSlice = spawnSync(process.execPath, [targetCli, '--root', t52Dir, '--slice', 'tsconfig.jsonc', 'compilerOptions'], { encoding: 'utf8', env: tParserEnv });
+  const t52JsonOut = spawnSync(process.execPath, [targetCli, '--root', t52Dir, '--outline', 'users.json'], { encoding: 'utf8', env: tParserEnv });
+  const t52JsonSlice = spawnSync(process.execPath, [targetCli, '--root', t52Dir, '--slice', 'users.json', 'u1'], { encoding: 'utf8', env: tParserEnv });
+  let t52JsonObj = null;
+  try { t52JsonObj = JSON.parse(t52JsonSlice.stdout); } catch {}
+  const t52 = t52TomlOut.status === 0 && t52TomlOut.stdout.includes('title =') &&
+              t52TomlOut.stdout.includes('[server]') && t52TomlOut.stdout.includes('[[routes]]') &&
+              !t52TomlOut.stdout.includes('FakeTable') && !t52TomlOut.stdout.includes('fake_key') &&
+              t52TomlSlice.status === 0 && t52TomlSlice.stdout.includes('host = "127.0.0.1"') &&
+              t52JsoncOut.status === 0 && t52JsoncOut.stdout.includes('"extends"') && t52JsoncOut.stdout.includes('"compilerOptions"') &&
+              !t52JsoncOut.stdout.includes('"strict"') &&
+              t52JsoncSlice.status === 0 && t52JsoncSlice.stdout.includes('"strict": true') &&
+              t52JsonOut.status === 0 && t52JsonOut.stdout.includes('"users"') && t52JsonOut.stdout.includes('"meta"') &&
+              t52JsonSlice.status === 0 && t52JsonObj && t52JsonObj.sample && t52JsonObj.sample.id === 'u1';
+  if (t52) passed++;
+  console.log(`[Test 52: TOML/JSON/JSONC Outline & Safe JSON Slice Preservation] ${t52 ? 'PASS' : 'FAIL'}`);
+
+  // 53. Modern Web SFCs (.vue, .svelte, .astro) Outline & Slice
+  const t53Dir = path.join(tmp, 't53-sfc');
+  fs.mkdirSync(t53Dir, { recursive: true });
+  fs.writeFileSync(path.join(t53Dir, 'Panel.vue'), [
+    '<template>',
+    '  <section id="hero">Hi</section>',
+    '</template>',
+    '<script setup lang="ts">',
+    'interface Props { count: number; }',
+    'function savePanel(n: number) {',
+    '  return n + 1;',
+    '}',
+    '</script>',
+    '<style scoped>.hero { color: red; }</style>'
+  ].join('\n'));
+  fs.writeFileSync(path.join(t53Dir, 'Badge.svelte'), [
+    '<script>',
+    '  export function formatBadge(label) {',
+    '    return `[${label}]`;',
+    '  }',
+    '</script>',
+    '<main>',
+    '  <header>Title</header>',
+    '</main>'
+  ].join('\n'));
+  fs.writeFileSync(path.join(t53Dir, 'Home.astro'), [
+    '---',
+    'function loadCards() {',
+    '  return ["a"];',
+    '}',
+    '---',
+    '<main>',
+    '  <section>Body</section>',
+    '</main>'
+  ].join('\n'));
+  const t53VueOut = spawnSync(process.execPath, [targetCli, '--root', t53Dir, '--outline', 'Panel.vue'], { encoding: 'utf8', env: tParserEnv });
+  const t53VueSlice = spawnSync(process.execPath, [targetCli, '--root', t53Dir, '--slice', 'Panel.vue', 'savePanel'], { encoding: 'utf8', env: tParserEnv });
+  const t53SvelteOut = spawnSync(process.execPath, [targetCli, '--root', t53Dir, '--outline', 'Badge.svelte'], { encoding: 'utf8', env: tParserEnv });
+  const t53AstroOut = spawnSync(process.execPath, [targetCli, '--root', t53Dir, '--outline', 'Home.astro'], { encoding: 'utf8', env: tParserEnv });
+  const t53AstroSlice = spawnSync(process.execPath, [targetCli, '--root', t53Dir, '--slice', 'Home.astro', 'loadCards'], { encoding: 'utf8', env: tParserEnv });
+  const t53 = t53VueOut.status === 0 && t53VueOut.stdout.includes('<template>') && t53VueOut.stdout.includes('[js] function savePanel') && t53VueOut.stdout.includes('<section id="hero">') &&
+              t53VueSlice.status === 0 && t53VueSlice.stdout.includes('return n + 1;') &&
+              t53SvelteOut.status === 0 && t53SvelteOut.stdout.includes('[js] export function formatBadge') && t53SvelteOut.stdout.includes('<header>') &&
+              t53AstroOut.status === 0 && t53AstroOut.stdout.includes('--- (frontmatter)') && t53AstroOut.stdout.includes('[ts] function loadCards()') &&
+              t53AstroSlice.status === 0 && t53AstroSlice.stdout.includes('return ["a"];');
+  if (t53) passed++;
+  console.log(`[Test 53: Modern Web SFCs (.vue, .svelte, .astro) Outline & Slice] ${t53 ? 'PASS' : 'FAIL'}`);
+
+  // 54. JVM, Swift & PHP Brace Languages (.java, .kt, .kts, .swift, .php)
+  const t54Dir = path.join(tmp, 't54-jvm-swift-php');
+  fs.mkdirSync(t54Dir, { recursive: true });
+  fs.writeFileSync(path.join(t54Dir, 'Service.java'), [
+    'package com.example;',
+    'public class Service {',
+    '  private final String tpl = """',
+    '    class FakeInner { void nope() {} }',
+    '  """;',
+    '  public int compute(int x) {',
+    '    return x * 2;',
+    '  }',
+    '}'
+  ].join('\n'));
+  fs.writeFileSync(path.join(t54Dir, 'Repo.kt'), [
+    'package com.example.kt',
+    'data class Item(val id: Int)',
+    'class Repo {',
+    '  suspend fun loadItem(id: Int): Item? {',
+    '    return null',
+    '  }',
+    '  companion object {',
+    '    fun empty(): Repo = Repo()',
+    '  }',
+    '}'
+  ].join('\n'));
+  fs.writeFileSync(path.join(t54Dir, 'build.gradle.kts'), 'plugins {\n  id("org.example")\n}\nfun helperTask() {\n  println("ok")\n}\n');
+  fs.writeFileSync(path.join(t54Dir, 'Card.swift'), [
+    'protocol Renderable {',
+    '  func render() -> String',
+    '}',
+    'struct Card: Renderable {',
+    '  let s = #"func fakeRaw() {}"#',
+    '  init(id: Int) {}',
+    '  func render() -> String {',
+    '    return "ok"',
+    '  }',
+    '}'
+  ].join('\n'));
+  fs.writeFileSync(path.join(t54Dir, 'Handler.php'), [
+    '<?php',
+    'namespace App\\Http;',
+    '# function fakeHashComment() {}',
+    'class Handler {',
+    '  #[Route("/health")]',
+    '  public function health(): string {',
+    '    return "ok";',
+    '  }',
+    '}'
+  ].join('\n'));
+  const t54Java = spawnSync(process.execPath, [targetCli, '--root', t54Dir, '--outline', 'Service.java'], { encoding: 'utf8', env: tParserEnv });
+  const t54JavaSlice = spawnSync(process.execPath, [targetCli, '--root', t54Dir, '--slice', 'Service.java', 'compute'], { encoding: 'utf8', env: tParserEnv });
+  const t54Kt = spawnSync(process.execPath, [targetCli, '--root', t54Dir, '--outline', 'Repo.kt'], { encoding: 'utf8', env: tParserEnv });
+  const t54Kts = spawnSync(process.execPath, [targetCli, '--root', t54Dir, '--outline', 'build.gradle.kts'], { encoding: 'utf8', env: tParserEnv });
+  const t54Swift = spawnSync(process.execPath, [targetCli, '--root', t54Dir, '--outline', 'Card.swift'], { encoding: 'utf8', env: tParserEnv });
+  const t54Php = spawnSync(process.execPath, [targetCli, '--root', t54Dir, '--outline', 'Handler.php'], { encoding: 'utf8', env: tParserEnv });
+  const t54 = t54Java.status === 0 && t54Java.stdout.includes('package com.example;') && t54Java.stdout.includes('public class Service') &&
+              !t54Java.stdout.includes('FakeInner') && t54JavaSlice.status === 0 && t54JavaSlice.stdout.includes('return x * 2;') &&
+              t54Kt.status === 0 && t54Kt.stdout.includes('data class Item') && t54Kt.stdout.includes('suspend fun loadItem') && t54Kt.stdout.includes('companion object') &&
+              t54Kts.status === 0 && t54Kts.stdout.includes('fun helperTask()') &&
+              t54Swift.status === 0 && t54Swift.stdout.includes('protocol Renderable') && t54Swift.stdout.includes('struct Card') && !t54Swift.stdout.includes('fakeRaw') &&
+              t54Php.status === 0 && t54Php.stdout.includes('namespace App\\Http;') && t54Php.stdout.includes('public function health') && !t54Php.stdout.includes('fakeHashComment');
+  if (t54) passed++;
+  console.log(`[Test 54: Java, Kotlin, KTS, Swift & PHP Outline/Slice] ${t54 ? 'PASS' : 'FAIL'}`);
+
+  // 55. Ruby, Elixir, SQL & Shell Outline/Slice
+  const t55Dir = path.join(tmp, 't55-rb-ex-sql-sh');
+  fs.mkdirSync(t55Dir, { recursive: true });
+  fs.writeFileSync(path.join(t55Dir, 'job.rb'), [
+    '=begin',
+    'def fake_commented',
+    'end',
+    '=end',
+    'module Jobs',
+    '  class Runner',
+    '    def call(arg)',
+    '      return if arg.nil?',
+    '      doc = <<~TXT',
+    '        def fake_heredoc; end',
+    '      TXT',
+    '      arg',
+    '    end',
+    '    def ready?',
+    '      true',
+    '    end',
+    '  end',
+    'end'
+  ].join('\n'));
+  fs.writeFileSync(path.join(t55Dir, 'ops.ex'), [
+    'defmodule Ops do',
+    '  @doc """',
+    '  def fake_doc, do: 0',
+    '  """',
+    '  def add(a, b), do: a + b',
+    '  defp bump(x) do',
+    '    f = fn y -> y + 1 end',
+    '    f.(x)',
+    '  end',
+    '  defmacro tag(x) do',
+    '    quote do: unquote(x)',
+    '  end',
+    'end'
+  ].join('\n'));
+  fs.writeFileSync(path.join(t55Dir, 'ops_test.exs'), 'defmodule OpsTest do\n  def check_ok, do: true\nend\n');
+  fs.writeFileSync(path.join(t55Dir, 'schema.sql'), [
+    '-- CREATE TABLE fake_line (id int);',
+    '/* CREATE TABLE fake_blk (id int); */',
+    'CREATE TABLE items (',
+    '  id INT PRIMARY KEY',
+    ');',
+    'CREATE OR REPLACE VIEW active_items AS SELECT id FROM items;',
+    'CREATE OR REPLACE FUNCTION calc_fn(x INT)',
+    'RETURNS INT AS $$',
+    'BEGIN',
+    '  RETURN x + 1;',
+    'END;',
+    '$$ LANGUAGE plpgsql;',
+    'CREATE INDEX idx_items ON items(id);'
+  ].join('\n'));
+  fs.writeFileSync(path.join(t55Dir, 'deploy.sh'), [
+    '#!/usr/bin/env bash',
+    '# fake_comment() { :; }',
+    'cat <<EOF',
+    'fake_heredoc() { :; }',
+    'EOF',
+    'build_it() {',
+    '  echo build',
+    '}',
+    'function ship_it {',
+    '  build_it',
+    '}'
+  ].join('\n'));
+  fs.writeFileSync(path.join(t55Dir, 'check.bash'), 'verify_all() {\n  echo ok\n}\n');
+  const t55Rb = spawnSync(process.execPath, [targetCli, '--root', t55Dir, '--outline', 'job.rb'], { encoding: 'utf8', env: tParserEnv });
+  const t55RbSlice = spawnSync(process.execPath, [targetCli, '--root', t55Dir, '--slice', 'job.rb', 'call'], { encoding: 'utf8', env: tParserEnv });
+  const t55Ex = spawnSync(process.execPath, [targetCli, '--root', t55Dir, '--outline', 'ops.ex'], { encoding: 'utf8', env: tParserEnv });
+  const t55Exs = spawnSync(process.execPath, [targetCli, '--root', t55Dir, '--outline', 'ops_test.exs'], { encoding: 'utf8', env: tParserEnv });
+  const t55Sql = spawnSync(process.execPath, [targetCli, '--root', t55Dir, '--outline', 'schema.sql'], { encoding: 'utf8', env: tParserEnv });
+  const t55SqlSlice = spawnSync(process.execPath, [targetCli, '--root', t55Dir, '--slice', 'schema.sql', 'calc_fn'], { encoding: 'utf8', env: tParserEnv });
+  const t55Sh = spawnSync(process.execPath, [targetCli, '--root', t55Dir, '--outline', 'deploy.sh'], { encoding: 'utf8', env: tParserEnv });
+  const t55Bash = spawnSync(process.execPath, [targetCli, '--root', t55Dir, '--outline', 'check.bash'], { encoding: 'utf8', env: tParserEnv });
+  const t55 = t55Rb.status === 0 && t55Rb.stdout.includes('module Jobs') && t55Rb.stdout.includes('def call(arg)') && t55Rb.stdout.includes('def ready?') &&
+              !t55Rb.stdout.includes('fake_commented') && !t55Rb.stdout.includes('fake_heredoc') &&
+              t55RbSlice.status === 0 && t55RbSlice.stdout.includes('return if arg.nil?') && !t55RbSlice.stdout.includes('def ready?') &&
+              t55Ex.status === 0 && t55Ex.stdout.includes('defmodule Ops') && t55Ex.stdout.includes('def add') && t55Ex.stdout.includes('defp bump') && t55Ex.stdout.includes('defmacro tag') && !t55Ex.stdout.includes('fake_doc') &&
+              t55Exs.status === 0 && t55Exs.stdout.includes('defmodule OpsTest') &&
+              t55Sql.status === 0 && t55Sql.stdout.includes('CREATE TABLE items') && t55Sql.stdout.includes('CREATE OR REPLACE VIEW active_items') && t55Sql.stdout.includes('CREATE OR REPLACE FUNCTION calc_fn') && t55Sql.stdout.includes('CREATE INDEX idx_items') && !t55Sql.stdout.includes('fake_line') && !t55Sql.stdout.includes('fake_blk') &&
+              t55SqlSlice.status === 0 && t55SqlSlice.stdout.includes('LANGUAGE plpgsql;') &&
+              t55Sh.status === 0 && t55Sh.stdout.includes('build_it()') && t55Sh.stdout.includes('function ship_it') && !t55Sh.stdout.includes('fake_heredoc') && !t55Sh.stdout.includes('fake_comment') &&
+              t55Bash.status === 0 && t55Bash.stdout.includes('verify_all()');
+  if (t55) passed++;
+  console.log(`[Test 55: Ruby, Elixir, SQL & Shell Outline/Slice] ${t55 ? 'PASS' : 'FAIL'}`);
+
+  // 56. detectStack Polyglot Expansion & Secret Guard Preservation
+  const t56StackA = path.join(tmp, 't56-stack-a');
+  fs.mkdirSync(path.join(t56StackA, 'dotnet-api'), { recursive: true });
+  fs.writeFileSync(path.join(t56StackA, 'package.json'), JSON.stringify({ scripts: { test: 'node test.js', build: 'vite build' } }));
+  fs.writeFileSync(path.join(t56StackA, 'pom.xml'), '<project/>');
+  fs.writeFileSync(path.join(t56StackA, 'Package.swift'), '// swift-tools-version:5.9');
+  fs.writeFileSync(path.join(t56StackA, 'Gemfile'), 'source "https://rubygems.org"');
+  fs.writeFileSync(path.join(t56StackA, 'composer.json'), '{}');
+  fs.writeFileSync(path.join(t56StackA, 'mix.exs'), 'defmodule App.MixProject do end');
+  fs.writeFileSync(path.join(t56StackA, 'dotnet-api', 'Api.csproj'), '<Project Sdk="Microsoft.NET.Sdk"/>');
+  const stA = lib.detectStack(t56StackA);
+
+  const t56StackB = path.join(tmp, 't56-stack-b');
+  fs.mkdirSync(path.join(t56StackB, 'android'), { recursive: true });
+  fs.mkdirSync(path.join(t56StackB, 'desktop'), { recursive: true });
+  fs.writeFileSync(path.join(t56StackB, 'pyproject.toml'), '[project]\nname = "x"\n');
+  fs.writeFileSync(path.join(t56StackB, 'Cargo.toml'), '[package]\nname = "x"\n');
+  fs.writeFileSync(path.join(t56StackB, 'go.mod'), 'module x\n');
+  fs.writeFileSync(path.join(t56StackB, 'android', 'build.gradle.kts'), 'plugins {}\n');
+  fs.writeFileSync(path.join(t56StackB, 'desktop', 'Suite.sln'), '');
+  const stB = lib.detectStack(t56StackB);
+
+  const t56SecDir = path.join(tmp, 't56-sec');
+  fs.mkdirSync(t56SecDir, { recursive: true });
+  fs.writeFileSync(path.join(t56SecDir, '.env'), 'SECRET=1\n');
+  fs.writeFileSync(path.join(t56SecDir, 'secrets.yaml'), 'api_key: x\n');
+  fs.writeFileSync(path.join(t56SecDir, 'credentials.toml'), 'token = "x"\n');
+  fs.writeFileSync(path.join(t56SecDir, 'server.pem'), '-----BEGIN KEY-----\n');
+  const sec1 = spawnSync(process.execPath, [targetCli, '--root', t56SecDir, '--outline', 'secrets.yaml'], { encoding: 'utf8', env: tParserEnv });
+  const sec2 = spawnSync(process.execPath, [targetCli, '--root', t56SecDir, '--slice', 'credentials.toml'], { encoding: 'utf8', env: tParserEnv });
+  const sec3 = spawnSync(process.execPath, [targetCli, '--root', t56SecDir, '--slice', '.env'], { encoding: 'utf8', env: tParserEnv });
+  const sec4 = spawnSync(process.execPath, [targetCli, '--root', t56SecDir, '--slice', 'server.pem'], { encoding: 'utf8', env: tParserEnv });
+
+  const t56 = ['node(test/build)', 'java(maven)', 'swift', 'ruby', 'php', 'elixir', 'dotnet'].every(x => stA.includes(x)) &&
+              ['python', 'rust', 'go', 'java(gradle)', 'dotnet'].every(x => stB.includes(x)) &&
+              sec1.status === 2 && sec2.status === 2 && sec3.status === 2 && sec4.status === 2;
+  if (t56) passed++;
+  console.log(`[Test 56: Polyglot detectStack Expansion & Secret Config Refusal] ${t56 ? 'PASS' : 'FAIL'}`);
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true });
 }
