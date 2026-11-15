@@ -104,6 +104,19 @@ function isInsideRoot(root, fullPath) {
   return !rel.startsWith('..') && !path.isAbsolute(rel);
 }
 
+// Every repo write goes through here: an untrusted repo can ship `.ignore -> ~/.bashrc`, and a plain
+// writeFileSync would follow the link and overwrite a file outside the repository.
+function writeInsideRoot(root, fullPath, content) {
+  let isLink = false, realTarget = null;
+  try { isLink = fs.lstatSync(fullPath).isSymbolicLink(); } catch {}
+  try { realTarget = path.join(fs.realpathSync(path.dirname(fullPath)), path.basename(fullPath)); } catch {}
+  if (isLink || !realTarget || !isInsideRoot(fs.realpathSync(root), realTarget)) {
+    console.error(`REFUSED: ${normalizePattern(path.relative(root, fullPath)) || fullPath} is a symlink or resolves outside the repository root`);
+    process.exit(2);
+  }
+  fs.writeFileSync(fullPath, content);
+}
+
 function capOutput(text, limit = MAX_CLI_CHARS) {
   const safe = redactSecrets(text);
   if (safe.length <= limit) return safe;
@@ -1048,26 +1061,30 @@ function cmdSyncIgnores(opts) {
 
   const igComments = extractUserComments(path.join(opts.root, '.ignore'));
   const igHeader = ['# Synced by antis-optimizer repo-index', ...igComments].join('\n') + '\n';
-  fs.writeFileSync(path.join(opts.root, '.ignore'), igHeader + patterns.join('\n') + '\n');
+  writeInsideRoot(opts.root, path.join(opts.root, '.ignore'), igHeader +patterns.join('\n') + '\n');
   const written = ['.ignore'];
   const hints = [];
 
   if (syncCtx) {
     const ctxComments = extractUserComments(path.join(opts.root, '.contextignore'));
     const ctxHeader = ['# Synced by antis-optimizer repo-index', ...(ctxComments.length ? ctxComments : igComments)].join('\n') + '\n';
-    fs.writeFileSync(path.join(opts.root, '.contextignore'), ctxHeader + patterns.join('\n') + '\n');
+    // Patterns the user keeps only in .contextignore survive the sync (same merge as the other tool ignore files).
+    const ctxPatterns = HU.mergeToolPatterns(patterns, existingContext.filter(Boolean));
+    writeInsideRoot(opts.root, path.join(opts.root, '.contextignore'), ctxHeader + ctxPatterns.join('\n') + '\n');
     written.push('.contextignore');
   }
 
   if (syncJcm) {
-    const arrLiteral = JSON.stringify(patterns, null, 4).replace(/\n\]$/, '\n  ]');
+    const jcmOwn = Array.isArray(jcmObj?.extra_ignore_patterns) ? jcmObj.extra_ignore_patterns.map(normalizePattern).filter(Boolean) : [];
+    const jcmPatterns = HU.mergeToolPatterns(patterns, jcmOwn); // keep the user's own entries
+    const arrLiteral = JSON.stringify(jcmPatterns, null, 4).replace(/\n\]$/, '\n  ]');
     const spliced = fs.existsSync(jcmPath) ? HU.spliceJcmPatterns(fs.readFileSync(jcmPath, 'utf8'), arrLiteral) : null;
     if (spliced !== null) {
-      fs.writeFileSync(jcmPath, spliced);
+      writeInsideRoot(opts.root, jcmPath, spliced);
     } else {
-      const nextJcm = { ...(jcmObj || {}), extra_ignore_patterns: patterns };
+      const nextJcm = { ...(jcmObj || {}), extra_ignore_patterns: jcmPatterns };
       const prefix = fs.existsSync(jcmPath) ? '' : '// Synced by antis-optimizer repo-index\n';
-      fs.writeFileSync(jcmPath, prefix + JSON.stringify(nextJcm, null, 2) + '\n');
+      writeInsideRoot(opts.root, jcmPath, prefix +JSON.stringify(nextJcm, null, 2) + '\n');
     }
     written.push('.jcodemunch.jsonc');
   }
@@ -1076,7 +1093,7 @@ function cmdSyncIgnores(opts) {
     const tComments = extractUserComments(t.filePath);
     const tHeader = ['# Synced by antis-optimizer repo-index', ...(tComments.length ? tComments : igComments)].join('\n') + '\n';
     const merged = HU.mergeToolPatterns(patterns, t.existing);
-    fs.writeFileSync(t.filePath, tHeader + merged.join('\n') + '\n');
+    writeInsideRoot(opts.root, t.filePath, tHeader +merged.join('\n') + '\n');
     written.push(t.file);
   }
 
@@ -2524,7 +2541,7 @@ function cmdHandoff(opts) {
       console.error(`REFUSED: --out path outside repository root: ${opts.out}`);
       process.exit(2);
     }
-    fs.writeFileSync(outFull, serialized + '\n');
+    writeInsideRoot(opts.root, outFull, serialized +'\n');
   }
   console.log(serialized);
 }
@@ -2660,7 +2677,7 @@ function inspectAndHealLandmarks(root, docs, writeChanges = false) {
     }
 
     if (modified && writeChanges) {
-      fs.writeFileSync(docFull, docLines.join(eol));
+      writeInsideRoot(root, docFull, docLines.join(eol));
     }
   }
 
