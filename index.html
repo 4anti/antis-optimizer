@@ -904,7 +904,7 @@
       <div class="wrap">
         <div class="sec-head">
           <h2 class="sec-title">Every command capped under 3,500 characters.</h2>
-          <p class="sec-copy">Secrets and API keys scrub out before stdout, and key or env files are always refused.</p>
+          <p class="sec-copy">Modeled task comparisons (~4 chars/token). Secrets and API keys scrub out before stdout, and key or env files are always refused.</p>
         </div>
 
         <div class="table-wrap">
@@ -962,8 +962,9 @@
             <li><code class="man-cmd">--detect</code><p class="man-desc">Discovers installed coding agents, MCP servers, and nested worktrees.</p></li>
             <li><code class="man-cmd">--sync-ignores <span class="arg">--write</span></code><p class="man-desc">Keeps <code>.ignore</code>, <code>.contextignore</code>, and MCP exclusions aligned in one pass.</p></li>
             <li><code class="man-cmd">--outline <span class="arg">&lt;file&gt; [filter]</span></code><p class="man-desc">Extracts exact symbol bounds via TypeScript Compiler AST or built-in lexer.</p></li>
-            <li><code class="man-cmd">--slice <span class="arg">&lt;name&gt; [key]</span></code><p class="man-desc">Reads only one bounded symbol range or structured section under strict byte caps.</p></li>
+            <li><code class="man-cmd">--slice <span class="arg">&lt;scope&gt; [symbol] | &lt;file:Lstart-Lend&gt;</span></code><p class="man-desc">Reads one AST/lexer symbol span, line range, or JSON section under strict byte caps.</p></li>
             <li><code class="man-cmd">--sync-landmarks <span class="arg">&amp;&amp; --verify</span></code><p class="man-desc">Auto-heals shifted doc line pointers and validates caps in one output line.</p></li>
+            <li><code class="man-cmd">--check-update <span class="arg">[--critical-only]</span></code><p class="man-desc">Checks GitHub Releases read-only for urgent fixes and prints safe manual upgrade steps.</p></li>
           </ol>
         </div>
       </div>

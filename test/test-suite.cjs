@@ -2,7 +2,7 @@
 'use strict';
 
 /**
- * Antis-Optimizer — Comprehensive Automated Test Suite (29 Self-Contained Tests)
+ * Antis-Optimizer — Comprehensive Automated Test Suite (38 Self-Contained Tests)
  * Zero personal paths; runs entirely inside an isolated OS temp directory.
  */
 
@@ -15,9 +15,10 @@ const targetCli = path.resolve(__dirname, '..', 'scripts', 'repo-index.cjs');
 const pkg = require(path.resolve(__dirname, '..', 'package.json'));
 const lib = require(targetCli);
 
-console.log(`=== ANTIS-OPTIMIZER v${pkg.version} TEST SUITE (29 TESTS) ===`);
-let passed = 0, total = 29;
+console.log(`=== ANTIS-OPTIMIZER v${pkg.version} TEST SUITE (38 TESTS) ===`);
+let passed = 0, total = 38;
 
+(async function main() {
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'antis-opt-test-'));
 try {
   // 1. Multi-Line TypeScript Functions & Real Compiler AST Engine Verification
@@ -455,9 +456,207 @@ try {
               shortVer.status === 0 && shortVer.stdout.trim() === `antis-optimizer v${pkg.version}`;
   if (t29) passed++;
   console.log(`[Test 29: CLI --help / -h and --version / -v Alignment] ${t29 ? 'PASS' : 'FAIL'}`);
+
+  // 30. Tier-0 --audit / --verify Parity (0-doc Tier 0 PASS vs 0-doc Tier 1 FAIL + single-line PASS)
+  const t30Zero = path.join(tmp, 't30-tier0');
+  fs.mkdirSync(t30Zero, { recursive: true });
+  fs.writeFileSync(path.join(t30Zero, 'app.ts'), 'export const app = 1;\n');
+  const t30Audit = spawnSync('node', [targetCli, '--audit', '--root', t30Zero], { encoding: 'utf8' });
+  spawnSync('node', [targetCli, '--sync-ignores', '--write', '--root', t30Zero], { encoding: 'utf8' });
+  const t30Verify = spawnSync('node', [targetCli, '--verify', '--root', t30Zero], { encoding: 'utf8' });
+  const t30Tier1 = path.join(tmp, 't30-tier1-nodoc');
+  fs.mkdirSync(path.join(t30Tier1, 'src'), { recursive: true });
+  for (let i = 0; i < 26; i++) {
+    fs.writeFileSync(path.join(t30Tier1, 'src', `mod${i}.ts`), `export const p${i} = "${'a'.repeat(900)}";\n`);
+  }
+  spawnSync('node', [targetCli, '--sync-ignores', '--write', '--root', t30Tier1], { encoding: 'utf8' });
+  const t30Tier1Verify = spawnSync('node', [targetCli, '--verify', '--root', t30Tier1], { encoding: 'utf8' });
+  const t30Out = t30Verify.stdout.trim();
+  const t30 = t30Audit.status === 0 && t30Audit.stdout.includes('TIER 0 (IGNORE-ONLY)') &&
+              t30Verify.status === 0 && !t30Out.includes('\n') &&
+              t30Out.includes('PASS doc-budgets: tier-0(0)') &&
+              t30Out.includes('PASS landmarks: 0(tier-0)') &&
+              t30Out.includes('PASS ignore-parity') &&
+              t30Tier1Verify.status === 1 &&
+              t30Tier1Verify.stdout.includes('FAIL doc-budgets: no AGENTS.md/INDEX.md found (recommended: TIER 1');
+  if (t30) passed++;
+  console.log(`[Test 30: Tier-0 --audit / --verify Parity & Single-Line PASS] ${t30 ? 'PASS' : 'FAIL'}`);
+
+  // 31. No False Tier-2 Fallthrough for 55 Small Files (0 Monoliths, Low Trap Tokens)
+  const t31Tiny = path.join(tmp, 't31-tiny55');
+  fs.mkdirSync(path.join(t31Tiny, 'src'), { recursive: true });
+  for (let i = 0; i < 55; i++) {
+    fs.writeFileSync(path.join(t31Tiny, 'src', `f${i}.ts`), `export const f${i} = ${i};\n`);
+  }
+  const t31TinyAudit = spawnSync('node', [targetCli, '--audit', '--root', t31Tiny], { encoding: 'utf8' });
+  const t31Mid = path.join(tmp, 't31-mid55');
+  fs.mkdirSync(path.join(t31Mid, 'src'), { recursive: true });
+  for (let i = 0; i < 55; i++) {
+    fs.writeFileSync(path.join(t31Mid, 'src', `m${i}.ts`), `export const m${i} = "${'b'.repeat(580)}";\n`);
+  }
+  const t31MidAudit = spawnSync('node', [targetCli, '--audit', '--root', t31Mid], { encoding: 'utf8' });
+  const t31 = t31TinyAudit.status === 0 && t31TinyAudit.stdout.includes('TIER 0 (IGNORE-ONLY)') &&
+              !t31TinyAudit.stdout.includes('TIER 2') &&
+              t31MidAudit.status === 0 && t31MidAudit.stdout.includes('TIER 1 (LEAN ZERO-COPY)') &&
+              !t31MidAudit.stdout.includes('TIER 2');
+  if (t31) passed++;
+  console.log(`[Test 31: 55-File Tiny Repo -> Tier 0 & ~8k Token -> Tier 1 (No Tier-2 Fallthrough)] ${t31 ? 'PASS' : 'FAIL'}`);
+
+  // 32. Code --slice Symbol Span Resolution, :Lstart-Lend Range Syntax, & Missing Symbol Exit 1
+  const t32Dir = path.join(tmp, 't32-slice');
+  fs.mkdirSync(path.join(t32Dir, 'src'), { recursive: true });
+  const authLines = [
+    "import { verifyToken } from './tokens';",
+    '// verifyToken should not match import or comment',
+    'export function unrelatedHelper(): string {',
+    '  return String(verifyToken);',
+    '}'
+  ];
+  while (authLines.length < 17) authLines.push(`const pad${authLines.length} = ${authLines.length};`);
+  authLines.push(
+    'export function verifyToken(token: string): boolean {',
+    '  if (!token) return false;',
+    '  const trimmed = token.trim();',
+    "  return trimmed.startsWith('v1_');",
+    '}',
+    'export const AUTH_VERSION = 1;'
+  );
+  fs.writeFileSync(path.join(t32Dir, 'src', 'auth.ts'), authLines.join('\n') + '\n');
+  const t32Sym = spawnSync('node', [targetCli, '--root', t32Dir, '--slice', 'auth', 'verifyToken'], { encoding: 'utf8' });
+  const t32Range = spawnSync('node', [targetCli, '--root', t32Dir, '--slice', 'src/auth.ts:L18-L20'], { encoding: 'utf8' });
+  const t32Hash = spawnSync('node', [targetCli, '--root', t32Dir, '--slice', 'src/auth.ts#verifyToken'], { encoding: 'utf8' });
+  const t32Miss = spawnSync('node', [targetCli, '--root', t32Dir, '--slice', 'auth', 'noSuchSymbolHere'], { encoding: 'utf8' });
+  const t32 = t32Sym.status === 0 &&
+              t32Sym.stdout.startsWith('landmark: src/auth.ts:L18-L22\n') &&
+              !t32Sym.stdout.includes("from './tokens'") &&
+              !t32Sym.stdout.includes('AUTH_VERSION') &&
+              t32Range.status === 0 &&
+              t32Range.stdout.startsWith('landmark: src/auth.ts:L18-L20\n') &&
+              t32Range.stdout.includes('const trimmed = token.trim();') &&
+              !t32Range.stdout.includes("startsWith('v1_')") &&
+              t32Hash.status === 0 && t32Hash.stdout.startsWith('landmark: src/auth.ts:L18-L22\n') &&
+              t32Miss.status === 1 && t32Miss.stderr.includes('not found');
+  if (t32) passed++;
+  console.log(`[Test 32: Code --slice Exact Symbol Spans & :Lstart-Lend Range Syntax] ${t32 ? 'PASS' : 'FAIL'}`);
+
+  // 33. Code secretManager.ts Allow vs secrets.json Block & hasTokenOpt-Gated .json Guard
+  const t33Dir = path.join(tmp, 't33-secret');
+  fs.mkdirSync(path.join(t33Dir, 'src'), { recursive: true });
+  fs.mkdirSync(path.join(t33Dir, 'data'), { recursive: true });
+  fs.writeFileSync(path.join(t33Dir, 'src', 'secretManager.ts'), 'export function rotateSalt(): string {\n  return "ok";\n}\n');
+  fs.writeFileSync(path.join(t33Dir, 'secrets.json'), '{"api":"do-not-read"}\n');
+  fs.writeFileSync(path.join(t33Dir, 'data', 'tricky-data.json'), '[{"id":"item-1","val":"hello"}]\n');
+  const cleanHome = path.join(tmp, 't33-clean-home');
+  fs.mkdirSync(cleanHome, { recursive: true });
+  const cleanEnv = { ...process.env, HOME: cleanHome, USERPROFILE: cleanHome };
+  const t33AllowCode = spawnSync('node', [targetCli, '--root', t33Dir, '--slice', 'secretManager', 'rotateSalt'], { encoding: 'utf8' });
+  const t33BlockJson = spawnSync('node', [targetCli, '--root', t33Dir, '--slice', 'secrets.json'], { encoding: 'utf8' });
+  const t33JsonNoOpt = spawnSync('node', [targetCli, '--root', t33Dir, '--slice', 'data/tricky-data.json', 'item-1'], { encoding: 'utf8', env: cleanEnv });
+  fs.writeFileSync(path.join(t33Dir, '.contextignore'), 'node_modules/\n');
+  const t33JsonWithOpt = spawnSync('node', [targetCli, '--root', t33Dir, '--slice', 'data/tricky-data.json', 'item-1'], { encoding: 'utf8', env: cleanEnv });
+  const t33 = t33AllowCode.status === 0 && t33AllowCode.stdout.includes('rotateSalt') &&
+              t33BlockJson.status === 2 &&
+              t33JsonNoOpt.status === 0 && t33JsonNoOpt.stdout.includes('"item-1"') &&
+              t33JsonWithOpt.status === 2 && t33JsonWithOpt.stderr.includes('REFUSED');
+  if (t33) passed++;
+  console.log(`[Test 33: secretManager.ts Allow vs secrets.json Block & hasTokenOpt .json Gate] ${t33 ? 'PASS' : 'FAIL'}`);
+
+  // 34. .gitignore !Negation Parity & Comment-Safe .jcodemunch.jsonc extra_ignore_patterns Insertion
+  const t34Dir = path.join(tmp, 't34-negation');
+  fs.mkdirSync(t34Dir, { recursive: true });
+  fs.writeFileSync(path.join(t34Dir, '.gitignore'), '*.json\n!package.json\n');
+  fs.writeFileSync(path.join(t34Dir, 'package.json'), '{\n  "name": "neg-test",\n  "version": "1.0.0"\n}\n');
+  fs.writeFileSync(path.join(t34Dir, 'dump.json'), `{"blob":"${'x'.repeat(2000)}"}\n`);
+  fs.writeFileSync(path.join(t34Dir, '.jcodemunch.jsonc'), '{\n  // Keep comment intact\n  "version": 1,\n  "use_ai_summaries": false\n}\n');
+  const t34Ig = lib.loadIgnoreRules(t34Dir);
+  const t34Sync = spawnSync('node', [targetCli, '--sync-ignores', '--write', '--all-ignores', '--root', t34Dir], { encoding: 'utf8' });
+  const t34JcmRaw = fs.readFileSync(path.join(t34Dir, '.jcodemunch.jsonc'), 'utf8');
+  const t34JcmParsed = JSON.parse(lib.stripJsonc(t34JcmRaw));
+  const t34SlicePkg = spawnSync('node', [targetCli, '--root', t34Dir, '--slice', 'package', 'version'], { encoding: 'utf8' });
+  const t34Verify = spawnSync('node', [targetCli, '--verify', '--all-ignores', '--root', t34Dir], { encoding: 'utf8' });
+  const patList = t34JcmParsed.extra_ignore_patterns || [];
+  const t34 = !lib.isFileIgnored(t34Ig, 'package.json', 'package.json') &&
+              lib.isFileIgnored(t34Ig, 'dump.json', 'dump.json') &&
+              t34Sync.status === 0 &&
+              t34JcmRaw.includes('// Keep comment intact') &&
+              patList.includes('*.json') && patList.includes('!package.json') &&
+              patList.indexOf('*.json') < patList.indexOf('!package.json') &&
+              t34SlicePkg.status === 0 && t34SlicePkg.stdout.includes('1.0.0') &&
+              t34Verify.status === 0;
+  if (t34) passed++;
+  console.log(`[Test 34: .gitignore !Negation Preservation & .jcodemunch.jsonc Comment-Safe Insertion] ${t34 ? 'PASS' : 'FAIL'}`);
+
+  // 35. SemVer Ordering & Intermediate [CRITICAL] Release Aggregation
+  const mockReleases = [
+    { tag_name: 'v1.0.4', name: 'Draft', draft: true, prerelease: false, body: '' },
+    { tag_name: 'v1.0.3-rc.1', name: 'RC [CRITICAL]', draft: false, prerelease: true, body: '[CRITICAL]' },
+    { tag_name: 'v1.0.2', name: 'Docs cleanup', draft: false, prerelease: false, body: 'Minor typo fixes' },
+    { tag_name: 'v1.0.1', name: '[CRITICAL] Secret guard fix', draft: false, prerelease: false, body: '<!-- antis-release: {"severity":"critical"} -->' },
+    { tag_name: 'v1.0.0', name: 'Initial', draft: false, prerelease: false, body: '' }
+  ];
+  const s100 = lib.summarizeReleases(mockReleases, '1.0.0');
+  const s101 = lib.summarizeReleases(mockReleases, '1.0.1');
+  const t35 = lib.compareSemver('1.0.0', '1.0.0-rc.1') === 1 &&
+              lib.compareSemver('v1.0.2', '1.0.1') === 1 &&
+              s100.latestTag === 'v1.0.2' && s100.newerReleases.length === 2 &&
+              s100.hasCritical && s100.criticalReleases.length === 1 &&
+              s100.criticalReleases[0].tag === 'v1.0.1' &&
+              s101.latestTag === 'v1.0.2' && s101.newerReleases.length === 1 && !s101.hasCritical;
+  if (t35) passed++;
+  console.log(`[Test 35: SemVer Ordering & Intermediate Critical Release Aggregation] ${t35 ? 'PASS' : 'FAIL'}`);
+
+  // 36. Install Mode Detection & Safe Manual Upgrade Guidance
+  const t36Git = path.join(tmp, 't36-git');
+  const t36Standalone = path.join(tmp, 't36-standalone');
+  const t36Npm = path.join(tmp, 'node_modules', 'antis-optimizer');
+  const t36Repo = path.join(tmp, 't36-user-repo');
+  for (const d of [t36Git, t36Standalone, t36Npm, t36Repo]) fs.mkdirSync(d, { recursive: true });
+  fs.mkdirSync(path.join(t36Git, '.git'), { recursive: true });
+  for (const d of [t36Git, t36Standalone, t36Npm]) {
+    fs.writeFileSync(path.join(d, 'package.json'), '{"name":"antis-optimizer","version":"1.0.0"}\n');
+    fs.writeFileSync(path.join(d, 'SKILL.md'), '# Skill\n');
+  }
+  fs.writeFileSync(path.join(t36Repo, 'package.json'), '{"name":"user-app","version":"0.1.0"}\n');
+  const mGit = lib.detectInstallMode(t36Git);
+  const mStandalone = lib.detectInstallMode(t36Standalone);
+  const mNpm = lib.detectInstallMode(t36Npm);
+  const mRepo = lib.detectInstallMode(t36Repo);
+  const t36 = mGit.mode === 'git-clone' && lib.getUpgradeCommand(mGit, 'v1.0.2').includes('pull --ff-only') &&
+              mStandalone.mode === 'standalone-skill' && lib.getUpgradeCommand(mStandalone, 'v1.0.2').includes('re-sync') &&
+              mNpm.mode === 'npm-managed' && lib.getUpgradeCommand(mNpm, 'v1.0.2').includes('npm install -g') &&
+              mRepo.mode === 'repo-local' && lib.getUpgradeCommand(mRepo, 'v1.0.2').includes('copy scripts/repo-index.cjs');
+  if (t36) passed++;
+  console.log(`[Test 36: Install Mode Detection & Non-Destructive Upgrade Commands] ${t36 ? 'PASS' : 'FAIL'}`);
+
+  // 37. Pinned HTTPS Host/Protocol Guard for Update Requests
+  const rejectMsg = p => p.then(() => '', e => e.message);
+  const eHttp = await rejectMsg(lib.httpsGetPinnedJson('http://api.github.com/repos/4anti/antis-optimizer/releases'));
+  const eHost = await rejectMsg(lib.httpsGetPinnedJson('https://evil.example.com/repos/4anti/antis-optimizer/releases'));
+  const eBad = await rejectMsg(lib.httpsGetPinnedJson('not-a-url'));
+  const t37 = eHttp.includes('Blocked unpinned update endpoint') &&
+              eHost.includes('Blocked unpinned update endpoint') &&
+              eBad.includes('Invalid update URL');
+  if (t37) passed++;
+  console.log(`[Test 37: Pinned HTTPS Host/Protocol Guard Against Unpinned Endpoints] ${t37 ? 'PASS' : 'FAIL'}`);
+
+  // 38. --critical-only Filtering & --help Alignment
+  const rQuiet = lib.formatUpdateReport(s101, mStandalone, { criticalOnly: true });
+  const rCrit = lib.formatUpdateReport(s100, mGit, { criticalOnly: true });
+  const rUpToDate = lib.formatUpdateReport(lib.summarizeReleases([], '1.0.0'), mStandalone, {});
+  const t38Help = spawnSync('node', [targetCli, '--help'], { encoding: 'utf8' });
+  const t38 = rQuiet === '' &&
+              rCrit.includes('[!] CRITICAL UPDATE AVAILABLE') &&
+              rCrit.includes('v1.0.1 [CRITICAL]') &&
+              rCrit.includes('pull --ff-only') &&
+              rUpToDate.includes('up to date') &&
+              t38Help.status === 0 && t38Help.stdout.includes('--check-update') &&
+              t38Help.stdout.includes('--critical-only');
+  if (t38) passed++;
+  console.log(`[Test 38: --critical-only Output Filtering & --help Parity] ${t38 ? 'PASS' : 'FAIL'}`);
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true });
 }
 
 console.log(`=== SCORE: ${passed}/${total} TESTS PASSED ===`);
 if (passed !== total) process.exit(1);
+})().catch(err => { console.error(err); process.exit(1); });

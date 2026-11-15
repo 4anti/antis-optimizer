@@ -87,3 +87,5 @@ Using AI assistants to explore or draft code is fine; submitting unreviewed outp
 2. Keep PRs single-purpose and avoid unrelated reformatting.
 3. Check `git diff` and `git status` before pushing to ensure **zero secrets, tokens, personal home paths, email addresses, or local scratch/ignore dotfiles** (`.claude/`, `.ignore`, etc.) are committed.
 4. Open a PR against `main`. All contributions are licensed under the repository's [MIT License](./LICENSE) (inbound = outbound); adding a DCO sign-off (`git commit -s`) is optional and welcome.
+
+> **Maintainer release tagging note:** Keep tags as standard SemVer (`vX.Y.Z` matching `package.json`). Prefix urgent security/bugfix GitHub Release titles or headers with `[CRITICAL]` / `[SECURITY]` (or `<!-- antis-release: {"severity":"critical"} -->`) so `--check-update --critical-only` flags them cleanly.
