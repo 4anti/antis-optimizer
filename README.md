@@ -16,7 +16,7 @@ Scan bloat, sync ignore rules across every AI tool, and jump straight to the exa
 
 <br/>
 
-**[Interactive Website & Diff Simulator](https://4anti.github.io/antis-optimizer/)** · **[v1.0.0 Release](https://github.com/4anti/antis-optimizer/releases/tag/v1.0.0)**
+**[Interactive Website & Diff Simulator](https://4anti.github.io/antis-optimizer/)** · **[v1.0.0 Release](https://github.com/4anti/antis-optimizer/releases/tag/v1.0.0)** · **[Contributing Guide](./CONTRIBUTING.md)**
 
 <br/>
 
@@ -135,6 +135,14 @@ No extra plugins are needed. If you already use other AI workflow or token-savin
 | **`jCodemunch` MCP** | Ignores `.ignore`/`.contextignore` and skips inline HTML/CSS `<script>`/`<style>` blocks. | Syncs `.jcodemunch.jsonc` automatically and handles HTML/CSS/JSON outlines cleanly alongside it. |
 
 </details>
+
+---
+
+## 🙌 Contributing
+
+Contributions are welcome — especially new language lexers, framework ignore rules, OS/agent fixes, and minimal bug repros.
+
+Setup takes 30 seconds with zero dependencies (`git clone`, then `npm test`). See **[CONTRIBUTING.md](./CONTRIBUTING.md)** for the repo map, guardrails, and PR checklist.
 
 ---
 
