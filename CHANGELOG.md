@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 
 ## [Unreleased]
 
+### Added
+- Lexer accuracy corpus: 21 unmodified real-world files scored against real parsers (`npm run accuracy`); CI fails when a language drops below its recorded baseline.
+
+### Fixed
+- Lexer (TS): type aliases without braces no longer run on to a later block; class methods indented with tabs or with parameters wrapped across lines are now listed; arrow functions whose expression body starts on the next line get the right end line. Measured TypeScript exact-span accuracy went from 66.0% to 90.1%.
+
 ### Changed
 - Install instructions, site, demo, and the `--check-update` upgrade hint now use the npm package (`npx antis-optimizer`, `npm install -g antis-optimizer`).
 - Release workflow stages the npm publish for maintainer 2FA approval.

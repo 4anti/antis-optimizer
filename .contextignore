@@ -1,4 +1,5 @@
 # Synced by antis-optimizer repo-index
+# Third-party accuracy corpus (test data, not project source)
 .git/
 node_modules/
 .venv/
@@ -67,4 +68,5 @@ Thumbs.db
 Desktop.ini
 .vscode/
 .idea/
+test/corpus/
 !.env.example

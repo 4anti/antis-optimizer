@@ -1,0 +1,128 @@
+[
+  {
+    "file": "zod/parseUtil.ts",
+    "repo": "colinhacks/zod",
+    "tag": "v3.23.8",
+    "src": "src/helpers/parseUtil.ts"
+  },
+  {
+    "file": "zod/ZodError.ts",
+    "repo": "colinhacks/zod",
+    "tag": "v3.23.8",
+    "src": "src/ZodError.ts"
+  },
+  {
+    "file": "ky/Ky.ts",
+    "repo": "sindresorhus/ky",
+    "tag": "v1.7.2",
+    "src": "source/core/Ky.ts"
+  },
+  {
+    "file": "ky/merge.ts",
+    "repo": "sindresorhus/ky",
+    "tag": "v1.7.2",
+    "src": "source/utils/merge.ts"
+  },
+  {
+    "file": "zustand/vanilla.ts",
+    "repo": "pmndrs/zustand",
+    "tag": "v4.5.5",
+    "src": "src/vanilla.ts"
+  },
+  {
+    "file": "zustand/persist.ts",
+    "repo": "pmndrs/zustand",
+    "tag": "v4.5.5",
+    "src": "src/middleware/persist.ts"
+  },
+  {
+    "file": "tanstack-query/QueryClientProvider.tsx",
+    "repo": "TanStack/query",
+    "tag": "v5.59.0",
+    "src": "packages/react-query/src/QueryClientProvider.tsx"
+  },
+  {
+    "file": "tanstack-query/HydrationBoundary.tsx",
+    "repo": "TanStack/query",
+    "tag": "v5.59.0",
+    "src": "packages/react-query/src/HydrationBoundary.tsx"
+  },
+  {
+    "file": "tanstack-query/QueryErrorResetBoundary.tsx",
+    "repo": "TanStack/query",
+    "tag": "v5.59.0",
+    "src": "packages/react-query/src/QueryErrorResetBoundary.tsx"
+  },
+  {
+    "file": "express/response.js",
+    "repo": "expressjs/express",
+    "tag": "4.21.1",
+    "src": "lib/response.js"
+  },
+  {
+    "file": "express/application.js",
+    "repo": "expressjs/express",
+    "tag": "4.21.1",
+    "src": "lib/application.js"
+  },
+  {
+    "file": "express/route.js",
+    "repo": "expressjs/express",
+    "tag": "4.21.1",
+    "src": "lib/router/route.js"
+  },
+  {
+    "file": "chalk/index.js",
+    "repo": "chalk/chalk",
+    "tag": "v5.3.0",
+    "src": "source/index.js"
+  },
+  {
+    "file": "chalk/utilities.js",
+    "repo": "chalk/chalk",
+    "tag": "v5.3.0",
+    "src": "source/utilities.js"
+  },
+  {
+    "file": "requests/sessions.py",
+    "repo": "psf/requests",
+    "tag": "v2.32.3",
+    "src": "src/requests/sessions.py"
+  },
+  {
+    "file": "requests/models.py",
+    "repo": "psf/requests",
+    "tag": "v2.32.3",
+    "src": "src/requests/models.py"
+  },
+  {
+    "file": "requests/adapters.py",
+    "repo": "psf/requests",
+    "tag": "v2.32.3",
+    "src": "src/requests/adapters.py"
+  },
+  {
+    "file": "click/decorators.py",
+    "repo": "pallets/click",
+    "tag": "8.1.7",
+    "src": "src/click/decorators.py"
+  },
+  {
+    "file": "click/types.py",
+    "repo": "pallets/click",
+    "tag": "8.1.7",
+    "src": "src/click/types.py"
+  },
+  {
+    "file": "flask/app.py",
+    "repo": "pallets/flask",
+    "tag": "3.0.3",
+    "src": "src/flask/app.py"
+  },
+  {
+    "file": "flask/helpers.py",
+    "repo": "pallets/flask",
+    "tag": "3.0.3",
+    "src": "src/flask/helpers.py"
+  }
+]

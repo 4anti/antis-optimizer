@@ -1797,7 +1797,19 @@ const OL = Object.freeze({
     const fnOrTypeRe = /^(?:export\s+(?:default\s+)?)?(?:pub(?:\([^)]*\))?\s+)?(?:declare\s+)?(?:(?:async|const|unsafe|static|inline|virtual)\s+)*(?:(?:function|fn|func)\s*\*?\s*(?:\([^)]*\)\s*)?([A-Za-z0-9_$]+)\s*(?:<[^>]*>)?\s*\(|(?:class|interface|enum|type|struct|trait|impl|mod|namespace)\s+(?:<[^>]*>\s*)?([A-Za-z0-9_$.]+))/;
     const topVarFnRe = /^(?:export\s+)?(?:const|let|var)\s+([A-Za-z0-9_$]+)\s*(?::\s*[^=]+)?=\s*(?:async\s*)?(?:<[^>]*>\s*)?(?:\(|[A-Za-z0-9_$]+\s*=>|(?:React\.)?(?:forwardRef|memo)\b)/;
     const innerArrowRe = /^(?:const|let)\s+([A-Za-z0-9_$]+)\s*=\s*(?:async\s*)?(?:\([^)]*\)|[A-Za-z0-9_$]+)\s*=>/;
-    const methodRe = /^\s{2,8}(?:(?:public|private|protected|static|async|readonly|get|set|pub|virtual|override)\s+)*\*?([A-Za-z0-9_$]+)\s*(?:<[^>]*>)?\s*\([^;]*\{/;
+    const methodRe = /^(?:	{1,4}|[ 	]{2,8})(?:(?:public|private|protected|static|async|readonly|get|set|pub|virtual|override)\s+)*\*?([A-Za-z0-9_$]+)\s*(?:<[^>]*>)?\s*\([^;]*\{/;
+    // Class method whose parameter list wraps onto following lines: `static merge(` ... `) {`
+    const wrappedMethodRe = /^\s+(?:(?:public|private|protected|static|async|readonly|override)\s+)*\*?([A-Za-z0-9_$]+)\s*(?:<[^>]*>)?\s*\($/;
+    const isJsLikeB = /^\.(?:[cm]?js|jsx|tsx?)$/.test(bExt);
+    const tsAliasRe = /^(?:export\s+)?(?:declare\s+)?type\s+[A-Za-z_$]/;
+    // True when the next non-blank line still belongs to the statement that starts at `declIdx` (deeper indent or a leading closer/operator).
+    const continuesBelow = (j, declIdx) => {
+      let n = j + 1;
+      while (n <= endIdx && !lines[n].trim()) n++;
+      if (n > endIdx) return false;
+      const indentOf = l => l.length - l.trimStart().length;
+      return indentOf(lines[n]) > indentOf(lines[declIdx]) || /^[)\]}>|&?:.]/.test(lines[n].trim());
+    };
     const isCFamily = bExt === '.c' || bExt === '.cpp' || bExt === '.cc' || bExt === '.h' || bExt === '.hpp';
     const cFnRe = /^(?:(?:static|inline|extern|virtual|explicit|constexpr|const|unsigned|signed|long|short|struct|enum|public|private|protected)\s+)*[A-Za-z_][A-Za-z0-9_:<>*,&]*[\s*&]+([A-Za-z_][A-Za-z0-9_]*)\s*\([^;]*$/;
     const isJava = bExt === '.java', isCSharp = bExt === '.cs', isKt = bExt === '.kt' || bExt === '.kts', isSwift = bExt === '.swift', isPhp = bExt === '.php';
@@ -1853,7 +1865,8 @@ const OL = Object.freeze({
       const fm = !wasInCommentOrString && braceDepth <= 1 ? trimmed.match(fnOrTypeRe) : null;
       const vm = !wasInCommentOrString && braceDepth === 0 ? trimmed.match(topVarFnRe) : null;
       const im = !wasInCommentOrString && braceDepth === 1 ? trimmed.match(innerArrowRe) : null;
-      const mm = !wasInCommentOrString && braceDepth === 1 ? line.match(methodRe) : null;
+      const inJsClass = isJsLikeB && braceDepth === 1 && braceStack[braceStack.length - 1] === 'type';
+      const mm = !wasInCommentOrString && braceDepth === 1 ? (line.match(methodRe) || (inJsClass ? line.trimEnd().match(wrappedMethodRe) : null)) : null;
       const cm = isCFamily && !wasInCommentOrString && braceDepth <= 1 && !fm && !mm ? trimmed.match(cFnRe) : null;
       const jtm = isJvKtSwPhp && !wasInCommentOrString && braceDepth <= 2 && !fm ? matchTrim.match(jvTypeRe) : null;
       const jfm = !wasInCommentOrString && braceDepth <= 2 && !fm && !jtm
@@ -1900,6 +1913,8 @@ const OL = Object.freeze({
         const isArrowDecl = Boolean((vm || im) && !isWrapperCall);
         const isFnDecl = Boolean(fm?.[1] || mm || cm || jfm?.[1] || jmm);
         const isKtBodylessType = Boolean(isKt && jtm && trimmed.includes('('));
+        const isTsAlias = Boolean(isJsLikeB && fm?.[2] && tsAliasRe.test(trimmed));
+        const isWrappedMethod = Boolean(mm && !fm && !methodRe.test(line));
         let d = 0, p = 0, started = false, sawOpenP = false, paramsClosed = !(isFnDecl || isKtBodylessType), sawArrow = !isArrowDecl, end = i;
         const spanPpStack = [];
         const spanLex = cloneLexState(lexState);
@@ -1941,14 +1956,25 @@ const OL = Object.freeze({
             else if (ch === '}') d--;
           }
           end = j;
+          if (!started && d < 0) break; // left the enclosing block without finding a body
+          if (isTsAlias) {
+            if (d <= 0 && p === 0 && (stLine.trimEnd().endsWith(';') || !continuesBelow(j, i))) break;
+            continue;
+          }
           if (started && d <= 0 && !(isFnDecl && j + 1 <= endIdx && lines[j + 1].trim().startsWith('{'))) break;
-          if (!started && paramsClosed && sawArrow && p === 0 && (stLine.trimEnd().endsWith(';') || (j === i && (vm || im) && !stLine.includes('{')))) break;
+          const endsWithArrow = isJsLikeB && /=>\s*$/.test(stLine); // expression body starts on the next line
+          if (!started && paramsClosed && sawArrow && p === 0 && (stLine.trimEnd().endsWith(';') || (j === i && (vm || im) && !stLine.includes('{') && !endsWithArrow))) break;
+          if (!started && isArrowDecl && isJsLikeB && sawArrow && p === 0 && j > i && !endsWithArrow && !continuesBelow(j, i)) break;
           if (!started && paramsClosed && p === 0 && (isKt || isSwift)) {
             const stTrim = stLine.trimEnd();
             const nextTrim = j + 1 <= endIdx ? lines[j + 1].trim() : '';
             if (!/(?:=|->|:|\bthrows|\bwhere)$/.test(stTrim) && !/^(?:\{|->|:|\bwhere\b)/.test(nextTrim)) break;
           }
           if (!started && j - i >= 18) break;
+        }
+        if (isWrappedMethod && !started) { // signature only (type literal / overload), not a method body
+          advanceBraceState(structural, '');
+          continue;
         }
         let sig = trimmed.split(/\s*\{\s*/)[0].replace(/(=>\s*).+$/, '$1...');
         if ((sig.endsWith('(') || (trimmed.includes('(') && trimmed.endsWith('{'))) && !trimmed.includes(')') && i + 1 <= endIdx) {

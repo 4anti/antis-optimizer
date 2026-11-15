@@ -170,9 +170,21 @@ Every command caps its output below `3,500` characters (and `--handoff` below `2
 - **Never runs code from the scanned repo:** `typescript` is loaded only from the tool's own install or the global npm dir, never from the repo being scanned. If you copied the script *into* your own repo and want it to use that repo's `typescript`, set `ANTIS_TRUST_LOCAL_TS=1`. Set `ANTIS_FORCE_LEXER=1` to skip the compiler entirely.
 - **Network:** only `--check-update` goes online, and only to `api.github.com`.
 
+**Measured lexer accuracy**
+
+Scored on unmodified real-world files ([`test/corpus/`](./test/corpus/README.md)) against real parsers; CI fails if a score drops. Reproduce with `npm run accuracy`.
+
+| Language | Real files | Symbols | Exact `Lstart-Lend` | Judge |
+| :--- | :---: | :---: | :---: | :--- |
+| Python | 7 | 267 | **100%** | CPython `ast` |
+| JavaScript | 5 | 24 | **100%** | TypeScript compiler |
+| TypeScript / TSX | 9 | 141 | **90.1%** | TypeScript compiler |
+
+Every other language in the table above is covered by unit tests only and has **no measured accuracy yet**. With `typescript` installed, TS/JS use the compiler itself instead of the lexer.
+
 **Known limits**
 
-- The built-in lexer is pattern-based, not a full parser. Unusual formatting, heavy macros, or generated code can produce a wrong or missing span — check the printed `Lstart-Lend` before a large edit.
+- The built-in lexer is pattern-based, not a full parser. Known TypeScript gaps: arrow functions nested inside functions, overload signatures, and `declare module` blocks. Unusual formatting, heavy macros, or generated code can produce a wrong or missing span — check the printed `Lstart-Lend` before a large edit.
 - Redaction is pattern-based. It is a safety net, not a guarantee; keep real secrets out of source files.
 - Symbol slices are capped at 120 lines and all output at ~3,500 characters; narrow with a `[filter]` or an explicit `:Lstart-Lend` range.
 - Very large repos are scanned up to a visit/depth cap; `--audit` prints a `partial scan` warning when the cap is hit.

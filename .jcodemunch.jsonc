@@ -69,6 +69,7 @@
     "Desktop.ini",
     ".vscode/",
     ".idea/",
+    "test/corpus/",
     "!.env.example"
   ]
 }

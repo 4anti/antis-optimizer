@@ -2,7 +2,7 @@
 'use strict';
 
 /**
- * Antis-Optimizer — Comprehensive Automated Test Suite (59 Self-Contained Tests)
+ * Antis-Optimizer — Comprehensive Automated Test Suite (60 Self-Contained Tests)
  * Zero personal paths; runs entirely inside an isolated OS temp directory.
  */
 
@@ -15,8 +15,8 @@ const targetCli = path.resolve(__dirname, '..', 'scripts', 'repo-index.cjs');
 const pkg = require(path.resolve(__dirname, '..', 'package.json'));
 const lib = require(targetCli);
 
-console.log(`=== ANTIS-OPTIMIZER v${pkg.version} TEST SUITE (59 TESTS) ===`);
-let passed = 0, total = 59;
+console.log(`=== ANTIS-OPTIMIZER v${pkg.version} TEST SUITE (60 TESTS) ===`);
+let passed = 0, total = 60;
 
 (async function main() {
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'antis-opt-test-'));
@@ -1423,6 +1423,49 @@ try {
               t59Npmrc.status !== 0 && !((t59Npmrc.stdout || '') + (t59Npmrc.stderr || '')).includes('npm_FAKE');
   if (t59) passed++;
   console.log(`[Test 59: Extended Secret Redaction & Credential File Refusal] ${t59 ? 'PASS' : 'FAIL'}`);
+
+  // 60. Lexer: TS Type-Alias End Lines, Tab-Indented & Wrapped-Param Class Methods, Next-Line Arrow Bodies
+  const t60Dir = path.join(tmp, 't60-lexer');
+  fs.mkdirSync(t60Dir, { recursive: true });
+  fs.writeFileSync(path.join(t60Dir, 'a.ts'), [
+    'type Get<T, K, F> = K extends keyof T ? T[K] : F',
+    '',
+    'type Pick2<T> =',
+    '  | Partial<T>',
+    '  | ((state: T) => Partial<T>)',
+    '',
+    'export const isOk = (x: unknown): x is string =>',
+    '  typeof x === "string";',
+    '',
+    'class Box {',
+    '	static create(input: string): Box {',
+    '		return new Box();',
+    '	}',
+    '',
+    '	static merge(',
+    '		a: number,',
+    '		b: number',
+    '	): number {',
+    '		return a + b;',
+    '	}',
+    '}',
+    'type Api = {',
+    '  call(',
+    '    a: number',
+    '  ): void',
+    '}'
+  ].join('\n'));
+  const t60Out = spawnSync('node', [targetCli, '--root', t60Dir, '--outline', 'a.ts'], { encoding: 'utf8', env: { ...process.env, ANTIS_FORCE_LEXER: '1' } }).stdout || '';
+  const t60 = t60Out.includes('L1: type Get') &&
+              t60Out.includes('L3-L5: type Pick2') &&
+              t60Out.includes('L7-L8: export const isOk') &&
+              t60Out.includes('L10-L21: class Box') &&
+              t60Out.includes('L11-L13: static create') &&
+              t60Out.includes('L15-L20: static merge') &&
+              t60Out.includes('L22-L26: type Api') &&
+              !/L23[-:].*call/.test(t60Out);
+  if (t60) passed++;
+  console.log(`[Test 60: Lexer TS Alias Ends, Tabbed/Wrapped Methods & Next-Line Arrow Bodies] ${t60 ? 'PASS' : 'FAIL'}`);
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true });
 }
