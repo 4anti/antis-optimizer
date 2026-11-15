@@ -61,7 +61,7 @@ node ./scripts/repo-index.cjs --root /path/to/test-repo --outline src/index.ts
 
 ## 4. Guardrails (Read Before Writing Code)
 
-1. **Keep runtime dependencies at zero:** `dependencies` in [`package.json`](./package.json) must remain empty (`typescript` stays `optionalDependencies`). Never introduce external test runners or build steps for the CLI.
+1. **Keep runtime dependencies at zero:** `dependencies` in [`package.json`](./package.json) must remain empty (`typescript` is never declared; it is an opt-in global install the CLI detects at runtime). Never introduce external test runners or build steps for the CLI.
 2. **Think before adding a flag:** Before proposing a new CLI flag or config option, check whether a smarter default or existing subcommand handles it cleanly.
 3. **Byte & secret safety comes first:** An optimization that silently mis-slices code or leaks sensitive files is worse than no optimization. Never weaken:
    - `.env` / `.pem` / `.key` refusals or secret redaction (`ghp_`, `sk-`, `AIza`, JWTs)

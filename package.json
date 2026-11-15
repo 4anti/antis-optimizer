@@ -25,9 +25,6 @@
     "sync-landmarks": "node ./scripts/repo-index.cjs --sync-landmarks --write",
     "verify": "node ./scripts/repo-index.cjs --verify"
   },
-  "optionalDependencies": {
-    "typescript": "^5.8.2"
-  },
   "engines": {
     "node": ">=18.0.0"
   },

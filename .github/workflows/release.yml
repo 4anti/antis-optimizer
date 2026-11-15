@@ -30,11 +30,11 @@ jobs:
       contents: write # create the GitHub Release
       id-token: write # npm trusted publishing + provenance
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ env.TAG }}
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 24 # npm 12 (stage publish) needs Node >= 22.22 / 24
 

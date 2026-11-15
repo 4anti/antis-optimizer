@@ -1531,6 +1531,7 @@ function loadTypeScript() {
   // A copy of this script living inside the scanned repo (Tier 2) must not load that repo's typescript either.
   const searchPaths = untrustedRoot && isInsideRoot(untrustedRoot, __dirname) ? [] : [__dirname];
   if (process.env.APPDATA) searchPaths.push(path.join(process.env.APPDATA, 'npm', 'node_modules'));
+  else searchPaths.push(path.join(path.dirname(process.execPath), '..', 'lib', 'node_modules')); // macOS/Linux global npm dir
   for (const base of searchPaths) {
     try {
       const resolved = require.resolve('typescript', { paths: [base] });
