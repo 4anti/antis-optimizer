@@ -2,7 +2,7 @@
 'use strict';
 
 /**
- * Antis-Optimizer — Comprehensive Automated Test Suite (46 Self-Contained Tests)
+ * Antis-Optimizer — Comprehensive Automated Test Suite (50 Self-Contained Tests)
  * Zero personal paths; runs entirely inside an isolated OS temp directory.
  */
 
@@ -15,8 +15,8 @@ const targetCli = path.resolve(__dirname, '..', 'scripts', 'repo-index.cjs');
 const pkg = require(path.resolve(__dirname, '..', 'package.json'));
 const lib = require(targetCli);
 
-console.log(`=== ANTIS-OPTIMIZER v${pkg.version} TEST SUITE (46 TESTS) ===`);
-let passed = 0, total = 46;
+console.log(`=== ANTIS-OPTIMIZER v${pkg.version} TEST SUITE (50 TESTS) ===`);
+let passed = 0, total = 50;
 
 (async function main() {
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'antis-opt-test-'));
@@ -760,6 +760,195 @@ try {
   const t46 = headStr.length === 128 && headStr.startsWith('AAAA') && lib.readHead(path.join(tmp, 'missing.txt')) === '';
   if (t46) passed++;
   console.log(`[Test 46: readHead Bounded 4KB/Prefix Read Safety] ${t46 ? 'PASS' : 'FAIL'}`);
+
+  // 47. OpenCode Detection (Project + XDG/OPENCODE_CONFIG_DIR/OPENCODE_CONFIG + JSONC + MCP/Plugins + .opencode/skills)
+  const t47Home = path.join(tmp, 't47-home');
+  const t47Xdg = path.join(tmp, 't47-xdg');
+  const t47OcDir = path.join(tmp, 't47-ocdir');
+  const t47Repo = path.join(tmp, 't47-repo');
+  for (const d of [
+    path.join(t47Home, '.config', 'opencode'),
+    path.join(t47Xdg, 'opencode'),
+    t47OcDir,
+    path.join(t47Repo, '.opencode', 'skills', 'my-skill')
+  ]) fs.mkdirSync(d, { recursive: true });
+  const t47BadCfg = path.join(tmp, 't47-bad-opencode.jsonc');
+  fs.writeFileSync(t47BadCfg, '{ "mcp": { broken ');
+  fs.writeFileSync(path.join(t47Home, '.config', 'opencode', 'opencode.json'), JSON.stringify({ mcp: { home_mcp: { type: 'local' } } }));
+  fs.writeFileSync(path.join(t47OcDir, 'opencode.json'), JSON.stringify({ mcp: { oc_dir_mcp: { type: 'remote' } } }));
+  fs.writeFileSync(path.join(t47Xdg, 'opencode', 'opencode.jsonc'), '// XDG JSONC\n{\n  "plugin": ["opencode-ignore",],\n}\n');
+  fs.writeFileSync(path.join(t47Repo, 'opencode.jsonc'), [
+    '// Project OpenCode config',
+    '{',
+    '  /* trailing comma & mcp key */',
+    '  "mcp": { "jcodemunch": { "type": "local" }, },',
+    '  "plugin": ["opencode-dcp@1.2.0", "openrtk",],',
+    '  "permission": { "read": { ".env": "deny", "*.env.*": "deny" } },',
+    '}'
+  ].join('\n'));
+  fs.writeFileSync(path.join(t47Repo, '.opencode', 'skills', 'my-skill', 'SKILL.md'), '---\nname: my-skill\n---\n');
+  fs.writeFileSync(path.join(t47Repo, 'app.ts'), 'export const ok = true;\n');
+  const t47Env = { ...process.env, HOME: t47Home, USERPROFILE: t47Home, XDG_CONFIG_HOME: t47Xdg, OPENCODE_CONFIG_DIR: t47OcDir, OPENCODE_CONFIG: t47BadCfg };
+  const t47Detect = spawnSync('node', [targetCli, '--root', t47Repo, '--detect'], { encoding: 'utf8', env: t47Env });
+  const t47Map = spawnSync('node', [targetCli, '--root', t47Repo, '--map'], { encoding: 'utf8', env: t47Env });
+  const t47Out = t47Detect.stdout || '';
+  const t47 = t47Detect.status === 0 && t47Out.length < 3400 &&
+              t47Out.includes('$OPENCODE_CONFIG_DIR/opencode.json') &&
+              t47Out.includes('$XDG_CONFIG_HOME/opencode/opencode.jsonc') &&
+              t47Out.includes('~/.config/opencode/opencode.json') &&
+              t47Out.includes('opencode.jsonc') &&
+              t47Out.includes('oc_dir_mcp') && t47Out.includes('home_mcp') && t47Out.includes('jcodemunch') &&
+              t47Out.includes('opencode-ignore') && t47Out.includes('opencode-dcp@1.2.0') && t47Out.includes('openrtk') &&
+              t47Out.includes('env-deny=true') && t47Out.includes('opencode-ignore=true') && t47Out.includes('skills=my-skill') &&
+              t47Out.includes('RTK: openrtk') &&
+              t47Map.status === 0 && t47Map.stdout.includes('OpenCode skills: my-skill') && !t47Map.stdout.includes('Dot-dirs');
+  if (t47) passed++;
+  console.log(`[Test 47: OpenCode Multi-Source Detection, JSONC Parse Safety & .opencode/skills] ${t47 ? 'PASS' : 'FAIL'}`);
+
+  // 48. Conditional OpenCode Ignore Parity & Never Auto-Creating opencode.json[c]
+  const t48Env = { ...process.env, HOME: t47Home, USERPROFILE: t47Home, XDG_CONFIG_HOME: '', OPENCODE_CONFIG_DIR: '', OPENCODE_CONFIG: '' };
+  const t48NoOc = path.join(tmp, 't48-no-oc');
+  fs.mkdirSync(t48NoOc, { recursive: true });
+  fs.writeFileSync(path.join(t48NoOc, 'a.ts'), 'export const a = 1;\n');
+  spawnSync('node', [targetCli, '--root', t48NoOc, '--sync-ignores', '--write', '--all-ignores'], { encoding: 'utf8', env: t48Env });
+  const t48Json = path.join(tmp, 't48-oc-json');
+  fs.mkdirSync(t48Json, { recursive: true });
+  fs.writeFileSync(path.join(t48Json, 'a.ts'), 'export const a = 1;\n');
+  fs.writeFileSync(path.join(t48Json, 'opencode.json'), JSON.stringify({
+    theme: 'tokyonight',
+    mcp: { custom_srv: { type: 'local' } },
+    watcher: { ignore: ['custom-watch/**'] }
+  }, null, 2));
+  const t48VerifyBefore = spawnSync('node', [targetCli, '--root', t48Json, '--verify'], { encoding: 'utf8', env: t48Env });
+  spawnSync('node', [targetCli, '--root', t48Json, '--sync-ignores', '--write'], { encoding: 'utf8', env: t48Env });
+  const t48OcAfter = JSON.parse(fs.readFileSync(path.join(t48Json, 'opencode.json'), 'utf8'));
+  t48OcAfter.permission = { read: { '.env': 'deny', '*.env.*': 'deny' } };
+  fs.writeFileSync(path.join(t48Json, 'opencode.json'), JSON.stringify(t48OcAfter, null, 2));
+  const t48VerifyAfter = spawnSync('node', [targetCli, '--root', t48Json, '--verify'], { encoding: 'utf8', env: t48Env });
+  const t48Jsonc = path.join(tmp, 't48-oc-jsonc');
+  fs.mkdirSync(t48Jsonc, { recursive: true });
+  fs.writeFileSync(path.join(t48Jsonc, 'a.ts'), 'export const a = 1;\n');
+  fs.writeFileSync(path.join(t48Jsonc, 'opencode.jsonc'), '// Header comment\n{\n  // Keep inline\n  "plugin": ["opencode-dcp"],\n  "permission": { "read": { ".env": "deny" } },\n  "watcher": {\n    // Watch comment\n    "ignore": []\n  }\n}\n');
+  spawnSync('node', [targetCli, '--root', t48Jsonc, '--sync-ignores', '--write'], { encoding: 'utf8', env: t48Env });
+  const t48JsoncRaw = fs.readFileSync(path.join(t48Jsonc, 'opencode.jsonc'), 'utf8');
+  const t48JsoncVerify = spawnSync('node', [targetCli, '--root', t48Jsonc, '--verify'], { encoding: 'utf8', env: t48Env });
+  const t48HintDir = path.join(tmp, 't48-oc-hint');
+  fs.mkdirSync(t48HintDir, { recursive: true });
+  fs.writeFileSync(path.join(t48HintDir, 'a.ts'), 'export const a = 1;\n');
+  fs.writeFileSync(path.join(t48HintDir, 'opencode.jsonc'), '// Preserve me\n{\n  "watcher": "invalid-shape"\n}\n');
+  const t48HintSync = spawnSync('node', [targetCli, '--root', t48HintDir, '--sync-ignores', '--write'], { encoding: 'utf8', env: t48Env });
+  const t48 = !fs.existsSync(path.join(t48NoOc, 'opencode.json')) && !fs.existsSync(path.join(t48NoOc, 'opencode.jsonc')) &&
+              t48VerifyBefore.status === 1 && t48VerifyBefore.stdout.includes('opencode.json(') && t48VerifyBefore.stdout.includes('permission.read') &&
+              t48OcAfter.theme === 'tokyonight' && Boolean(t48OcAfter.mcp?.custom_srv) &&
+              t48OcAfter.watcher.ignore.includes('custom-watch/**') && t48OcAfter.watcher.ignore.includes('node_modules/') &&
+              t48VerifyAfter.status === 0 && t48VerifyAfter.stdout.includes('PASS opencode-guard: .env protected') &&
+              t48JsoncRaw.includes('// Header comment') && t48JsoncRaw.includes('// Keep inline') && t48JsoncRaw.includes('// Watch comment') &&
+              t48JsoncVerify.status === 0 &&
+              fs.readFileSync(path.join(t48HintDir, 'opencode.jsonc'), 'utf8').includes('// Preserve me') &&
+              (t48HintSync.stdout || '').includes('JSONC comments preserved');
+  if (t48) passed++;
+  console.log(`[Test 48: Conditional OpenCode Ignore Parity, Key Preservation & Never Auto-Creating opencode.json[c]] ${t48 ? 'PASS' : 'FAIL'}`);
+
+  // 49. Multi-Host Detection (Cursor/Gemini/Codex/Claude/Copilot/Windsurf/Cline/Roo/Aider/RTK) & AGENTS.override.md
+  const t49Home = path.join(tmp, 't49-home');
+  const t49Repo = path.join(tmp, 't49-repo');
+  for (const d of [
+    path.join(t49Home, '.cursor'),
+    path.join(t49Home, '.gemini'),
+    path.join(t49Home, '.codex'),
+    path.join(t49Home, '.codeium', 'windsurf'),
+    path.join(t49Home, '.config', 'rtk'),
+    path.join(t49Repo, 'src'),
+    path.join(t49Repo, '.cursor', 'rules'),
+    path.join(t49Repo, '.gemini'),
+    path.join(t49Repo, '.claude'),
+    path.join(t49Repo, '.vscode'),
+    path.join(t49Repo, '.github', 'instructions'),
+    path.join(t49Repo, '.windsurf'),
+    path.join(t49Repo, '.kiro'),
+    path.join(t49Repo, '.factory'),
+    path.join(t49Repo, '.rtk')
+  ]) fs.mkdirSync(d, { recursive: true });
+  fs.writeFileSync(path.join(t49Home, '.cursor', 'mcp.json'), JSON.stringify({ mcpServers: { cur_global: {} } }));
+  fs.writeFileSync(path.join(t49Repo, '.cursor', 'mcp.json'), JSON.stringify({ mcpServers: { cur_proj: {} } }));
+  fs.writeFileSync(path.join(t49Repo, '.cursorignore'), 'dist/\n');
+  fs.writeFileSync(path.join(t49Repo, '.cursorindexingignore'), 'dist/\n');
+  fs.writeFileSync(path.join(t49Home, '.gemini', 'settings.json'), JSON.stringify({ mcpServers: { gem_global: {} } }));
+  fs.writeFileSync(path.join(t49Repo, '.gemini', 'settings.json'), JSON.stringify({ mcpServers: { gem_proj: {} } }));
+  fs.writeFileSync(path.join(t49Repo, '.geminiignore'), 'dist/\n');
+  fs.writeFileSync(path.join(t49Repo, '.aiexclude'), 'dist/\n');
+  fs.writeFileSync(path.join(t49Repo, 'GEMINI.md'), '# Gem\n');
+  fs.writeFileSync(path.join(t49Home, '.codex', 'config.toml'), '[mcp_servers.codex_srv]\ncommand = "npx"\n[tools]\nweb_search = true\n');
+  fs.writeFileSync(path.join(t49Home, '.codex', 'hooks.json'), '{}');
+  fs.writeFileSync(path.join(t49Repo, 'src', 'h.ts'), 'export function helper() {\n  return 1;\n}\n');
+  fs.writeFileSync(path.join(t49Repo, 'AGENTS.override.md'), '# Override\n- `src/h.ts#helper:L9-L9`\n');
+  fs.writeFileSync(path.join(t49Repo, '.mcp.json'), JSON.stringify({ mcpServers: { claude_proj: {} } }));
+  fs.writeFileSync(path.join(t49Repo, '.claude', 'settings.local.json'), JSON.stringify({ hooks: { PreToolUse: [{ command: 'rtk-rewrite.sh' }] } }));
+  fs.writeFileSync(path.join(t49Repo, '.claudeignore'), 'dist/\n');
+  fs.writeFileSync(path.join(t49Repo, '.vscode', 'mcp.json'), JSON.stringify({ servers: { vsc_srv: {} } }));
+  fs.writeFileSync(path.join(t49Repo, '.github', 'copilot-instructions.md'), '# Copilot\n');
+  fs.writeFileSync(path.join(t49Home, '.codeium', 'windsurf', 'mcp_config.json'), JSON.stringify({ mcpServers: { ws_srv: {} } }));
+  fs.writeFileSync(path.join(t49Repo, '.codeiumignore'), 'dist/\n');
+  fs.writeFileSync(path.join(t49Repo, '.rooignore'), 'dist/\n');
+  fs.writeFileSync(path.join(t49Repo, '.clineignore'), 'dist/\n');
+  fs.writeFileSync(path.join(t49Repo, '.aiderignore'), 'dist/\n');
+  fs.writeFileSync(path.join(t49Home, '.config', 'rtk', 'config.toml'), 'enabled = true\n');
+  const t49Env = { ...process.env, HOME: t49Home, USERPROFILE: t49Home, XDG_CONFIG_HOME: '', OPENCODE_CONFIG_DIR: '', OPENCODE_CONFIG: '' };
+  const t49Detect = spawnSync('node', [targetCli, '--root', t49Repo, '--detect'], { encoding: 'utf8', env: t49Env });
+  const t49Map = spawnSync('node', [targetCli, '--root', t49Repo, '--map'], { encoding: 'utf8', env: t49Env });
+  const t49VerifyDrift = spawnSync('node', [targetCli, '--root', t49Repo, '--verify'], { encoding: 'utf8', env: t49Env });
+  spawnSync('node', [targetCli, '--root', t49Repo, '--sync-landmarks', '--write'], { encoding: 'utf8', env: t49Env });
+  spawnSync('node', [targetCli, '--root', t49Repo, '--sync-ignores', '--write'], { encoding: 'utf8', env: t49Env });
+  const t49VerifyOk = spawnSync('node', [targetCli, '--root', t49Repo, '--verify'], { encoding: 'utf8', env: t49Env });
+  const t49D = t49Detect.stdout || '';
+  const t49 = t49Detect.status === 0 && t49D.length < 3400 &&
+              t49D.includes('cur_global') && t49D.includes('cur_proj') && t49D.includes('.cursor/rules') &&
+              t49D.includes('gem_global') && t49D.includes('gem_proj') && t49D.includes('.aiexclude') && t49D.includes('GEMINI.md') &&
+              t49D.includes('codex_srv') && t49D.includes('web_search=true') && t49D.includes('AGENTS.override.md') &&
+              t49D.includes('claude_proj') && t49D.includes('.claude/settings.local.json') &&
+              t49D.includes('vsc_srv') && t49D.includes('.github/copilot-instructions.md') && t49D.includes('.github/instructions/') &&
+              t49D.includes('ws_srv') && t49D.includes('.windsurf/') && t49D.includes('.codeiumignore') &&
+              t49D.includes('.rooignore') && t49D.includes('.clineignore') && t49D.includes('.aiderignore') &&
+              t49D.includes('~/.config/rtk/') && t49D.includes('claude-hooks') &&
+              t49Map.stdout.includes('AGENTS.override.md') && !t49Map.stdout.includes('Dot-dirs') &&
+              t49VerifyDrift.status === 1 && t49VerifyDrift.stdout.includes('drifted to L1-L3') &&
+              fs.readFileSync(path.join(t49Repo, 'AGENTS.override.md'), 'utf8').includes('src/h.ts#helper:L1-L3') &&
+              t49VerifyOk.status === 0;
+  if (t49) passed++;
+  console.log(`[Test 49: Multi-Host/RTK Detection, TOOL_DOT_DIRS & AGENTS.override.md Landmark Verify] ${t49 ? 'PASS' : 'FAIL'}`);
+
+  // 50. Anti-Bloat Conditional Multi-Tool Ignore Sync (Absent Tools Stay Clean; Present Tools Sync & Verify)
+  const t50Clean = path.join(tmp, 't50-clean');
+  fs.mkdirSync(t50Clean, { recursive: true });
+  fs.writeFileSync(path.join(t50Clean, 'index.ts'), 'export const clean = 1;\n');
+  const t50Dry = spawnSync('node', [targetCli, '--root', t50Clean, '--sync-ignores'], { encoding: 'utf8', env: t49Env });
+  spawnSync('node', [targetCli, '--root', t50Clean, '--sync-ignores', '--write', '--all-ignores'], { encoding: 'utf8', env: t49Env });
+  const t50CleanVerify = spawnSync('node', [targetCli, '--root', t50Clean, '--verify', '--all-ignores'], { encoding: 'utf8', env: t49Env });
+  const t50AllToolIgnores = ['.cursorignore', '.cursorindexingignore', '.geminiignore', '.aiexclude', '.codeiumignore', '.rooignore', '.clineignore', '.aiderignore', '.claudeignore', 'opencode.json', 'opencode.jsonc'];
+  const t50NoneCreated = t50AllToolIgnores.every(f => !fs.existsSync(path.join(t50Clean, f)));
+
+  const t50Active = path.join(tmp, 't50-active');
+  fs.mkdirSync(path.join(t50Active, '.cursor'), { recursive: true });
+  fs.mkdirSync(path.join(t50Active, '.windsurf'), { recursive: true });
+  fs.writeFileSync(path.join(t50Active, 'index.ts'), 'export const active = 1;\n');
+  fs.writeFileSync(path.join(t50Active, '.clineignore'), '# Custom cline\ncustom-cline/\n');
+  spawnSync('node', [targetCli, '--root', t50Active, '--sync-ignores', '--write'], { encoding: 'utf8', env: t49Env });
+  const t50Verify1 = spawnSync('node', [targetCli, '--root', t50Active, '--verify'], { encoding: 'utf8', env: t49Env });
+  fs.writeFileSync(path.join(t50Active, '.codeiumignore'), '');
+  const t50VerifyDrift = spawnSync('node', [targetCli, '--root', t50Active, '--verify'], { encoding: 'utf8', env: t49Env });
+  spawnSync('node', [targetCli, '--root', t50Active, '--sync-ignores', '--write'], { encoding: 'utf8', env: t49Env });
+  const t50Verify2 = spawnSync('node', [targetCli, '--root', t50Active, '--verify'], { encoding: 'utf8', env: t49Env });
+  const t50ClineTxt = fs.readFileSync(path.join(t50Active, '.clineignore'), 'utf8');
+  const t50 = (t50Dry.stdout || '').includes('Skipped absent tools (anti-bloat') &&
+              t50NoneCreated && t50CleanVerify.status === 0 &&
+              ['.cursorignore', '.cursorindexingignore', '.codeiumignore', '.clineignore'].every(f => fs.existsSync(path.join(t50Active, f))) &&
+              ['.geminiignore', '.aiexclude', '.rooignore', '.aiderignore', '.claudeignore', 'opencode.json', 'opencode.jsonc'].every(f => !fs.existsSync(path.join(t50Active, f))) &&
+              t50ClineTxt.includes('# Custom cline') && t50ClineTxt.includes('custom-cline/') &&
+              t50Verify1.status === 0 &&
+              t50VerifyDrift.status === 1 && t50VerifyDrift.stdout.includes('.codeiumignore(') &&
+              t50Verify2.status === 0;
+  if (t50) passed++;
+  console.log(`[Test 50: Anti-Bloat Conditional Ignore Sync & --verify Parity] ${t50 ? 'PASS' : 'FAIL'}`);
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true });
 }
