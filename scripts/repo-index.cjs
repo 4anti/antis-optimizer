@@ -46,7 +46,8 @@ const SECRET_TOKEN_RES = [
 
 const TOOL_DOT_DIRS = new Set([
   '.github', '.vscode', '.claude', '.cursor', '.idea', '.qodo',
-  '.gemini', '.agents', '.codex', '.devcontainer', '.husky', '.circleci', '.gitlab'
+  '.gemini', '.agents', '.codex', '.devcontainer', '.husky', '.circleci', '.gitlab',
+  '.opencode', '.windsurf', '.roo', '.cline', '.kiro', '.factory', '.rtk'
 ]);
 
 const BASE_TRAPS = [
@@ -128,7 +129,7 @@ function cmdHelp() {
     'Commands:',
     '  --audit                     Audit bloat traps, monoliths & ROI break-even tier',
     '  --detect                    Detect agent hosts, MCP servers & nested .git dirs',
-    '  --sync-ignores [--write]    Sync .ignore, .contextignore & .jcodemunch.jsonc',
+    '  --sync-ignores [--write]    Sync .ignore, .contextignore, .jcodemunch & active tool ignores',
     '  --sync-landmarks [--write]  Verify/auto-heal symbol:Lstart-Lend in AGENTS/INDEX.md',
     '  --map                       Compact repo map & domain landmarks (<3.5 KB)',
     '  --outline <rel> [filter]    Compiler-AST / polyglot symbol & line-span outline',
@@ -159,7 +160,25 @@ function stripJsonc(raw) {
     if (ch === '/' && nx === '*') { inBlk = true; i++; continue; }
     out += ch;
   }
-  return out.replace(/,(\s*[}\]])/g, '$1');
+  let res = '';
+  inStr = false;
+  for (let i = 0; i < out.length; i++) {
+    const ch = out[i];
+    if (inStr) {
+      res += ch;
+      if (ch === '\\' && i + 1 < out.length) res += out[++i];
+      else if (ch === '"') inStr = false;
+      continue;
+    }
+    if (ch === '"') { inStr = true; res += ch; continue; }
+    if (ch === ',') {
+      let j = i + 1;
+      while (j < out.length && /\s/.test(out[j])) j++;
+      if (out[j] === '}' || out[j] === ']') continue;
+    }
+    res += ch;
+  }
+  return res;
 }
 
 function readJsonSafe(filePath, isJsonc = false) {
@@ -261,7 +280,7 @@ function isDynamicTextTrap(fullPath, fileName, sizeBytes) {
 function walkRepo(root, maxDepth = 5) {
   // backupDirs: well-known output dirs (safe to sync). suggestDirs: name/size guesses, shown but never auto-written.
   const res = {
-    gitDirs: [], agents: [], indexFiles: [], largeTraps: [],
+    gitDirs: [], agents: [], indexFiles: [], opencodeSkills: [], largeTraps: [],
     generatedHints: [], backupDirs: [], suggestDirs: [], dotSourceDirs: [], truncated: false
   };
   const ig = loadIgnoreRules(root);
@@ -302,8 +321,9 @@ function walkRepo(root, maxDepth = 5) {
         if (depth === 0 && e.name.startsWith('.') && !TOOL_DOT_DIRS.has(e.name)) res.dotSourceDirs.push(rel + '/');
         visit(full, depth + 1);
       } else if (e.isFile()) {
-        if (e.name === 'AGENTS.md') res.agents.push(rel);
+        if (e.name === 'AGENTS.md' || e.name === 'AGENTS.override.md') res.agents.push(rel);
         else if (e.name === 'INDEX.md') res.indexFiles.push(rel);
+        else if (rel.startsWith('.opencode/skills/') && e.name === 'SKILL.md') res.opencodeSkills.push(rel);
         if (isFileIgnored(ig, rel, e.name)) continue;
         let st;
         try { st = fs.statSync(full); } catch { continue; }
@@ -400,7 +420,7 @@ function collectAuditStats(root) {
         } else {
           activeFiles++;
           activeBytes += st.size;
-          if (st.size >= 15 * 1024 && SLICE_EXTS.test(e.name) && rel !== 'scripts/repo-index.cjs') {
+          if (st.size >= 15 * 1024 && SLICE_EXTS.test(e.name) && !/(?:^|\/)scripts\/repo-index\.cjs$/.test(rel)) {
             monoliths.push({ rel, bytes: st.size, estTokens: Math.ceil(st.size / 4) });
           }
         }
@@ -465,7 +485,7 @@ function cmdAudit(opts) {
 
   const tierInfo = classifyRepoTier(stats);
   let docBytes = 0;
-  for (const d of ['AGENTS.md', 'INDEX.md', 'CLAUDE.md']) {
+  for (const d of ['AGENTS.md', 'AGENTS.override.md', 'INDEX.md', 'CLAUDE.md']) {
     const p = path.join(opts.root, d);
     if (fs.existsSync(p)) docBytes += fs.statSync(p).size;
   }
@@ -499,42 +519,441 @@ function cmdAudit(opts) {
   console.log(capOutput(out.join('\n')));
 }
 
+const EXTRA_IGNORE_SPECS = [
+  { file: '.cursorignore', dirs: ['.cursor'] },
+  { file: '.cursorindexingignore', dirs: ['.cursor'] },
+  { file: '.geminiignore', dirs: ['.gemini'] },
+  { file: '.aiexclude', dirs: ['.gemini'] },
+  { file: '.codeiumignore', dirs: ['.windsurf'] },
+  { file: '.rooignore', dirs: ['.roo'] },
+  { file: '.clineignore', dirs: ['.cline'] },
+  { file: '.aiderignore', dirs: [] },
+  { file: '.claudeignore', dirs: ['.claude'] }
+];
+
+const HU = Object.freeze({
+  isPlainObj: v => v !== null && typeof v === 'object' && !Array.isArray(v),
+  uniq: arr => [...new Set(arr.filter(Boolean))],
+  fmtList: (arr, max = 8) => (!arr.length ? 'none' : arr.length <= max ? arr.join(', ') : `${arr.slice(0, max).join(', ')} (+${arr.length - max})`),
+  existsFile: p => { try { return fs.statSync(p).isFile(); } catch { return false; } },
+  existsDir: p => { try { return fs.statSync(p).isDirectory(); } catch { return false; } },
+  readMcpKeys: (filePath, key = 'mcpServers') => {
+    const obj = readJsonSafe(filePath, true);
+    return HU.isPlainObj(obj?.[key]) ? Object.keys(obj[key]) : [];
+  },
+  isPluginMatch: (pluginEntry, name) => new RegExp(`(?:^|[\\\\/@])${name}(?:@|\\.[cm]?[jt]s|$)`).test(String(pluginEntry || '').toLowerCase()),
+  hasEnvReadDeny: cfg => {
+    const rd = cfg?.permission?.read;
+    if (rd === 'deny') return true;
+    if (!HU.isPlainObj(rd)) return false;
+    return Object.entries(rd).some(([k, v]) => v === 'deny' && (k === '*' || /\.env/i.test(k)));
+  },
+  hasRtkInClaude: settings => {
+    if (!HU.isPlainObj(settings)) return false;
+    if (settings.rtk) return true;
+    if (HU.isPlainObj(settings.enabledPlugins) && Object.entries(settings.enabledPlugins).some(([k, v]) => v && /\brtk\b/i.test(k))) return true;
+    return /(?:^|[^a-z0-9])rtk(?:$|[^a-z0-9])/i.test(JSON.stringify({ hooks: settings.hooks, statusLine: settings.statusLine }));
+  },
+  parseCodexToml: filePath => {
+    const mcp = new Set(), tools = [];
+    if (!HU.existsFile(filePath)) return { present: false, mcp: [], tools: [] };
+    try {
+      const lines = fs.readFileSync(filePath, 'utf8').replace(/^\uFEFF/, '').split(/\r?\n/);
+      let section = '';
+      for (const rawLine of lines) {
+        const t = rawLine.trim();
+        if (!t || t.startsWith('#')) continue;
+        const secM = t.match(/^\[\[?\s*(.+?)\s*\]\]?(?:\s*#.*)?$/);
+        if (secM) {
+          section = secM[1];
+          const mcpM = section.match(/^mcp_servers\.(?:"([^"]+)"|'([^']+)'|([A-Za-z0-9_-]+))/);
+          if (mcpM) mcp.add(mcpM[1] || mcpM[2] || mcpM[3]);
+          continue;
+        }
+        if (section === 'tools' || section.startsWith('tools.')) {
+          const kv = t.match(/^([A-Za-z0-9_.-]+)\s*=\s*(.+)$/);
+          if (kv) {
+            const pfx = section === 'tools' ? '' : `${section.slice(6)}.`;
+            tools.push(`${pfx}${kv[1]}=${kv[2].replace(/\s+#.*$/, '').trim()}`);
+          }
+        }
+      }
+    } catch {}
+    return { present: true, mcp: [...mcp], tools };
+  },
+  listSkillDirs: dirPath => {
+    if (!HU.existsDir(dirPath)) return [];
+    try {
+      return fs.readdirSync(dirPath, { withFileTypes: true })
+        .filter(e => e.isDirectory() && HU.existsFile(path.join(dirPath, e.name, 'SKILL.md')))
+        .map(e => e.name);
+    } catch { return []; }
+  },
+  fmtHost: (label, sigs, mcp, extra = '') => (sigs.length || mcp.length || extra)
+    ? `${label}: ${HU.fmtList(sigs, 5)}${mcp.length ? ` | mcp=${HU.fmtList(mcp)}` : ''}${extra}`
+    : `${label}: none`,
+  hasComments: raw => {
+    let inStr = false;
+    for (let i = 0; i < raw.length; i++) {
+      const ch = raw[i], nx = raw[i + 1];
+      if (inStr) {
+        if (ch === '\\') i++;
+        else if (ch === '"') inStr = false;
+        continue;
+      }
+      if (ch === '"') { inStr = true; continue; }
+      if (ch === '/' && (nx === '/' || nx === '*')) return true;
+    }
+    return false;
+  },
+  skipWs: (raw, idx) => {
+    let i = idx;
+    while (i < raw.length) {
+      const ch = raw[i], nx = raw[i + 1];
+      if (/\s/.test(ch)) { i++; continue; }
+      if (ch === '/' && nx === '/') { while (i < raw.length && raw[i] !== '\n') i++; continue; }
+      if (ch === '/' && nx === '*') {
+        i += 2;
+        while (i < raw.length && !(raw[i] === '*' && raw[i + 1] === '/')) i++;
+        i += 2;
+        continue;
+      }
+      break;
+    }
+    return i;
+  },
+  readStrEnd: (raw, startIdx) => {
+    for (let i = startIdx + 1; i < raw.length; i++) {
+      if (raw[i] === '\\') { i++; continue; }
+      if (raw[i] === '"') return i;
+    }
+    return -1;
+  },
+  findPropSpan: (raw, propName, fromIdx = 0) => {
+    let i = HU.skipWs(raw, fromIdx);
+    if (raw[i] !== '{') return null;
+    const objStart = i;
+    let depth = 1;
+    i++;
+    while (i < raw.length) {
+      i = HU.skipWs(raw, i);
+      if (i >= raw.length) break;
+      const ch = raw[i];
+      if (ch === '"') {
+        const strEnd = HU.readStrEnd(raw, i);
+        if (strEnd < 0) return null;
+        const afterStr = HU.skipWs(raw, strEnd + 1);
+        if (depth === 1 && raw[afterStr] === ':') {
+          let key = '';
+          try { key = JSON.parse(raw.slice(i, strEnd + 1)); } catch {}
+          const valStart = HU.skipWs(raw, afterStr + 1);
+          if (key === propName) {
+            const vc = raw[valStart];
+            if (vc !== '{' && vc !== '[') return { objStart, objEnd: -1, nonContainer: true };
+            let vDepth = 0, j = valStart;
+            while (j < raw.length) {
+              j = HU.skipWs(raw, j);
+              if (j >= raw.length) break;
+              const c = raw[j];
+              if (c === '"') {
+                const se = HU.readStrEnd(raw, j);
+                if (se < 0) return null;
+                j = se + 1;
+                continue;
+              }
+              if (c === '{' || c === '[') vDepth++;
+              else if (c === '}' || c === ']') {
+                vDepth--;
+                if (vDepth === 0) return { objStart, objEnd: -1, valStart, valEnd: j, valChar: vc };
+              }
+              j++;
+            }
+            return null;
+          }
+        }
+        i = strEnd + 1;
+        continue;
+      }
+      if (ch === '{' || ch === '[') depth++;
+      else if (ch === '}' || ch === ']') {
+        depth--;
+        if (depth === 0) return { objStart, objEnd: i, notFound: true };
+      }
+      i++;
+    }
+    return null;
+  },
+  insertProp: (raw, objStart, objEnd, propText, indent = '  ') => {
+    let lastCodeIdx = objStart, i = objStart + 1;
+    while (i < objEnd) {
+      i = HU.skipWs(raw, i);
+      if (i >= objEnd) break;
+      if (raw[i] === '"') {
+        const se = HU.readStrEnd(raw, i);
+        if (se < 0) return null;
+        lastCodeIdx = se;
+        i = se + 1;
+        continue;
+      }
+      lastCodeIdx = i;
+      i++;
+    }
+    const lastCh = raw[lastCodeIdx];
+    const needsComma = Boolean(lastCh && lastCh !== '{' && lastCh !== ',');
+    const lastNl = raw.lastIndexOf('\n', objEnd - 1);
+    const sameLineWs = lastNl >= 0 && /^[ \t]*$/.test(raw.slice(lastNl + 1, objEnd));
+    const closeIndent = sameLineWs ? raw.slice(lastNl + 1, objEnd) : '';
+    const insertAt = sameLineWs ? lastNl + 1 : objEnd;
+    const beforeClose = needsComma
+      ? raw.slice(0, lastCodeIdx + 1) + ',' + raw.slice(lastCodeIdx + 1, insertAt)
+      : raw.slice(0, insertAt);
+    const leadNl = (beforeClose.length === 0 || beforeClose.endsWith('\n')) ? '' : '\n';
+    const trailIndent = insertAt === objEnd ? closeIndent : '';
+    return beforeClose + leadNl + `${indent}${propText}\n` + trailIndent + raw.slice(insertAt);
+  },
+  spliceWatcherIgnore: (raw, nextIgnore) => {
+    const arrLiteral = JSON.stringify(nextIgnore, null, 4).replace(/\n\]$/, '\n  ]');
+    const wSpan = HU.findPropSpan(raw, 'watcher');
+    if (!wSpan) return null;
+    if (wSpan.notFound) {
+      return HU.insertProp(raw, wSpan.objStart, wSpan.objEnd, `"watcher": {\n    "ignore": ${arrLiteral.replace(/\n/g, '\n  ')}\n  }`, '  ');
+    }
+    if (wSpan.valChar !== '{') return null;
+    const igSpan = HU.findPropSpan(raw, 'ignore', wSpan.valStart);
+    if (!igSpan) return null;
+    if (igSpan.valChar === '[') {
+      return raw.slice(0, igSpan.valStart) + arrLiteral.replace(/\n/g, '\n  ') + raw.slice(igSpan.valEnd + 1);
+    }
+    if (igSpan.notFound) {
+      return HU.insertProp(raw, igSpan.objStart, igSpan.objEnd, `"ignore": ${arrLiteral.replace(/\n/g, '\n  ')}`, '    ');
+    }
+    return null;
+  },
+  mergeToolPatterns: (basePatterns, extraExisting) => {
+    const baseSet = new Set(basePatterns), extraPos = [], extraNeg = [];
+    for (const p of extraExisting) {
+      if (!baseSet.has(p)) (p.startsWith('!') ? extraNeg : extraPos).push(p);
+    }
+    return [...basePatterns.filter(p => !p.startsWith('!')), ...extraPos, ...basePatterns.filter(p => p.startsWith('!')), ...extraNeg];
+  }
+});
+
 function detectHostTools(root) {
   const home = os.homedir();
   const has = p => fs.existsSync(path.join(home, p));
-  const mcpNames = p => Object.keys((readJsonSafe(path.join(home, p)) || {}).mcpServers || {});
-  const claudeMcp = mcpNames('.claude.json');
-  const agyMcp = mcpNames('.gemini/config/mcp_config.json');
+  const envOcCfg = (process.env.OPENCODE_CONFIG || '').trim();
+  const envOcDir = (process.env.OPENCODE_CONFIG_DIR || '').trim();
+  const xdgHome = (process.env.XDG_CONFIG_HOME || '').trim();
+
+  // Claude Code & Antigravity
+  const claudeMcp = HU.uniq([...HU.readMcpKeys(path.join(home, '.claude.json')), ...HU.readMcpKeys(path.join(root, '.mcp.json'))]);
+  const agyMcp = HU.readMcpKeys(path.join(home, '.gemini/config/mcp_config.json'));
+  const claudeGlobalSettings = readJsonSafe(path.join(home, '.claude/settings.json'), true) || {};
+  const claudeProjSettings = readJsonSafe(path.join(root, '.claude/settings.json'), true) || {};
+  const claudeLocalSettings = readJsonSafe(path.join(root, '.claude/settings.local.json'), true) || {};
+  const claudeSignals = [
+    fs.existsSync(path.join(root, '.mcp.json')) && '.mcp.json',
+    HU.existsFile(path.join(root, '.claude/settings.local.json')) && '.claude/settings.local.json',
+    HU.existsFile(path.join(root, '.claudeignore')) && '.claudeignore',
+    HU.existsDir(path.join(root, '.claude')) && '.claude/'
+  ].filter(Boolean);
+
+  // OpenCode (project + $OPENCODE_CONFIG + $OPENCODE_CONFIG_DIR + $XDG_CONFIG_HOME + ~/.config/opencode)
+  const projectOcRels = ['opencode.json', 'opencode.jsonc', '.opencode/opencode.json', '.opencode/opencode.jsonc'];
+  const projectOcPaths = new Set(projectOcRels.map(r => path.resolve(root, r)));
+  const ocCandidates = [
+    ...(envOcCfg ? [[path.resolve(envOcCfg), `$OPENCODE_CONFIG(${path.basename(envOcCfg)})`]] : []),
+    ...(envOcDir ? [[path.join(envOcDir, 'opencode.json'), '$OPENCODE_CONFIG_DIR/opencode.json'], [path.join(envOcDir, 'opencode.jsonc'), '$OPENCODE_CONFIG_DIR/opencode.jsonc']] : []),
+    ...(xdgHome ? [[path.join(xdgHome, 'opencode', 'opencode.json'), '$XDG_CONFIG_HOME/opencode/opencode.json'], [path.join(xdgHome, 'opencode', 'opencode.jsonc'), '$XDG_CONFIG_HOME/opencode/opencode.jsonc']] : []),
+    [path.join(home, '.config/opencode/opencode.json'), '~/.config/opencode/opencode.json'],
+    [path.join(home, '.config/opencode/opencode.jsonc'), '~/.config/opencode/opencode.jsonc'],
+    ...projectOcRels.map(r => [path.join(root, r), r])
+  ];
+  const ocSeen = new Set();
+  const ocConfigs = [];
+  for (const [fullPath, label] of ocCandidates) {
+    const abs = path.resolve(fullPath);
+    if (ocSeen.has(abs) || !HU.existsFile(abs)) continue;
+    ocSeen.add(abs);
+    let raw = '';
+    try { raw = fs.readFileSync(abs, 'utf8'); } catch {}
+    const parsed = readJsonSafe(abs, true);
+    const valid = HU.isPlainObj(parsed);
+    const isProject = projectOcPaths.has(abs);
+    ocConfigs.push({
+      path: abs,
+      label: isProject ? normalizePattern(path.relative(root, abs)) : label,
+      isProject,
+      valid,
+      cfg: valid ? parsed : null,
+      raw,
+      hasComments: /\.jsonc$/i.test(abs) || HU.hasComments(raw)
+    });
+  }
+
+  const ocMcp = HU.uniq(ocConfigs.flatMap(c => HU.isPlainObj(c.cfg?.mcp) ? Object.keys(c.cfg.mcp) : []));
+  const ocPlugins = HU.uniq(ocConfigs.flatMap(c => Array.isArray(c.cfg?.plugin) ? c.cfg.plugin.map(String) : []));
+  const ocSkills = HU.uniq([
+    ...HU.listSkillDirs(path.join(root, '.opencode/skills')),
+    ...HU.listSkillDirs(path.join(home, '.config/opencode/skills')),
+    ...(envOcDir ? HU.listSkillDirs(path.join(envOcDir, 'skills')) : []),
+    ...(xdgHome ? HU.listSkillDirs(path.join(xdgHome, 'opencode/skills')) : [])
+  ]);
+  const ocDirs = [
+    HU.existsDir(path.join(root, '.opencode')) && '.opencode/',
+    HU.existsDir(path.join(root, '.opencode/skills')) && '.opencode/skills/',
+    HU.existsDir(path.join(home, '.config/opencode')) && '~/.config/opencode/'
+  ].filter(Boolean);
+  const opencode = {
+    configs: ocConfigs,
+    projectConfigs: ocConfigs.filter(c => c.isProject),
+    dirs: ocDirs,
+    skills: ocSkills,
+    mcp: ocMcp,
+    plugins: ocPlugins,
+    hasOpencodeIgnore: ocPlugins.some(p => HU.isPluginMatch(p, 'opencode-ignore')),
+    hasOpencodeDcp: ocPlugins.some(p => HU.isPluginMatch(p, 'opencode-dcp')),
+    hasOpenRtk: ocPlugins.some(p => HU.isPluginMatch(p, 'openrtk')),
+    hasWatcherIgnore: ocConfigs.some(c => Array.isArray(c.cfg?.watcher?.ignore) && c.cfg.watcher.ignore.length > 0),
+    hasEnvReadGuard: ocConfigs.some(c => HU.hasEnvReadDeny(c.cfg)),
+    present: ocConfigs.length > 0 || ocDirs.length > 0 || ocSkills.length > 0
+  };
+
+  // Cursor
+  const cursorMcp = HU.uniq([...HU.readMcpKeys(path.join(home, '.cursor/mcp.json')), ...HU.readMcpKeys(path.join(root, '.cursor/mcp.json'))]);
+  const cursorSignals = [
+    HU.existsFile(path.join(home, '.cursor/mcp.json')) && '~/.cursor/mcp.json',
+    HU.existsFile(path.join(root, '.cursor/mcp.json')) && '.cursor/mcp.json',
+    HU.existsFile(path.join(root, '.cursorignore')) && '.cursorignore',
+    HU.existsFile(path.join(root, '.cursorindexingignore')) && '.cursorindexingignore',
+    fs.existsSync(path.join(root, '.cursor/rules')) && '.cursor/rules',
+    HU.existsDir(path.join(root, '.cursor')) && '.cursor/'
+  ].filter(Boolean);
+
+  // Gemini CLI / Code Assist
+  const geminiMcp = HU.uniq([...HU.readMcpKeys(path.join(home, '.gemini/settings.json')), ...HU.readMcpKeys(path.join(root, '.gemini/settings.json'))]);
+  const geminiSignals = [
+    HU.existsFile(path.join(home, '.gemini/settings.json')) && '~/.gemini/settings.json',
+    HU.existsFile(path.join(root, '.gemini/settings.json')) && '.gemini/settings.json',
+    HU.existsFile(path.join(root, '.geminiignore')) && '.geminiignore',
+    HU.existsFile(path.join(root, '.aiexclude')) && '.aiexclude',
+    HU.existsFile(path.join(root, 'GEMINI.md')) && 'GEMINI.md',
+    HU.existsDir(path.join(root, '.gemini')) && '.gemini/'
+  ].filter(Boolean);
+
+  // Codex CLI
+  const codexGlobal = HU.parseCodexToml(path.join(home, '.codex/config.toml'));
+  const codexProject = HU.parseCodexToml(path.join(root, '.codex/config.toml'));
+  const codexMcp = HU.uniq([...codexGlobal.mcp, ...codexProject.mcp]);
+  const codexTools = HU.uniq([...codexGlobal.tools, ...codexProject.tools]);
+  const codexSignals = [
+    codexGlobal.present && '~/.codex/config.toml',
+    HU.existsFile(path.join(root, '.codex/config.toml')) && '.codex/config.toml',
+    HU.existsFile(path.join(home, '.codex/hooks.json')) && '~/.codex/hooks.json',
+    HU.existsFile(path.join(root, '.codex/hooks.json')) && '.codex/hooks.json',
+    HU.existsFile(path.join(root, 'AGENTS.override.md')) && 'AGENTS.override.md',
+    HU.existsDir(path.join(root, '.codex')) && '.codex/'
+  ].filter(Boolean);
+
+  // VS Code / GitHub Copilot
+  const vscodeMcp = HU.readMcpKeys(path.join(root, '.vscode/mcp.json'), 'servers');
+  const copilotSignals = [
+    HU.existsFile(path.join(root, '.vscode/mcp.json')) && '.vscode/mcp.json',
+    HU.existsFile(path.join(root, '.github/copilot-instructions.md')) && '.github/copilot-instructions.md',
+    HU.existsDir(path.join(root, '.github/instructions')) && '.github/instructions/'
+  ].filter(Boolean);
+
+  // Windsurf
+  const windsurfMcp = HU.readMcpKeys(path.join(home, '.codeium/windsurf/mcp_config.json'));
+  const windsurfSignals = [
+    HU.existsFile(path.join(home, '.codeium/windsurf/mcp_config.json')) && '~/.codeium/windsurf/mcp_config.json',
+    HU.existsDir(path.join(root, '.windsurf')) && '.windsurf/',
+    HU.existsFile(path.join(root, '.codeiumignore')) && '.codeiumignore'
+  ].filter(Boolean);
+
+  // Cline / Roo / Aider
+  const editorAgentSignals = [
+    HU.existsFile(path.join(root, '.rooignore')) && '.rooignore',
+    HU.existsDir(path.join(root, '.roo')) && '.roo/',
+    HU.existsFile(path.join(root, '.clineignore')) && '.clineignore',
+    HU.existsDir(path.join(root, '.cline')) && '.cline/',
+    HU.existsFile(path.join(root, '.aiderignore')) && '.aiderignore'
+  ].filter(Boolean);
+
+  // RTK
+  const rtkSignals = [
+    (HU.existsDir(path.join(home, '.config/rtk')) || Boolean(xdgHome && HU.existsDir(path.join(xdgHome, 'rtk')))) && '~/.config/rtk/',
+    opencode.hasOpenRtk && 'openrtk',
+    (HU.hasRtkInClaude(claudeGlobalSettings) || HU.hasRtkInClaude(claudeProjSettings) || HU.hasRtkInClaude(claudeLocalSettings)) && 'claude-hooks'
+  ].filter(Boolean);
+
   // Install-only signal: a repo-local .contextignore (which --sync-ignores itself writes) must not gate --slice.
   const hasTokenOptInstall = has('.claude/token-optimizer') || has('.gemini/token-optimizer');
-  const hasTokenOpt = hasTokenOptInstall || fs.existsSync(path.join(root, '.contextignore'));
-  const hasJcm = claudeMcp.includes('jcodemunch') || agyMcp.includes('jcodemunch') || fs.existsSync(path.join(root, '.jcodemunch.jsonc'));
-  return { home, has, claudeMcp, agyMcp, hasTokenOpt, hasTokenOptInstall, hasJcm };
+  const hasTokenOpt = hasTokenOptInstall || HU.existsFile(path.join(root, '.contextignore'));
+  const allMcp = [...claudeMcp, ...agyMcp, ...ocMcp, ...cursorMcp, ...geminiMcp, ...codexMcp, ...vscodeMcp, ...windsurfMcp];
+  const hasJcm = allMcp.includes('jcodemunch') || HU.existsFile(path.join(root, '.jcodemunch.jsonc'));
+  return {
+    home,
+    has,
+    claudeMcp,
+    claudeSignals,
+    claudeSettings: claudeGlobalSettings,
+    agyMcp,
+    hasTokenOpt,
+    hasTokenOptInstall,
+    hasJcm,
+    opencode,
+    cursor: { signals: cursorSignals, mcp: cursorMcp },
+    gemini: { signals: geminiSignals, mcp: geminiMcp },
+    codex: { signals: codexSignals, mcp: codexMcp, tools: codexTools },
+    copilot: { signals: copilotSignals, mcp: vscodeMcp },
+    windsurf: { signals: windsurfSignals, mcp: windsurfMcp },
+    editorAgents: editorAgentSignals,
+    rtk: rtkSignals
+  };
 }
 
 function cmdDetect(opts) {
-  const { home, has, claudeMcp, agyMcp } = detectHostTools(opts.root);
+  const hosts = detectHostTools(opts.root);
+  const { home, has, claudeMcp, claudeSignals, claudeSettings, agyMcp, opencode, cursor, gemini, codex, copilot, windsurf, editorAgents, rtk } = hosts;
   const caveman = has('.claude/.caveman-active') ? fs.readFileSync(path.join(home, '.claude/.caveman-active'), 'utf8').trim() : 'off';
-  const claudeSettings = readJsonSafe(path.join(home, '.claude/settings.json')) || {};
   const enabledPlugins = Object.keys(claudeSettings.enabledPlugins || {}).filter(k => claudeSettings.enabledPlugins[k]);
   const repo = walkRepo(opts.root, 5);
   const pluginCfg = claudeSettings.pluginConfigs || {};
   const compactKey = Object.keys(pluginCfg).find(k => pluginCfg[k]?.options?.autoCompactAt !== undefined);
   const compactAt = compactKey ? pluginCfg[compactKey].options.autoCompactAt : undefined;
+  const activeExtraIgnores = EXTRA_IGNORE_SPECS
+    .filter(s => HU.existsFile(path.join(opts.root, s.file)) || s.dirs.some(d => HU.existsDir(path.join(opts.root, d))))
+    .map(s => s.file);
+  const syncList = ['.ignore', '.contextignore', '.jcodemunch.jsonc', ...activeExtraIgnores, ...opencode.projectConfigs.map(c => c.label)];
+
+  const ocLabels = HU.uniq([...opencode.configs.map(c => c.label), ...opencode.dirs]);
+  const ocGuardSummary = `env-deny=${opencode.hasEnvReadGuard}, watcher-ignore=${opencode.hasWatcherIgnore}, opencode-ignore=${opencode.hasOpencodeIgnore}`;
+  const ocLine = opencode.present
+    ? `OpenCode: ${HU.fmtList(ocLabels, 5)} | mcp=${HU.fmtList(opencode.mcp)} | plugins=${HU.fmtList(opencode.plugins)} | guards(${ocGuardSummary})${opencode.skills.length ? ` | skills=${HU.fmtList(opencode.skills, 6)}` : ''}`
+    : 'OpenCode: none';
+  const codexExtra = codex.tools.length ? ` | tools=${HU.fmtList(codex.tools, 5)}` : '';
 
   const out = [
     '=== ANTIS-OPTIMIZER --DETECT ===',
     `Root: ${opts.root}`,
     `Stack: ${detectStack(opts.root).join(', ') || 'generic'} | Git dirs: ${repo.gitDirs.join(', ') || 'none'}`,
     `Token Optimizer: claude=${has('.claude/token-optimizer')} | antigravity=${has('.gemini/token-optimizer')} (PreToolUse off on Windows Antigravity)`,
-    `TokenEconomizer: ${has('.tokeneconomizer/index.json')} | Caveman: ${caveman} | Ponytail: ${has('.gemini/config/plugins/ponytail')}`,
+    `TokenEconomizer: ${has('.tokeneconomizer/index.json')} | Caveman: ${caveman} | Ponytail: ${has('.gemini/config/plugins/ponytail')} | RTK: ${HU.fmtList(rtk)}`,
     `AutoCompact threshold: ${compactAt ?? 'unset'}`,
-    `MCP servers (Claude): ${claudeMcp.join(', ') || 'none'}`,
-    `MCP servers (Antigravity): ${agyMcp.join(', ') || 'none'}`,
-    `Claude plugins: ${enabledPlugins.join(', ') || 'none'} | Codex hooks: ${has('.codex/hooks.json') ? 'present' : 'none'}`,
+    `MCP servers (Claude): ${HU.fmtList(claudeMcp)}`,
+    `MCP servers (Antigravity): ${HU.fmtList(agyMcp)}`,
+    `Claude plugins: ${HU.fmtList(enabledPlugins)} | project=${HU.fmtList(claudeSignals)} | Codex hooks: ${has('.codex/hooks.json') ? 'present' : 'none'}`,
+    ocLine,
+    HU.fmtHost('Cursor', cursor.signals, cursor.mcp),
+    HU.fmtHost('Gemini CLI', gemini.signals, gemini.mcp),
+    HU.fmtHost('Codex CLI', codex.signals, codex.mcp, codexExtra),
+    HU.fmtHost('VS Code / Copilot', copilot.signals, copilot.mcp),
+    HU.fmtHost('Windsurf', windsurf.signals, windsurf.mcp),
+    `Cline / Roo / Aider: ${HU.fmtList(editorAgents)}`,
     'Recommended Profile:',
     '  - Skip prose brevity rules in AGENTS.md when Ponytail/Caveman active; keep Codex AGENTS.md pointer-only.',
-    `  - Sync .ignore + .contextignore + .jcodemunch.jsonc (traps=${repo.largeTraps.length}, generated=${repo.generatedHints.length}, dirs=${repo.backupDirs.length}).${partialNote(repo.truncated)}`
+    `  - Sync ${syncList.join(' + ')} (traps=${repo.largeTraps.length}, generated=${repo.generatedHints.length}, dirs=${repo.backupDirs.length}).${partialNote(repo.truncated)}`
   ];
   if (repo.suggestDirs.length) {
     out.push(`  - Review (not auto-synced; add to .ignore by hand if junk): ${repo.suggestDirs.join(', ')}`);
@@ -566,14 +985,22 @@ function computeIgnoreTargets(root) {
   for (const d of repo.backupDirs) posSet.add(d); // well-known output dirs only; guesses live in suggestDirs
   for (const t of repo.largeTraps) if (t.base64) posSet.add(t.rel);
   for (const g of repo.generatedHints) posSet.add(g);
+  const patterns = [...posSet, ...negSet];
+  const extraTargets = EXTRA_IGNORE_SPECS.map(spec => {
+    const filePath = path.join(root, spec.file);
+    const active = HU.existsFile(filePath) || spec.dirs.some(d => HU.existsDir(path.join(root, d)));
+    const existing = parseLinesFile(filePath).map(normalizePattern).filter(Boolean);
+    return { ...spec, filePath, active, existing, missing: active ? missingIgnorePatterns(patterns, existing) : [] };
+  });
   return {
-    patterns: [...posSet, ...negSet],
+    patterns,
     suggestDirs: repo.suggestDirs.filter(d => !posSet.has(d)),
     truncated: repo.truncated,
     existingIgnore,
     existingContext: parseLinesFile(path.join(root, '.contextignore')).map(normalizePattern),
     jcmPath: path.join(root, '.jcodemunch.jsonc'),
-    jcmObj: readJsonSafe(path.join(root, '.jcodemunch.jsonc'), true)
+    jcmObj: readJsonSafe(path.join(root, '.jcodemunch.jsonc'), true),
+    extraTargets
   };
 }
 
@@ -582,77 +1009,36 @@ function missingIgnorePatterns(targets, rawList) {
   return targets.filter(p => !norm.includes(p) && !norm.includes(`**/${p}`));
 }
 
-function replaceJcmExtraPatterns(rawJcm, arrLiteral) {
-  const keyMatch = /"extra_ignore_patterns"\s*:\s*\[/.exec(rawJcm);
-  if (!keyMatch) return null;
-  const openIdx = keyMatch.index + keyMatch[0].length - 1;
-  let inStr = false, inBlk = false, depth = 0;
-  for (let i = openIdx; i < rawJcm.length; i++) {
-    const ch = rawJcm[i], nx = rawJcm[i + 1];
-    if (inBlk) { if (ch === '*' && nx === '/') { inBlk = false; i++; } continue; }
-    if (inStr) {
-      if (ch === '\\') { i++; continue; }
-      if (ch === '"') inStr = false;
-      continue;
-    }
-    if (ch === '"') { inStr = true; continue; }
-    if (ch === '/' && nx === '/') { while (i < rawJcm.length && rawJcm[i] !== '\n') i++; continue; }
-    if (ch === '/' && nx === '*') { inBlk = true; i++; continue; }
-    if (ch === '[') depth++;
-    else if (ch === ']') {
-      depth--;
-      if (depth === 0) return rawJcm.slice(0, openIdx) + arrLiteral + rawJcm.slice(i + 1);
-    }
-  }
-  return null;
-}
-
-function insertJcmExtraPatterns(rawJcm, arrLiteral) {
-  const closeIdx = rawJcm.lastIndexOf('}');
-  if (closeIdx < 0) return null;
-  let inStr = false, inBlk = false, lastCodeIdx = -1;
-  for (let i = 0; i < closeIdx; i++) {
-    const ch = rawJcm[i], nx = rawJcm[i + 1];
-    if (inBlk) { if (ch === '*' && nx === '/') { inBlk = false; i++; } continue; }
-    if (inStr) {
-      if (ch === '\\') { i++; continue; }
-      if (ch === '"') { inStr = false; lastCodeIdx = i; }
-      continue;
-    }
-    if (ch === '"') { inStr = true; continue; }
-    if (ch === '/' && nx === '/') { while (i < closeIdx && rawJcm[i] !== '\n') i++; continue; }
-    if (ch === '/' && nx === '*') { inBlk = true; i++; continue; }
-    if (!/\s/.test(ch)) lastCodeIdx = i;
-  }
-  const lastCh = lastCodeIdx >= 0 ? rawJcm[lastCodeIdx] : '';
-  const propLine = `  "extra_ignore_patterns": ${arrLiteral}\n`;
-  if (!lastCh || lastCh === '{' || lastCh === ',') {
-    const prefix = rawJcm.slice(0, closeIdx);
-    const sep = prefix.endsWith('\n') ? '' : '\n';
-    return prefix + sep + propLine + rawJcm.slice(closeIdx);
-  }
-  const withComma = rawJcm.slice(0, lastCodeIdx + 1) + ',' + rawJcm.slice(lastCodeIdx + 1, closeIdx);
-  const sep = withComma.endsWith('\n') ? '' : '\n';
-  return withComma + sep + propLine + rawJcm.slice(closeIdx);
-}
-
 function cmdSyncIgnores(opts) {
-  const { patterns, suggestDirs, truncated, existingIgnore, existingContext, jcmPath, jcmObj } = computeIgnoreTargets(opts.root);
-  const { hasTokenOpt, hasJcm } = detectHostTools(opts.root);
+  const { patterns, suggestDirs, truncated, existingIgnore, existingContext, jcmPath, jcmObj, extraTargets } = computeIgnoreTargets(opts.root);
+  const hosts = detectHostTools(opts.root);
+  const { hasTokenOpt, hasJcm, opencode } = hosts;
   const syncCtx = Boolean(opts.allIgnores || hasTokenOpt);
   const syncJcm = Boolean(opts.allIgnores || hasJcm);
 
   const mIg = missingIgnorePatterns(patterns, existingIgnore);
   const mCtx = syncCtx ? missingIgnorePatterns(patterns, existingContext) : [];
   const mJcm = syncJcm ? missingIgnorePatterns(patterns, jcmObj?.extra_ignore_patterns) : [];
+  const activeExtras = extraTargets.filter(t => t.active);
+  const skippedExtras = extraTargets.filter(t => !t.active).map(t => t.file);
 
   if (!opts.write) {
+    const ocDry = opencode.projectConfigs.map(c => {
+      if (!c.valid) return `${c.label} (skipped: invalid JSON/JSONC)`;
+      const mOc = missingIgnorePatterns(patterns, c.cfg?.watcher?.ignore);
+      const note = c.hasComments ? ' [JSONC: comment-safe splice/hint]' : '';
+      return `${c.label} watcher.ignore missing (${mOc.length}): ${HU.fmtList(mOc, 10)}${note}`;
+    });
+    const skippedAll = [...skippedExtras, ...(!opencode.projectConfigs.length ? ['opencode.json[c]'] : [])];
     const out = [
       '=== TRIPLE-IGNORE SYNC (DRY RUN) ===',
-      `Target patterns (${patterns.length}): ${patterns.join(', ')}`,
-      `.ignore missing (${mIg.length}): ${mIg.join(', ') || 'none'}`,
-      `.contextignore ${syncCtx ? `missing (${mCtx.length}): ${mCtx.join(', ') || 'none'}` : '(skipped: Token Optimizer not detected)'}`,
-      `.jcodemunch.jsonc ${syncJcm ? `missing (${mJcm.length}): ${mJcm.join(', ') || 'none'}` : '(skipped: jCodemunch not detected)'}`,
+      `Target patterns (${patterns.length}): ${HU.fmtList(patterns, 12)}`,
+      `.ignore missing (${mIg.length}): ${HU.fmtList(mIg, 10)}`,
+      `.contextignore ${syncCtx ? `missing (${mCtx.length}): ${HU.fmtList(mCtx, 10)}` : '(skipped: Token Optimizer not detected)'}`,
+      `.jcodemunch.jsonc ${syncJcm ? `missing (${mJcm.length}): ${HU.fmtList(mJcm, 10)}` : '(skipped: jCodemunch not detected)'}`,
+      ...activeExtras.map(t => `${t.file} missing (${t.missing.length}): ${HU.fmtList(t.missing, 10)}`),
+      ...ocDry,
+      ...(skippedAll.length ? [`Skipped absent tools (anti-bloat; never auto-created): ${skippedAll.join(', ')}`] : []),
       ...(suggestDirs.length ? [`Review (guessed backup/heavy dirs, NOT written; add to .ignore by hand if junk): ${suggestDirs.join(', ')}`] : []),
       `Re-run with --write to write/update files.${partialNote(truncated)}`
     ].join('\n');
@@ -664,6 +1050,7 @@ function cmdSyncIgnores(opts) {
   const igHeader = ['# Synced by antis-optimizer repo-index', ...igComments].join('\n') + '\n';
   fs.writeFileSync(path.join(opts.root, '.ignore'), igHeader + patterns.join('\n') + '\n');
   const written = ['.ignore'];
+  const hints = [];
 
   if (syncCtx) {
     const ctxComments = extractUserComments(path.join(opts.root, '.contextignore'));
@@ -676,7 +1063,10 @@ function cmdSyncIgnores(opts) {
     if (fs.existsSync(jcmPath)) {
       const rawJcm = fs.readFileSync(jcmPath, 'utf8');
       const arrLiteral = JSON.stringify(patterns, null, 4).replace(/\n\]$/, '\n  ]');
-      const spliced = replaceJcmExtraPatterns(rawJcm, arrLiteral) ?? insertJcmExtraPatterns(rawJcm, arrLiteral);
+      const span = HU.findPropSpan(rawJcm, 'extra_ignore_patterns');
+      const spliced = span?.valChar === '['
+        ? rawJcm.slice(0, span.valStart) + arrLiteral + rawJcm.slice(span.valEnd + 1)
+        : (span?.notFound ? HU.insertProp(rawJcm, span.objStart, span.objEnd, `"extra_ignore_patterns": ${arrLiteral}`, '  ') : null);
       if (spliced !== null) {
         fs.writeFileSync(jcmPath, spliced);
       } else {
@@ -690,8 +1080,39 @@ function cmdSyncIgnores(opts) {
     written.push('.jcodemunch.jsonc');
   }
 
+  for (const t of activeExtras) {
+    const tComments = extractUserComments(t.filePath);
+    const tHeader = ['# Synced by antis-optimizer repo-index', ...(tComments.length ? tComments : igComments)].join('\n') + '\n';
+    const merged = HU.mergeToolPatterns(patterns, t.existing);
+    fs.writeFileSync(t.filePath, tHeader + merged.join('\n') + '\n');
+    written.push(t.file);
+  }
+
+  for (const oc of opencode.projectConfigs) {
+    if (!oc.valid) {
+      hints.push(`skipped ${oc.label}: invalid JSON/JSONC`);
+      continue;
+    }
+    const curWatcher = Array.isArray(oc.cfg?.watcher?.ignore) ? oc.cfg.watcher.ignore.map(normalizePattern).filter(Boolean) : [];
+    const nextIgnore = HU.uniq([...curWatcher, ...patterns]);
+    if (!oc.hasComments) {
+      const nextObj = { ...oc.cfg, watcher: { ...(HU.isPlainObj(oc.cfg.watcher) ? oc.cfg.watcher : {}), ignore: nextIgnore } };
+      fs.writeFileSync(oc.path, JSON.stringify(nextObj, null, 2) + '\n');
+      written.push(oc.label);
+    } else {
+      const spliced = HU.spliceWatcherIgnore(oc.raw, nextIgnore);
+      if (spliced !== null) {
+        fs.writeFileSync(oc.path, spliced);
+        written.push(oc.label);
+      } else {
+        hints.push(`skipped ${oc.label}: JSONC comments preserved — add "watcher.ignore" or "opencode-ignore" plugin manually`);
+      }
+    }
+  }
+
   const review = suggestDirs.length ? ` | review ${suggestDirs.length} guessed dir(s) via dry run` : '';
-  console.log(`PASS sync-ignores: wrote ${written.join(', ')} (${patterns.length} patterns)${review}${partialNote(truncated)}`);
+  const hintNote = hints.length ? ` | ${hints.join('; ')}` : '';
+  console.log(capOutput(`PASS sync-ignores: wrote ${written.join(', ')} (${patterns.length} patterns)${review}${hintNote}${partialNote(truncated)}`));
 }
 
 function cmdMap(opts) {
@@ -706,6 +1127,7 @@ function cmdMap(opts) {
     `Root: ${opts.root} | Stack: ${detectStack(opts.root).join(', ') || 'generic'}${partialNote(repo.truncated)}`,
     `Git dirs: ${repo.gitDirs.join(', ') || 'none'} | AGENTS.md: ${repo.agents.join(', ') || 'none'}`,
     `INDEX.md: ${repo.indexFiles.join(', ') || 'none'} | Traps: ${repo.largeTraps.map(t => `${t.rel}(${Math.round(t.bytes / 1024)}KB)`).join(', ') || 'none'}`,
+    ...(repo.opencodeSkills.length ? [`OpenCode skills: ${repo.opencodeSkills.map(s => path.basename(path.dirname(s))).join(', ')}`] : []),
     ...(repo.dotSourceDirs.length ? [`Dot-dirs (rg needs --hidden or explicit path): ${repo.dotSourceDirs.join(', ')}`] : []),
     'Top entries:'
   ];
@@ -1738,7 +2160,7 @@ function cmdVerify(opts) {
   const unguardedGit = repo.gitDirs
     .filter(g => g !== '.git')
     .map(g => path.dirname(g))
-    .filter(dir => !fs.existsSync(path.join(opts.root, dir, 'AGENTS.md')));
+    .filter(dir => !fs.existsSync(path.join(opts.root, dir, 'AGENTS.md')) && !fs.existsSync(path.join(opts.root, dir, 'AGENTS.override.md')));
   if (unguardedGit.length) {
     ok = false;
     lines.push(`FAIL nested-git: missing AGENTS.md in ${unguardedGit.join(', ')}`);
@@ -1747,16 +2169,35 @@ function cmdVerify(opts) {
   }
 
   const ig = computeIgnoreTargets(opts.root);
-  const { hasTokenOpt, hasJcm } = detectHostTools(opts.root);
+  const { hasTokenOpt, hasJcm, opencode } = detectHostTools(opts.root);
   const mIg = missingIgnorePatterns(ig.patterns, ig.existingIgnore);
   const mCtx = (opts.allIgnores || hasTokenOpt) ? missingIgnorePatterns(ig.patterns, ig.existingContext) : [];
   const mJcm = (opts.allIgnores || hasJcm) ? missingIgnorePatterns(ig.patterns, ig.jcmObj?.extra_ignore_patterns) : [];
-  if (mIg.length || mCtx.length || mJcm.length) {
+  const activeExtras = ig.extraTargets.filter(t => t.active);
+  const extraFails = activeExtras.filter(t => t.missing.length > 0).map(t => `${t.file}(${t.missing.length})`);
+  const ocFails = [];
+  for (const oc of opencode.projectConfigs) {
+    if (!oc.valid) {
+      ocFails.push(`${oc.label}(invalid)`);
+      continue;
+    }
+    const hasWatcherArr = Array.isArray(oc.cfg?.watcher?.ignore);
+    if (!hasWatcherArr && opencode.hasOpencodeIgnore) continue;
+    const mOc = missingIgnorePatterns(ig.patterns, oc.cfg?.watcher?.ignore);
+    if (mOc.length) ocFails.push(`${oc.label}(${mOc.length})`);
+  }
+  if (mIg.length || mCtx.length || mJcm.length || extraFails.length || ocFails.length) {
     ok = false;
-    lines.push(`FAIL ignore-parity: missing .ignore(${mIg.length}) .contextignore(${mCtx.length}) .jcodemunch.jsonc(${mJcm.length})`);
+    const more = [...extraFails, ...ocFails];
+    lines.push(`FAIL ignore-parity: missing .ignore(${mIg.length}) .contextignore(${mCtx.length}) .jcodemunch.jsonc(${mJcm.length})${more.length ? ' ' + more.join(' ') : ''}`);
   } else {
-    const syncedCount = 1 + ((opts.allIgnores || hasTokenOpt) ? 1 : 0) + ((opts.allIgnores || hasJcm) ? 1 : 0);
+    const syncedCount = 1 + ((opts.allIgnores || hasTokenOpt) ? 1 : 0) + ((opts.allIgnores || hasJcm) ? 1 : 0) + activeExtras.length + opencode.projectConfigs.length;
     lines.push(`PASS ignore-parity: ${syncedCount}(${ig.patterns.length})`);
+  }
+  if (opencode.projectConfigs.length) {
+    lines.push(opencode.hasEnvReadGuard
+      ? 'PASS opencode-guard: .env protected'
+      : 'WARN opencode-guard: add permission.read deny for .env/*.env.*');
   }
 
   if (!opts.skipValidators) {
@@ -1963,6 +2404,7 @@ if (require.main === module) {
     getUpgradeCommand,
     formatUpdateReport,
     httpsGetPinnedJson,
-    readHead
+    readHead,
+    detectHostTools
   };
 }
