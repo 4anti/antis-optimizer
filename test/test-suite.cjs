@@ -155,7 +155,7 @@ try {
       fs.writeFileSync(path.join(tmpLarge, `monolith_${m}.ts`), `export function fn_${m}() {\n` + '  const x = 1;\n'.repeat(1500) + '}\n');
     }
     const auditLarge = spawnSync('node', [targetCli, '--root', tmpLarge, '--audit'], { encoding: 'utf8' }).stdout || '';
-    const t10 = auditLarge.includes('TIER 2 (FULL 4-LAYER)') && auditLarge.includes('R* =');
+    const t10 = auditLarge.includes('TIER 2 (FULL 4-LAYER)') && auditLarge.includes("R* =") && !auditLarge.includes("NaN");
     if (t10) passed++;
     console.log(`[Test 10: Mathematical Token Break-Even (Monolith Repo -> TIER 2)] ${t10 ? 'PASS' : 'FAIL'}`);
   } finally {
