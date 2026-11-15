@@ -1,16 +1,26 @@
 name: Release
 
 # Push a tag like v1.3.0 (matching package.json) to test, create the GitHub Release
-# from CHANGELOG.md, and publish to npm via trusted publishing (OIDC, no token secret).
+# from CHANGELOG.md, and stage the package on npm via trusted publishing (OIDC, no token secret).
+# The staged version goes live after the maintainer approves it with 2FA
+# (npmjs.com package page, or `npm stage list antis-optimizer` + `npm stage approve <stage-id>`).
 on:
   push:
     tags: ["v*.*.*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to (re)release, e.g. v1.3.0
+        required: true
+
+env:
+  TAG: ${{ inputs.tag || github.ref_name }}
 
 permissions:
   contents: read
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ inputs.tag || github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -21,16 +31,18 @@ jobs:
       id-token: write # npm trusted publishing + provenance
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24 # npm 12 (stage publish) needs Node >= 22.22 / 24
 
       - name: Tag must match package.json version
         run: |
           PKG="v$(node -p "require('./package.json').version")"
-          if [ "$PKG" != "$GITHUB_REF_NAME" ]; then
-            echo "::error::tag $GITHUB_REF_NAME does not match package.json $PKG"
+          if [ "$PKG" != "$TAG" ]; then
+            echo "::error::tag $TAG does not match package.json $PKG"
             exit 1
           fi
 
@@ -43,7 +55,7 @@ jobs:
 
       - name: Extract release notes from CHANGELOG.md
         run: |
-          VER="${GITHUB_REF_NAME#v}"
+          VER="${TAG#v}"
           awk -v h="## [$VER]" 'index($0, h) == 1 {f=1; next} index($0, "## [") == 1 {f=0} f' CHANGELOG.md > notes.md
           if [ ! -s notes.md ]; then
             echo "::error::CHANGELOG.md has no section for [$VER]"
@@ -54,15 +66,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 ||
-            gh release create "$GITHUB_REF_NAME" --verify-tag --title "$GITHUB_REF_NAME" --notes-file notes.md
+          gh release view "$TAG" >/dev/null 2>&1 ||
+            gh release create "$TAG" --verify-tag --title "$TAG" --notes-file notes.md
 
-      - name: Publish to npm (skipped if this version is already published)
+      - name: Stage on npm for 2FA approval (skipped if this version is already published)
         run: |
-          VER="${GITHUB_REF_NAME#v}"
+          VER="${TAG#v}"
           if npm view "antis-optimizer@$VER" version >/dev/null 2>&1; then
             echo "antis-optimizer@$VER already on npm; skipping"
             exit 0
           fi
-          npm install -g npm@latest # trusted publishing needs npm >= 11.5.1
-          npm publish --access public --provenance
+          npm install -g npm@latest # staged trusted publishing needs a current npm
+          npm stage publish . --access public --provenance
+          echo "::notice::antis-optimizer@$VER staged. Approve with 2FA on npmjs.com or: npm stage approve <stage-id>"
