@@ -1,6 +1,6 @@
 {
   "name": "antis-optimizer",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "description": "Stop AI coding agents from wasting tokens on junk & huge files. Audits repo bloat, syncs ignores across AI tools, and slices exact function/section lines (--audit, --detect, --sync-ignores, --sync-landmarks, --map, --slice, --outline, --handoff, --verify).",
   "bin": {
     "antis-optimizer": "scripts/repo-index.cjs"
