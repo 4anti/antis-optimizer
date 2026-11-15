@@ -841,7 +841,7 @@
     <section id="heroMount" aria-label="Introduction"></section>
 
     <!-- Section 2: wc / du Style Bare Telemetry Strip -->
-    <section class="sec sec--compact sec--band" aria-label="Measured repo savings">
+    <section class="sec sec--compact sec--band" aria-label="Modeled repo savings">
       <div class="wrap">
         <div id="telemetryGrid" class="telemetry-grid"></div>
       </div>
@@ -899,7 +899,7 @@
       </div>
     </section>
 
-    <!-- Section 6: Measured Savings Table + Man-Page Command Rows -->
+    <!-- Section 6: Modeled Savings Table + Man-Page Command Rows -->
     <section id="impact" class="sec">
       <div class="wrap">
         <div class="sec-head">
@@ -960,7 +960,7 @@
           <ol class="man-rows">
             <li><code class="man-cmd">--audit</code><p class="man-desc">Counts source vs junk, flags files over 15 KB, detects 10 language stacks, and recommends the lightest setup tier.</p></li>
             <li><code class="man-cmd">--detect</code><p class="man-desc">Discovers OpenCode, Claude, Cursor, Gemini CLI, Codex, Copilot, Windsurf, Cline/Roo/Aider, RTK, MCPs, stacks, and nested worktrees.</p></li>
-            <li><code class="man-cmd">--sync-ignores <span class="arg">--write</span></code><p class="man-desc">Aligns <code>.ignore</code> plus active repo tool ignores (<code>.contextignore</code>, <code>.jcodemunch.jsonc</code>, <code>opencode.json[c]</code> <code>watcher.ignore</code>, <code>.cursorignore</code>, <code>.geminiignore</code>) without creating unused dotfiles.</p></li>
+            <li><code class="man-cmd">--sync-ignores <span class="arg">--write</span></code><p class="man-desc">Aligns <code>.ignore</code> plus active repo tool ignores (<code>.contextignore</code>, <code>.jcodemunch.jsonc</code>, <code>.cursorignore</code>, <code>.geminiignore</code>) without creating unused dotfiles or modifying <code>opencode.json[c]</code>.</p></li>
             <li><code class="man-cmd">--outline <span class="arg">&lt;file&gt; [filter]</span></code><p class="man-desc">Extracts exact symbol, heading, and config-key bounds via optional TypeScript Compiler AST or built-in polyglot lexer.</p></li>
             <li><code class="man-cmd">--slice <span class="arg">&lt;scope&gt; [symbol] | &lt;file:Lstart-Lend&gt;</span></code><p class="man-desc">Reads one AST/lexer symbol span, line range, or JSON/JSONC section under strict byte caps.</p></li>
             <li><code class="man-cmd">--sync-landmarks <span class="arg">&amp;&amp; --verify</span></code><p class="man-desc">Auto-heals shifted doc line pointers and validates caps, conditional ignores, and OpenCode <code>.env</code> guards in one output line.</p></li>
@@ -1096,7 +1096,7 @@
       },
       opencode: {
         label: 'OpenCode',
-        desc: 'Global ~/.config/opencode/skills/antis-optimizer or project .opencode/skills/antis-optimizer; auto-loads AGENTS.md and syncs opencode.json / opencode.jsonc watcher.ignore when present.',
+        desc: 'Global ~/.config/opencode/skills/antis-optimizer or project .opencode/skills/antis-optimizer; auto-loads AGENTS.md and inspects opencode.json[c] read-only (advises opencode-ignore).',
         cmd: 'git clone https://github.com/4anti/antis-optimizer.git ~/.config/opencode/skills/antis-optimizer'
       },
       claude: {
@@ -1106,8 +1106,8 @@
       },
       cursor: {
         label: 'Cursor',
-        desc: 'Syncs .ignore, .cursorignore, .cursorindexingignore, and MCP rules automatically only when Cursor is present.',
-        cmd: 'npx github:4anti/antis-optimizer --sync-ignores --write && npx github:4anti/antis-optimizer --detect'
+        desc: 'Skills in ~/.cursor/skills/ or .cursor/skills/; syncs .ignore, .cursorignore, .cursorindexingignore, and MCP rules only when Cursor is present.',
+        cmd: 'git clone https://github.com/4anti/antis-optimizer.git ~/.cursor/skills/antis-optimizer'
       },
       codex: {
         label: 'Codex',
@@ -1117,7 +1117,7 @@
       gemini: {
         label: 'Gemini CLI',
         desc: 'Detects ~/.gemini/settings.json and syncs .geminiignore / .aiexclude conditionally when present in your repo.',
-        cmd: 'git clone https://github.com/4anti/antis-optimizer.git ~/.gemini/config/skills/antis-optimizer'
+        cmd: 'git clone https://github.com/4anti/antis-optimizer.git ~/.gemini/skills/antis-optimizer'
       },
       antigravity: {
         label: 'Antigravity',
@@ -1126,8 +1126,8 @@
       },
       copilot: {
         label: 'Copilot / Windsurf',
-        desc: 'Detects .vscode/mcp.json ("servers"), .github/copilot-instructions.md, .windsurf/, and syncs .codeiumignore when active.',
-        cmd: 'npx github:4anti/antis-optimizer --detect && npx github:4anti/antis-optimizer --sync-ignores --write'
+        desc: 'Detects workspace & user VS Code mcp.json ("servers"), .github/copilot-instructions.md, .github/skills/, .windsurf/, and syncs .codeiumignore when active.',
+        cmd: 'git clone https://github.com/4anti/antis-optimizer.git .github/skills/antis-optimizer'
       }
     };
 

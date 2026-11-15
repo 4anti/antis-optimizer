@@ -30,7 +30,7 @@ Scan bloat, sync ignore rules across every AI tool, and jump straight to the exa
 
 When you ask an AI assistant (**OpenCode**, **Claude Code**, **Cursor**, **Codex**, **Gemini CLI**, **Antigravity**, **VS Code / Copilot**, or **Windsurf**) to explore or edit a project, two things silently burn your context window and slow it down:
 
-1. **Junk files sneaking into searches:** build folders (`dist/`, `build/`), forgotten git worktrees, massive JSON dumps, and lockfiles get scanned over and over—and every AI tool checks a *different* ignore file (`.ignore`, `.contextignore`, `.jcodemunch.jsonc`, `.cursorignore`, `.geminiignore`, `opencode.json[c]`, etc.).
+1. **Junk files sneaking into searches:** build folders (`dist/`, `build/`), forgotten git worktrees, massive JSON dumps, and lockfiles get scanned over and over—and every AI tool checks a *different* ignore file (`.ignore`, `.contextignore`, `.jcodemunch.jsonc`, `.cursorignore`, `.geminiignore`, etc.).
 2. **Reading huge files top-to-bottom:** to edit one 30-line function or JSON section, the AI reads an entire 800-line file into memory—and stale line numbers in docs break after the next edit.
 
 `antis-optimizer` fixes both in seconds with a fast Node CLI and tiny, auto-updating repo docs.
@@ -65,7 +65,7 @@ antis-optimizer --audit
 </div>
 
 1. **Audit your repo (`--audit`):** Counts real source files vs. junk, flags large files (`>= 15 KB`), detects common stacks (`Node`, `Python`, `Rust`, `Go`, `Java Maven/Gradle`, `Swift`, `Ruby`, `PHP`, `Elixir`, `.NET`), and recommends a right-sized setup (for tiny repos, it skips extra docs completely so setup never costs more tokens than it saves).
-2. **Sync ignore rules everywhere (`--sync-ignores --write`):** Always syncs `.ignore`, and conditionally mirrors exclusions into `.contextignore`, `.jcodemunch.jsonc`, existing project `opencode.json[c]` (`watcher.ignore`), and repo-present tool ignore files (`.cursorignore`, `.cursorindexingignore`, `.geminiignore`, `.aiexclude`, `.codeiumignore`, `.rooignore`, `.clineignore`, `.aiderignore`, `.claudeignore`) **only** when that tool or config already exists in your repo (anti-bloat: never creates unwanted dotfiles or `opencode.json[c]`). Preserves your `#` comments (grouped in the file header), JSONC `//` comments, and `.gitignore` `!` negations. Guessed backup/large directories are flagged for review rather than auto-ignored.
+2. **Sync ignore rules everywhere (`--sync-ignores --write`):** Always syncs `.ignore`, and conditionally mirrors exclusions into `.contextignore`, `.jcodemunch.jsonc`, and repo-present tool ignore files (`.cursorignore`, `.cursorindexingignore`, `.geminiignore`, `.aiexclude`, `.codeiumignore`, `.rooignore`, `.clineignore`, `.aiderignore`, `.claudeignore`) **only** when that tool or config already exists in your repo (anti-bloat: never creates unwanted dotfiles or modifies `opencode.json[c]`, which stays read-only with an `opencode-ignore` / `watcher.ignore` check). Preserves your `#` comments (grouped in the file header), JSONC `//` comments, and `.gitignore` `!` negations. Guessed backup/large directories are flagged for review rather than auto-ignored.
 3. **Jump straight to exact lines (`--outline`, `--slice`):** Lists functions, classes, headings, keys, blocks, and sections with exact `file:Lstart-Lend` ranges across **TS/JS/JSX/TSX, Python, Rust, Go, C/C++, C#, Java, Kotlin (`.kt`/`.kts`), Swift, PHP, Ruby, Elixir (`.ex`/`.exs`), SQL, Shell/Bash (`.sh`/`.bash`), HTML, Svelte, Vue, Astro, CSS, JSON/JSONC, YAML, TOML, and Markdown**, and slices exact AST/lexer symbol spans or `:Lstart-Lend` line ranges. Uses the TypeScript Compiler when installed, with a fast built-in parser fallback.
 4. **Keep docs fresh automatically (`--sync-landmarks --write`, `--verify`):** Re-anchors shifted line numbers after you edit code and confirms everything passes in a single line (including `0`-doc Tier 0 repos and `AGENTS.override.md`).
 
@@ -93,7 +93,7 @@ Every command caps its output below `3,500` characters (and `--handoff` below `2
 | :--- | :--- |
 | `antis-optimizer --audit` | Scans junk/large files and recommends the lightest setup tier for your repo |
 | `antis-optimizer --detect` | Detects AI hosts (OpenCode, Claude, Cursor, Gemini CLI, Codex, Copilot, Windsurf, Cline/Roo/Aider, RTK), MCPs, stacks, and nested `.git` folders |
-| `antis-optimizer --sync-ignores --write` | Syncs `.ignore` plus active repo tool ignores (`.contextignore`, `.jcodemunch.jsonc`, `opencode.json[c]` `watcher.ignore`, `.cursorignore`, `.geminiignore`, etc.) without bloating unused repos |
+| `antis-optimizer --sync-ignores --write` | Syncs `.ignore` plus active repo tool ignores (`.contextignore`, `.jcodemunch.jsonc`, `.cursorignore`, `.geminiignore`, etc.) without bloating unused repos or editing `opencode.json[c]` |
 | `antis-optimizer --outline <file> [filter]` | Shows symbols, SFC blocks, config keys, or Markdown headings and exact `Lstart-Lend` line numbers |
 | `antis-optimizer --slice <scope> [symbol]` / `<file>:Lstart-Lend` | Extracts one JSON/JSONC section, AST/lexer symbol span, or explicit line range |
 | `antis-optimizer --map` | Prints a compact overview map, `.opencode/skills/`, and project landmarks |
@@ -109,23 +109,31 @@ Every command caps its output below `3,500` characters (and `--handoff` below `2
 Want your AI assistant to run `--audit` and wire up projects for you automatically? Clone into your agent's global (or project-local) skills folder:
 
 ```bash
-# OpenCode (global)
+# OpenCode (global / project-local)
 git clone https://github.com/4anti/antis-optimizer.git ~/.config/opencode/skills/antis-optimizer
-
-# OpenCode (project-local)
-git clone https://github.com/4anti/antis-optimizer.git .opencode/skills/antis-optimizer
+# or project-local: .opencode/skills/antis-optimizer
 
 # Claude Code
 git clone https://github.com/4anti/antis-optimizer.git ~/.claude/skills/antis-optimizer
 
-# Google Antigravity / Gemini CLI
+# Gemini CLI
+git clone https://github.com/4anti/antis-optimizer.git ~/.gemini/skills/antis-optimizer
+
+# Google Antigravity
 git clone https://github.com/4anti/antis-optimizer.git ~/.gemini/config/skills/antis-optimizer
+
+# Cursor (global / project-local)
+git clone https://github.com/4anti/antis-optimizer.git ~/.cursor/skills/antis-optimizer
+# or project-local: .cursor/skills/antis-optimizer
+
+# GitHub Copilot / VS Code (project-local)
+git clone https://github.com/4anti/antis-optimizer.git .github/skills/antis-optimizer
 
 # ChatGPT / Codex CLI
 git clone https://github.com/4anti/antis-optimizer.git ~/.agents/skills/antis-optimizer
 ```
 
-> **OpenCode first-class support:** OpenCode automatically loads `AGENTS.md` and `.opencode/skills/`, and reads `opencode.json` / `opencode.jsonc` (plus `$OPENCODE_CONFIG`, `$OPENCODE_CONFIG_DIR`, and `$XDG_CONFIG_HOME/opencode`). See [`references/templates.md`](./references/templates.md) for a ready-to-paste `opencode.jsonc` (`watcher.ignore`, `.env` `permission.read` deny, `"mcp"` schema, and `opencode-ignore` / `opencode-dcp` / `openrtk` plugins).
+> **OpenCode first-class support:** OpenCode automatically loads `AGENTS.md` and `.opencode/skills/`, and reads `opencode.json` / `opencode.jsonc` (plus `$OPENCODE_CONFIG`, `$OPENCODE_CONFIG_DIR`, and `$XDG_CONFIG_HOME/opencode`). `antis-optimizer` keeps `opencode.json[c]` read-only: use the `opencode-ignore` plugin to inherit `.ignore`/`.gitignore` automatically, and see [`references/templates.md`](./references/templates.md) for a ready-to-paste `opencode.jsonc` (`.env` `permission.read` deny, `"mcp"` schema, and `opencode-ignore` / `opencode-dcp` / `openrtk` plugins).
 
 ---
 
@@ -140,7 +148,7 @@ No extra plugins are needed. If you already use other AI workflow or token-savin
 
 | Tool / Plugin | What Usually Goes Wrong | How `antis-optimizer` Handles It |
 | :--- | :--- | :--- |
-| **`OpenCode`** (`opencode-dcp`, `opencode-ignore`, `openrtk`) | Ignores `.ignore` without `opencode-ignore` or `watcher.ignore`; uses root `"mcp"` (not `"mcpServers"`). | Splices `watcher.ignore` in existing `opencode.json[c]`, checks `.env` `permission.read` deny, and avoids duplicating `opencode-dcp` / `openrtk` rules. |
+| **`OpenCode`** (`opencode-dcp`, `opencode-ignore`, `openrtk`) | Ignores `.ignore` without `opencode-ignore` or `watcher.ignore`; uses root `"mcp"` (not `"mcpServers"`). | Keeps `opencode.json[c]` read-only, checks `opencode-ignore` / existing `watcher.ignore` + `.env` `permission.read` deny, and avoids duplicating `opencode-dcp` / `openrtk` rules. |
 | **`RTK`** (`~/.config/rtk/`, `openrtk`, Claude hooks) | Extra lossy shell pipes can strip line ranges printed by `--outline` / `--slice`. | Keeps `--verify` (1-line `PASS`) and `--outline` RTK-compact out of the box without mangling `Lstart-Lend` landmarks. |
 | **[`Caveman`](https://github.com/JuliusBrussee/caveman)** | Compressing `.md` files breaks markdown tables, globs, and line landmarks. | Keeps `AGENTS.md`, `INDEX.md`, and `SKILL.md` out of compression and avoids duplicate brevity rules. |
 | **`Ponytail`** | Extra verbosity or regex-grep rules add unnecessary overhead on GPT/Codex models. | Keeps `AGENTS.md` / `AGENTS.override.md` pointer-only on Codex/GPT and avoids repeating already-loaded rules. |

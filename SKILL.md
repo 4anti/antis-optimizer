@@ -36,7 +36,7 @@ Run `node <skill-dir>/scripts/repo-index.cjs --root . --detect` and `--audit`:
 Present `--audit` scoreboard; confirm: (1) Tier 0 vs 1 vs 2; (2) `file:L-L` + `--slice` vs split monoliths; (3) conditional ignore sync + optional host configs (`references/templates.md`).
 
 ### 3. Build Co-op Layers
-- **Conditional Ignore Sync (`--sync-ignores --write`):** writes `.ignore`; syncs `.contextignore`, `.jcodemunch.jsonc`, existing `opencode.json[c]` (`watcher.ignore`), and repo-present `.cursorignore`, `.cursorindexingignore`, `.geminiignore`, `.aiexclude`, `.codeiumignore`, `.rooignore`, `.clineignore`, `.aiderignore`, `.claudeignore` ONLY when that tool/config exists (anti-bloat: never creates unused dotfiles or `opencode.json[c]`). Preserves `#` header comments, JSONC `//` comments, and `!negations`; flags guessed dirs for review.
+- **Conditional Ignore Sync (`--sync-ignores --write`):** writes `.ignore`; syncs `.contextignore`/`.jcodemunch.jsonc` when detected (or `--all-ignores`), plus repo-present `.cursorignore`, `.cursorindexingignore`, `.geminiignore`, `.aiexclude`, `.codeiumignore`, `.rooignore`, `.clineignore`, `.aiderignore`, `.claudeignore` ONLY when active (`opencode.json[c]` stays read-only; `--verify` checks `opencode-ignore`/existing `watcher.ignore` + `.env` deny). Preserves `#` headers, JSONC `//` comments, and `!negations`.
 - **Router (`AGENTS.md` / `INDEX.md`):** invariants, Do-Not-Read paths, CLI commands, and `` `sym` `Lstart-Lend` `` landmarks:
   - IDs, JSON/config/doc monoliths -> `--map`/`--slice`/`--outline` + `Read(file, offset, limit)`.
   - Callers / impact -> `jcodemunch` when indexed; else `--outline <file> [filter]` + `Read(offset, limit)`. `<15L` targets -> `Grep`/`Read`.

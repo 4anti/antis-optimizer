@@ -2,7 +2,7 @@
 'use strict';
 
 /**
- * Antis-Optimizer — Comprehensive Automated Test Suite (56 Self-Contained Tests)
+ * Antis-Optimizer — Comprehensive Automated Test Suite (59 Self-Contained Tests)
  * Zero personal paths; runs entirely inside an isolated OS temp directory.
  */
 
@@ -15,8 +15,8 @@ const targetCli = path.resolve(__dirname, '..', 'scripts', 'repo-index.cjs');
 const pkg = require(path.resolve(__dirname, '..', 'package.json'));
 const lib = require(targetCli);
 
-console.log(`=== ANTIS-OPTIMIZER v${pkg.version} TEST SUITE (56 TESTS) ===`);
-let passed = 0, total = 56;
+console.log(`=== ANTIS-OPTIMIZER v${pkg.version} TEST SUITE (59 TESTS) ===`);
+let passed = 0, total = 59;
 
 (async function main() {
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'antis-opt-test-'));
@@ -805,7 +805,7 @@ try {
   if (t47) passed++;
   console.log(`[Test 47: OpenCode Multi-Source Detection, JSONC Parse Safety & .opencode/skills] ${t47 ? 'PASS' : 'FAIL'}`);
 
-  // 48. Conditional OpenCode Ignore Parity & Never Auto-Creating opencode.json[c]
+  // 48. Read-Only OpenCode Verify, Guard Last-Rule-Wins & Never Creating/Mutating opencode.json[c]
   const t48Env = { ...process.env, HOME: t47Home, USERPROFILE: t47Home, XDG_CONFIG_HOME: '', OPENCODE_CONFIG_DIR: '', OPENCODE_CONFIG: '' };
   const t48NoOc = path.join(tmp, 't48-no-oc');
   fs.mkdirSync(t48NoOc, { recursive: true });
@@ -814,40 +814,44 @@ try {
   const t48Json = path.join(tmp, 't48-oc-json');
   fs.mkdirSync(t48Json, { recursive: true });
   fs.writeFileSync(path.join(t48Json, 'a.ts'), 'export const a = 1;\n');
-  fs.writeFileSync(path.join(t48Json, 'opencode.json'), JSON.stringify({
+  const t48JsonBeforeRaw = JSON.stringify({
     theme: 'tokyonight',
     mcp: { custom_srv: { type: 'local' } },
     watcher: { ignore: ['custom-watch/**'] }
-  }, null, 2));
+  }, null, 2);
+  fs.writeFileSync(path.join(t48Json, 'opencode.json'), t48JsonBeforeRaw);
   const t48VerifyBefore = spawnSync('node', [targetCli, '--root', t48Json, '--verify'], { encoding: 'utf8', env: t48Env });
   spawnSync('node', [targetCli, '--root', t48Json, '--sync-ignores', '--write'], { encoding: 'utf8', env: t48Env });
-  const t48OcAfter = JSON.parse(fs.readFileSync(path.join(t48Json, 'opencode.json'), 'utf8'));
-  t48OcAfter.permission = { read: { '.env': 'deny', '*.env.*': 'deny' } };
-  fs.writeFileSync(path.join(t48Json, 'opencode.json'), JSON.stringify(t48OcAfter, null, 2));
+  const t48JsonUntouched = fs.readFileSync(path.join(t48Json, 'opencode.json'), 'utf8') === t48JsonBeforeRaw;
+  // Last matching permission.read rule wins: allow after '*' deny must warn!
+  fs.writeFileSync(path.join(t48Json, 'opencode.json'), JSON.stringify({
+    plugin: ['opencode-ignore'],
+    permission: { read: { '*': 'deny', '.env': 'allow' } }
+  }, null, 2));
+  const t48VerifyAllowWarn = spawnSync('node', [targetCli, '--root', t48Json, '--verify'], { encoding: 'utf8', env: t48Env });
+  fs.writeFileSync(path.join(t48Json, 'opencode.json'), JSON.stringify({
+    plugin: ['opencode-ignore'],
+    permission: { read: { '*.env': 'deny', '*.env.*': 'deny', '*.env.example': 'allow' } }
+  }, null, 2));
   const t48VerifyAfter = spawnSync('node', [targetCli, '--root', t48Json, '--verify'], { encoding: 'utf8', env: t48Env });
   const t48Jsonc = path.join(tmp, 't48-oc-jsonc');
   fs.mkdirSync(t48Jsonc, { recursive: true });
   fs.writeFileSync(path.join(t48Jsonc, 'a.ts'), 'export const a = 1;\n');
-  fs.writeFileSync(path.join(t48Jsonc, 'opencode.jsonc'), '// Header comment\n{\n  // Keep inline\n  "plugin": ["opencode-dcp"],\n  "permission": { "read": { ".env": "deny" } },\n  "watcher": {\n    // Watch comment\n    "ignore": []\n  }\n}\n');
-  spawnSync('node', [targetCli, '--root', t48Jsonc, '--sync-ignores', '--write'], { encoding: 'utf8', env: t48Env });
+  const t48JsoncBeforeRaw = '// Header comment\n{\n  // Keep inline\n  "plugin": ["opencode-dcp"],\n  "permission": { "read": { ".env": "deny" } }\n}\n';
+  fs.writeFileSync(path.join(t48Jsonc, 'opencode.jsonc'), t48JsoncBeforeRaw);
+  const t48JsoncSync = spawnSync('node', [targetCli, '--root', t48Jsonc, '--sync-ignores', '--write'], { encoding: 'utf8', env: t48Env });
   const t48JsoncRaw = fs.readFileSync(path.join(t48Jsonc, 'opencode.jsonc'), 'utf8');
   const t48JsoncVerify = spawnSync('node', [targetCli, '--root', t48Jsonc, '--verify'], { encoding: 'utf8', env: t48Env });
-  const t48HintDir = path.join(tmp, 't48-oc-hint');
-  fs.mkdirSync(t48HintDir, { recursive: true });
-  fs.writeFileSync(path.join(t48HintDir, 'a.ts'), 'export const a = 1;\n');
-  fs.writeFileSync(path.join(t48HintDir, 'opencode.jsonc'), '// Preserve me\n{\n  "watcher": "invalid-shape"\n}\n');
-  const t48HintSync = spawnSync('node', [targetCli, '--root', t48HintDir, '--sync-ignores', '--write'], { encoding: 'utf8', env: t48Env });
   const t48 = !fs.existsSync(path.join(t48NoOc, 'opencode.json')) && !fs.existsSync(path.join(t48NoOc, 'opencode.jsonc')) &&
               t48VerifyBefore.status === 1 && t48VerifyBefore.stdout.includes('opencode.json(') && t48VerifyBefore.stdout.includes('permission.read') &&
-              t48OcAfter.theme === 'tokyonight' && Boolean(t48OcAfter.mcp?.custom_srv) &&
-              t48OcAfter.watcher.ignore.includes('custom-watch/**') && t48OcAfter.watcher.ignore.includes('node_modules/') &&
-              t48VerifyAfter.status === 0 && t48VerifyAfter.stdout.includes('PASS opencode-guard: .env protected') &&
-              t48JsoncRaw.includes('// Header comment') && t48JsoncRaw.includes('// Keep inline') && t48JsoncRaw.includes('// Watch comment') &&
-              t48JsoncVerify.status === 0 &&
-              fs.readFileSync(path.join(t48HintDir, 'opencode.jsonc'), 'utf8').includes('// Preserve me') &&
-              (t48HintSync.stdout || '').includes('JSONC comments preserved');
+              t48JsonUntouched &&
+              (t48VerifyAllowWarn.stdout || '').includes('WARN opencode-guard:') &&
+              t48VerifyAfter.status === 0 && (t48VerifyAfter.stdout || '').includes('PASS opencode-guard: .env protected') &&
+              t48JsoncRaw === t48JsoncBeforeRaw &&
+              (t48JsoncSync.stdout || '').includes('read-only') &&
+              t48JsoncVerify.status === 0 && (t48JsoncVerify.stdout || '').includes('WARN opencode-ignore:');
   if (t48) passed++;
-  console.log(`[Test 48: Conditional OpenCode Ignore Parity, Key Preservation & Never Auto-Creating opencode.json[c]] ${t48 ? 'PASS' : 'FAIL'}`);
+  console.log(`[Test 48: Read-Only OpenCode Verify, Guard Last-Rule-Wins & Non-Mutation] ${t48 ? 'PASS' : 'FAIL'}`);
 
   // 49. Multi-Host Detection (Cursor/Gemini/Codex/Claude/Copilot/Windsurf/Cline/Roo/Aider/RTK) & AGENTS.override.md
   const t49Home = path.join(tmp, 't49-home');
@@ -1101,7 +1105,7 @@ try {
   const t53SvelteOut = spawnSync(process.execPath, [targetCli, '--root', t53Dir, '--outline', 'Badge.svelte'], { encoding: 'utf8', env: tParserEnv });
   const t53AstroOut = spawnSync(process.execPath, [targetCli, '--root', t53Dir, '--outline', 'Home.astro'], { encoding: 'utf8', env: tParserEnv });
   const t53AstroSlice = spawnSync(process.execPath, [targetCli, '--root', t53Dir, '--slice', 'Home.astro', 'loadCards'], { encoding: 'utf8', env: tParserEnv });
-  const t53 = t53VueOut.status === 0 && t53VueOut.stdout.includes('<template>') && t53VueOut.stdout.includes('[js] function savePanel') && t53VueOut.stdout.includes('<section id="hero">') &&
+  const t53 = t53VueOut.status === 0 && t53VueOut.stdout.includes('<template>') && t53VueOut.stdout.includes('[ts] function savePanel') && t53VueOut.stdout.includes('<section id="hero">') &&
               t53VueSlice.status === 0 && t53VueSlice.stdout.includes('return n + 1;') &&
               t53SvelteOut.status === 0 && t53SvelteOut.stdout.includes('[js] export function formatBadge') && t53SvelteOut.stdout.includes('<header>') &&
               t53AstroOut.status === 0 && t53AstroOut.stdout.includes('--- (frontmatter)') && t53AstroOut.stdout.includes('[ts] function loadCards()') &&
@@ -1300,6 +1304,125 @@ try {
               sec1.status === 2 && sec2.status === 2 && sec3.status === 2 && sec4.status === 2;
   if (t56) passed++;
   console.log(`[Test 56: Polyglot detectStack Expansion & Secret Config Refusal] ${t56 ? 'PASS' : 'FAIL'}`);
+
+  // 57. Audit Markdown Non-Monolith, Lockfile/Build Quarantine & Global VS Code MCP + Compact Detect
+  const t57Home = path.join(tmp, 't57-home');
+  const t57Repo = path.join(tmp, 't57-repo');
+  fs.mkdirSync(path.join(t57Home, 'AppData', 'Roaming', 'Code', 'User'), { recursive: true });
+  fs.mkdirSync(path.join(t57Repo, '.github', 'skills', 'demo'), { recursive: true });
+  fs.mkdirSync(path.join(t57Repo, '.svelte-kit'), { recursive: true });
+  fs.mkdirSync(path.join(t57Repo, '_build'), { recursive: true });
+  fs.writeFileSync(path.join(t57Home, 'AppData', 'Roaming', 'Code', 'User', 'mcp.json'), JSON.stringify({ servers: { jcodemunch: {}, vsc_global: {} } }));
+  fs.writeFileSync(path.join(t57Repo, '.github', 'skills', 'demo', 'SKILL.md'), '---\nname: demo\n---\n');
+  fs.writeFileSync(path.join(t57Repo, 'README.md'), '# Big Guide\n' + 'Documentation line.\n'.repeat(1000));
+  fs.writeFileSync(path.join(t57Repo, 'index.ts'), 'export const ok = true;\n');
+  fs.writeFileSync(path.join(t57Repo, 'composer.lock'), '{"packages":[]}\n');
+  fs.writeFileSync(path.join(t57Repo, 'uv.lock'), 'version = 1\n');
+  fs.writeFileSync(path.join(t57Repo, '.svelte-kit', 'generated.js'), 'export const x = 1;\n');
+  fs.writeFileSync(path.join(t57Repo, '_build', 'dev.beam'), 'beam');
+  const t57Env = { ...process.env, HOME: t57Home, USERPROFILE: t57Home, XDG_CONFIG_HOME: '', OPENCODE_CONFIG_DIR: '', OPENCODE_CONFIG: '' };
+  const t57Audit = spawnSync(process.execPath, [targetCli, '--root', t57Repo, '--audit'], { encoding: 'utf8', env: t57Env });
+  const t57Detect = spawnSync(process.execPath, [targetCli, '--root', t57Repo, '--detect'], { encoding: 'utf8', env: t57Env });
+  spawnSync(process.execPath, [targetCli, '--root', t57Repo, '--sync-ignores', '--write'], { encoding: 'utf8', env: t57Env });
+  const t57AuditSynced = spawnSync(process.execPath, [targetCli, '--root', t57Repo, '--audit'], { encoding: 'utf8', env: t57Env });
+  const t57IgTxt = fs.readFileSync(path.join(t57Repo, '.ignore'), 'utf8');
+  const t57A = t57Audit.stdout || '';
+  const t57ASynced = t57AuditSynced.stdout || '';
+  const t57D = t57Detect.stdout || '';
+  const t57 = t57Audit.status === 0 && t57A.includes('TIER 0') && /Monoliths \(>=15KB\):\s*0 files/.test(t57A) &&
+              t57A.includes('composer.lock') && t57A.includes('uv.lock') && t57A.includes('.svelte-kit/') && t57A.includes('_build/') &&
+              t57IgTxt.includes('composer.lock') && t57IgTxt.includes('uv.lock') && t57IgTxt.includes('.svelte-kit/') && t57IgTxt.includes('_build/') &&
+              t57ASynced.includes('across 3 non-source') &&
+              t57Detect.status === 0 && t57D.includes('VS Code / Copilot:') && t57D.includes('vsc_global') && t57D.includes('.github/skills/') &&
+              t57D.includes('.jcodemunch.jsonc') && !t57D.includes('OpenCode:') && !t57D.includes('Cursor:') && t57D.includes('Absent hosts:');
+  if (t57) passed++;
+  console.log(`[Test 57: Audit Markdown Non-Monolith, Lockfiles & Global VS Code + Compact Detect] ${t57 ? 'PASS' : 'FAIL'}`);
+
+  // 58. Parser Edge Fixes: Java Nested Generics, C# Namespace/Methods, YAML List Items & JSON Array/Compact
+  const t58Dir = path.join(tmp, 't58-parsers');
+  fs.mkdirSync(t58Dir, { recursive: true });
+  fs.writeFileSync(path.join(t58Dir, 'Repo.java'), [
+    'public class Repo {',
+    '  public Map<String, List<Integer>> buildIndex(List<String> keys) {',
+    '    return new HashMap<>();',
+    '  }',
+    '}'
+  ].join('\n'));
+  fs.writeFileSync(path.join(t58Dir, 'UserService.cs'), [
+    'namespace App.Services',
+    '{',
+    '  [ApiController]',
+    '  public class UserService',
+    '  {',
+    '    public async Task<Dictionary<string, List<int>>> FetchAsync(int id)',
+    '    {',
+    '      return null;',
+    '    }',
+    '  }',
+    '}'
+  ].join('\n'));
+  fs.writeFileSync(path.join(t58Dir, 'tasks.yaml'), [
+    '- name: play-one',
+    '  hosts: db',
+    '- name: play-two',
+    '  hosts: api'
+  ].join('\n'));
+  fs.writeFileSync(path.join(t58Dir, 'list.json'), JSON.stringify([
+    { id: 'alpha', n: 1 },
+    { id: 'beta', n: 2 }
+  ], null, 2));
+  fs.writeFileSync(path.join(t58Dir, 'compact.json'), '{"alpha":1,"beta":{"x":2}}');
+  const t58Java = spawnSync(process.execPath, [targetCli, '--root', t58Dir, '--outline', 'Repo.java'], { encoding: 'utf8', env: tParserEnv });
+  const t58JavaSlice = spawnSync(process.execPath, [targetCli, '--root', t58Dir, '--slice', 'Repo.java', 'buildIndex'], { encoding: 'utf8', env: tParserEnv });
+  const t58Cs = spawnSync(process.execPath, [targetCli, '--root', t58Dir, '--outline', 'UserService.cs'], { encoding: 'utf8', env: tParserEnv });
+  const t58CsSlice = spawnSync(process.execPath, [targetCli, '--root', t58Dir, '--slice', 'UserService.cs', 'FetchAsync'], { encoding: 'utf8', env: tParserEnv });
+  const t58Yaml = spawnSync(process.execPath, [targetCli, '--root', t58Dir, '--outline', 'tasks.yaml'], { encoding: 'utf8', env: tParserEnv });
+  const t58Arr = spawnSync(process.execPath, [targetCli, '--root', t58Dir, '--outline', 'list.json'], { encoding: 'utf8', env: tParserEnv });
+  const t58Compact = spawnSync(process.execPath, [targetCli, '--root', t58Dir, '--outline', 'compact.json'], { encoding: 'utf8', env: tParserEnv });
+  const t58 = t58Java.status === 0 && (t58Java.stdout || '').includes('L2-L4: public Map<String, List<Integer>> buildIndex') &&
+              t58JavaSlice.status === 0 && (t58JavaSlice.stdout || '').includes('return new HashMap<>();') &&
+              t58Cs.status === 0 && (t58Cs.stdout || '').includes('App.Services') && (t58Cs.stdout || '').includes('UserService') && (t58Cs.stdout || '').includes('L6-L9: public async Task<Dictionary<string, List<int>>> FetchAsync') &&
+              t58CsSlice.status === 0 && (t58CsSlice.stdout || '').includes('return null;') &&
+              t58Yaml.status === 0 && (t58Yaml.stdout || '').includes('L1-L2: - name: play-one') && (t58Yaml.stdout || '').includes('L3-L4: - name: play-two') && !(t58Yaml.stdout || '').includes('hosts:') &&
+              t58Arr.status === 0 && (t58Arr.stdout || '').includes('"id": "alpha"') && (t58Arr.stdout || '').includes('"id": "beta"') &&
+              t58Compact.status === 0 && (t58Compact.stdout || '').includes('"alpha"') && (t58Compact.stdout || '').includes('"beta"');
+  if (t58) passed++;
+  console.log(`[Test 58: Java Generics, C# Namespaces, YAML List Items & JSON Array/Compact Outlines] ${t58 ? 'PASS' : 'FAIL'}`);
+
+  // 59. Extended Secret Redaction (Slack, GitHub fine-grained, Stripe, npm, PEM, URL password) & Credential File Refusal
+  const t59Dir = path.join(tmp, 't59-secrets');
+  fs.mkdirSync(t59Dir, { recursive: true });
+  const t59Fakes = [
+    'xox' + 'b-1234567890-FAKEFAKEFAKEFAKE',
+    'github_' + 'pat_11FAKE0000000000000000_abcdefghijklmnopqrstuvwxyz',
+    'sk_' + 'live_FAKEFAKEFAKEFAKEFAKE1234',
+    'npm' + '_FAKEFAKEFAKEFAKEFAKEFAKE1234',
+    'hunter2pass',
+    'MIIFAKEKEYBODY'
+  ];
+  fs.writeFileSync(path.join(t59Dir, 'cfg.js'), [
+    `const a = "${t59Fakes[0]}";`,
+    `const b = "${t59Fakes[1]}";`,
+    `const c = "${t59Fakes[2]}";`,
+    `const d = "${t59Fakes[3]}";`,
+    `const e = "postgres://admin:${t59Fakes[4]}@db.local/app";`,
+    'const f = `-----BEGIN RSA PRIVATE KEY-----',
+    t59Fakes[5],
+    '-----END RSA PRIVATE KEY-----`;',
+    'const keep = "https://example.com/path";'
+  ].join('\n'));
+  fs.writeFileSync(path.join(t59Dir, '.npmrc'), '//registry.npmjs.org/:_authToken=npm_FAKEFAKEFAKEFAKEFAKEFAKE1234\n');
+  const t59Slice = spawnSync('node', [targetCli, '--root', t59Dir, '--slice', 'cfg.js:L1-L9'], { encoding: 'utf8' });
+  const t59Npmrc = spawnSync('node', [targetCli, '--root', t59Dir, '--slice', '.npmrc:L1-L1'], { encoding: 'utf8' });
+  const t59Out = t59Slice.stdout || '';
+  const t59 = t59Slice.status === 0 &&
+              t59Fakes.every(f => !t59Out.includes(f)) &&
+              t59Out.includes('[REDACTED_SECRET]') &&
+              t59Out.includes('postgres://admin:[REDACTED_SECRET]@db.local/app') &&
+              t59Out.includes('https://example.com/path') &&
+              t59Npmrc.status !== 0 && !((t59Npmrc.stdout || '') + (t59Npmrc.stderr || '')).includes('npm_FAKE');
+  if (t59) passed++;
+  console.log(`[Test 59: Extended Secret Redaction & Credential File Refusal] ${t59 ? 'PASS' : 'FAIL'}`);
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true });
 }

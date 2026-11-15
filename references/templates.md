@@ -4,7 +4,7 @@ Keep experimental configs local to the repository unless the user explicitly ask
 
 ## 1. Conditional Ignore Targets (Generated via `--sync-ignores --write`)
 
-Always syncs `.ignore`, and conditionally syncs only tools detected in the host/repo (anti-bloat: never creates unused repo dotfiles, even with `--all-ignores`):
+Always syncs `.ignore`, and conditionally syncs only tools detected in the host/repo (`--all-ignores` also initializes `.contextignore` and `.jcodemunch.jsonc`, while keeping editor dotfiles conditional):
 
 - **`.ignore`** (always synced for `rg` across OpenCode, Codex, Claude Code, Antigravity)
 - **`.contextignore`** (when `Token Optimizer` detected or `--all-ignores`)
@@ -24,7 +24,7 @@ Always syncs `.ignore`, and conditionally syncs only tools detected in the host/
 }
 ```
 
-- **Repo-present tool ignores only** (synced ONLY when the file or tool config dir already exists in the repo): `.cursorignore` / `.cursorindexingignore` (`.cursor/`), `.geminiignore` / `.aiexclude` (`.gemini/`), `.codeiumignore` (`.windsurf/`), `.rooignore` (`.roo/`), `.clineignore` (`.cline/`), `.claudeignore` (`.claude/`), `.aiderignore`, and existing project `opencode.json[c]` (`watcher.ignore`).
+- **Repo-present tool ignores only** (synced ONLY when the file or tool config dir already exists in the repo): `.cursorignore` / `.cursorindexingignore` (`.cursor/`), `.geminiignore` / `.aiexclude` (`.gemini/`), `.codeiumignore` (`.windsurf/`), `.rooignore` (`.roo/`), `.clineignore` (`.cline/`), `.claudeignore` (`.claude/`), and `.aiderignore`. (`opencode.json[c]` stays read-only: use `opencode-ignore` plugin to inherit `.ignore`/`.gitignore`, or configure `watcher.ignore` manually.)
 
 ## 2. Optional OpenCode Config (`opencode.jsonc` or `.opencode/opencode.jsonc`)
 
@@ -33,7 +33,7 @@ OpenCode auto-loads `AGENTS.md` (and skills in `~/.config/opencode/skills/` or `
 ```jsonc
 {
   "$schema": "https://opencode.ai/config.json",
-  // Synced safely by --sync-ignores --write ONLY when opencode.json[c] already exists
+  // Optional: opencode.json[c] stays read-only; prefer "opencode-ignore" plugin over duplicating patterns
   "watcher": {
     "ignore": [
       ".git/",
@@ -44,13 +44,15 @@ OpenCode auto-loads `AGENTS.md` (and skills in `~/.config/opencode/skills/` or `
       "dist/"
     ]
   },
-  // Blocks model reads on secrets; checked by --verify (opencode-guard)
+  // Blocks model reads on secrets (last matching rule wins); checked by --verify (opencode-guard)
   "permission": {
     "read": {
       "*": "allow",
+      "*.env": "deny",
+      "*.env.*": "deny",
       ".env": "deny",
       ".env.*": "deny",
-      "*.env.*": "deny"
+      "*.env.example": "allow"
     }
   },
   // Root key is "mcp" (not "mcpServers")
@@ -70,7 +72,7 @@ OpenCode auto-loads `AGENTS.md` (and skills in `~/.config/opencode/skills/` or `
 }
 ```
 
-> `--sync-ignores --write` never creates `opencode.json[c]` from scratch; when present, it splices `watcher.ignore` while preserving comments and user keys. `--verify` checks `watcher.ignore` parity (or `opencode-ignore` plugin fallback) and emits `PASS`/`WARN opencode-guard` for `.env` read protection.
+> `--sync-ignores --write` never creates or modifies `opencode.json[c]` (advisory only). `--verify` checks `watcher.ignore` parity only if you configured `watcher.ignore` (otherwise recommends `opencode-ignore`) and emits `PASS`/`WARN opencode-guard` for `.env` read protection (last matching rule wins).
 
 ## 3. Optional Claude `TokenEconomizer` Protection (`.tokeneconomizer/repos/<key>/config.json`)
 

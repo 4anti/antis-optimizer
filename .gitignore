@@ -15,9 +15,11 @@ bun.lockb
 *.pfx
 *.crt
 id_rsa*
-*secret*
-*credential*
-*private*
+*secret*.json
+*secret*.y*ml
+*secret*.txt
+*credential*.json
+*private[-_]key*
 
 # Agent host directories & local state (never commit local agent state)
 .claude/
@@ -28,21 +30,17 @@ id_rsa*
 .tokeneconomizer/
 .playwright-mcp/
 .wrangler/
-.jcodemunch.jsonc
-.contextignore
-.ignore
 
 # Local workbenches, benchmarks & scratch directories
 benchmark/
 benchmarks/
-docs/
 scratch/
 tmp/
 temp/
 _archive/
 _work/
 *comparison*.html
-*results*.json
+/*results*.json
 *.original.*
 *.bak
 *.orig
