@@ -16,11 +16,17 @@ Scan bloat, sync ignore rules across every AI tool, and jump straight to the exa
 
 <br/>
 
-**[Interactive Website & Diff Simulator](https://4anti.github.io/antis-optimizer/)** · **[v1.2.0 Release](https://github.com/4anti/antis-optimizer/releases/tag/v1.2.0)** · **[Contributing Guide](./CONTRIBUTING.md)**
+**[Interactive Website & Diff Simulator](https://4anti.github.io/antis-optimizer/)** · **[v1.2.0 Release](https://github.com/4anti/antis-optimizer/releases/tag/v1.2.0)** · **[Changelog](./CHANGELOG.md)** · **[Contributing Guide](./CONTRIBUTING.md)** · **[Security](./SECURITY.md)**
 
 <br/>
 
 <img src="./assets/hero-banner.svg" alt="Obsidian token funnel showing 157.4 MB of junk directories blocked and an exact 37-line slice loaded into context" width="100%" />
+
+</div>
+
+<div align="center">
+
+[Why](#why-use-this) · [Quick start](#-try-it-in-10-seconds) · [How it works](#-how-it-works) · [Languages](#-supported-languages) · [Commands](#-command-cheat-sheet) · [Agent skill](#-install-as-an-ai-agent-skill) · [Safety](#-safety--limits) · [Works with](#-works-standalone-or-with-your-existing-token-plugins)
 
 </div>
 
@@ -39,7 +45,7 @@ When you ask an AI assistant (**OpenCode**, **Claude Code**, **Cursor**, **Codex
 
 ## 🚀 Try It in 10 Seconds
 
-Run an audit on any repo without cloning or installing anything:
+Run a read-only audit on any repo — nothing is written to your project:
 
 ```bash
 npx github:4anti/antis-optimizer --audit
@@ -56,6 +62,37 @@ antis-optimizer --audit
   <img src="./assets/terminal-demo.svg" alt="Animated terminal walkthrough showing --audit, --outline, and --verify" width="100%" />
 </div>
 
+### The 4 commands you will actually use
+
+```bash
+antis-optimizer --audit                      # 1. what is bloating this repo? (read-only)
+antis-optimizer --sync-ignores               # 2. preview ignore changes (add --write to apply)
+antis-optimizer --outline src/app.ts         # 3. list symbols with exact line ranges
+antis-optimizer --slice src/app.ts loadUser  # 4. print just that one function
+```
+
+Real output from this repository:
+
+```text
+$ antis-optimizer --outline scripts/repo-index.cjs redact
+=== OUTLINE scripts/repo-index.cjs (2942L, 139715B, imports=5, filter="redact") ===
+L77-L81: function redactSecrets(text)
+
+$ antis-optimizer --slice scripts/repo-index.cjs isInsideRoot
+landmark: scripts/repo-index.cjs:L101-L104
+function isInsideRoot(root, fullPath) {
+  const rel = path.relative(path.resolve(root), path.resolve(fullPath));
+  return !rel.startsWith('..') && !path.isAbsolute(rel);
+}
+
+$ antis-optimizer --verify
+PASS doc-budgets: 1<=80L | PASS landmarks: verified | PASS nested-git: 1 | PASS ignore-parity: 3(69) | PASS repo-index syntax: ok
+```
+
+A 2,942-line file answered in 5 lines — that is the whole idea.
+
+> Nothing is modified unless you pass `--write`. To undo an ignore sync, delete or `git checkout` the ignore files it touched.
+
 ---
 
 ## 🔄 How It Works
@@ -65,15 +102,32 @@ antis-optimizer --audit
 </div>
 
 1. **Audit your repo (`--audit`):** Counts real source files vs. junk, flags large files (`>= 15 KB`), detects common stacks (`Node`, `Python`, `Rust`, `Go`, `Java Maven/Gradle`, `Swift`, `Ruby`, `PHP`, `Elixir`, `.NET`), and recommends a right-sized setup (for tiny repos, it skips extra docs completely so setup never costs more tokens than it saves).
-2. **Sync ignore rules everywhere (`--sync-ignores --write`):** Always syncs `.ignore`, and conditionally mirrors exclusions into `.contextignore`, `.jcodemunch.jsonc`, and repo-present tool ignore files (`.cursorignore`, `.cursorindexingignore`, `.geminiignore`, `.aiexclude`, `.codeiumignore`, `.rooignore`, `.clineignore`, `.aiderignore`, `.claudeignore`) **only** when that tool or config already exists in your repo (anti-bloat: never creates unwanted dotfiles or modifies `opencode.json[c]`, which stays read-only with an `opencode-ignore` / `watcher.ignore` check). Preserves your `#` comments (grouped in the file header), JSONC `//` comments, and `.gitignore` `!` negations. Guessed backup/large directories are flagged for review rather than auto-ignored.
-3. **Jump straight to exact lines (`--outline`, `--slice`):** Lists functions, classes, headings, keys, blocks, and sections with exact `file:Lstart-Lend` ranges across **TS/JS/JSX/TSX, Python, Rust, Go, C/C++, C#, Java, Kotlin (`.kt`/`.kts`), Swift, PHP, Ruby, Elixir (`.ex`/`.exs`), SQL, Shell/Bash (`.sh`/`.bash`), HTML, Svelte, Vue, Astro, CSS, JSON/JSONC, YAML, TOML, and Markdown**, and slices exact AST/lexer symbol spans or `:Lstart-Lend` line ranges. Uses the TypeScript Compiler when installed, with a fast built-in parser fallback.
+2. **Sync ignore rules everywhere (`--sync-ignores --write`):**
+   - Always syncs `.ignore`.
+   - Mirrors exclusions into `.contextignore`, `.jcodemunch.jsonc`, and repo-present tool ignore files (`.cursorignore`, `.cursorindexingignore`, `.geminiignore`, `.aiexclude`, `.codeiumignore`, `.rooignore`, `.clineignore`, `.aiderignore`, `.claudeignore`) **only** when that tool or config already exists in your repo.
+   - Anti-bloat: never creates unwanted dotfiles or modifies `opencode.json[c]`, which stays read-only with an `opencode-ignore` / `watcher.ignore` check.
+   - Preserves your `#` comments (grouped in the file header), JSONC `//` comments, and `.gitignore` `!` negations.
+   - Guessed backup/large directories are flagged for review rather than auto-ignored.
+3. **Jump straight to exact lines (`--outline`, `--slice`):** Lists functions, classes, headings, keys, blocks, and sections with exact `file:Lstart-Lend` ranges (see [Supported Languages](#-supported-languages)), and slices exact AST/lexer symbol spans or `:Lstart-Lend` line ranges. Uses the TypeScript Compiler when installed, with a fast built-in parser fallback.
 4. **Keep docs fresh automatically (`--sync-landmarks --write`, `--verify`):** Re-anchors shifted line numbers after you edit code and confirms everything passes in a single line (including `0`-doc Tier 0 repos and `AGENTS.override.md`).
+
+---
+
+## 🌐 Supported Languages
+
+| Kind | `--outline` / `--slice` support |
+| :--- | :--- |
+| **Code** | TS / JS / JSX / TSX, Python, Rust, Go, C / C++, C#, Java, Kotlin (`.kt` / `.kts`), Swift, PHP, Ruby, Elixir (`.ex` / `.exs`), SQL, Shell / Bash (`.sh` / `.bash`) |
+| **Markup & components** | HTML, Svelte, Vue, Astro, CSS |
+| **Config & docs** | JSON / JSONC, YAML, TOML, Markdown |
+
+TS/JS use the real TypeScript Compiler AST when `typescript` is installed; everything else (and TS/JS without it) uses the built-in lexer.
 
 ---
 
 ## 📊 Modeled Impact
 
-*Representative scenario comparisons (~4 chars/token) contrasting full-file reads and verbose logs against capped CLI outputs:*
+> **These are modeled estimates, not benchmark measurements.** They compare typical full-file reads and verbose logs against capped CLI output at ~4 chars/token. Your numbers depend on repo size and how your agent reads files — run `--audit` on your own repo for real byte counts.
 
 | Common Task | Without `antis-optimizer` | With `antis-optimizer` | Saved |
 | :--- | :--- | :--- | :---: |
@@ -101,6 +155,28 @@ Every command caps its output below `3,500` characters (and `--handoff` below `2
 | `antis-optimizer --verify [--exec "<cmd>"]` | Verifies doc size caps, line numbers, conditional ignore parity, and OpenCode `.env` read guards in one line |
 | `antis-optimizer --handoff --goal "..."` | Creates a compact `<= 2 KB` JSON checkpoint before context resets |
 | `antis-optimizer --check-update [--critical-only]` | Checks GitHub Releases (read-only; warns on `[CRITICAL]` fixes without modifying files) |
+
+---
+
+## 🔒 Safety & Limits
+
+**Built-in guards**
+
+- **Read-only by default:** files change only with `--write` (ignore/landmark sync) or `--out` (handoff).
+- **Secret redaction on all output:** GitHub, OpenAI/Anthropic-style `sk-`, Google `AIza`, AWS `AKIA`, Slack, Stripe, npm and GitLab tokens, JWTs, PEM private-key blocks, and passwords inside `scheme://user:pass@host` URLs.
+- **Refused files:** `.env*`, `*.pem` / `*.key` / `*.p12` / `*.pfx`, SSH keys, `.npmrc`, `.netrc`, `.pypirc`, `.git-credentials`, and secret/credential data files.
+- **Stays inside `--root`:** paths that escape the repository are refused.
+- **Never runs code from the scanned repo:** `typescript` is loaded only from the tool's own install or the global npm dir, never from the repo being scanned. If you copied the script *into* your own repo and want it to use that repo's `typescript`, set `ANTIS_TRUST_LOCAL_TS=1`. Set `ANTIS_FORCE_LEXER=1` to skip the compiler entirely.
+- **Network:** only `--check-update` goes online, and only to `api.github.com`.
+
+**Known limits**
+
+- The built-in lexer is pattern-based, not a full parser. Unusual formatting, heavy macros, or generated code can produce a wrong or missing span — check the printed `Lstart-Lend` before a large edit.
+- Redaction is pattern-based. It is a safety net, not a guarantee; keep real secrets out of source files.
+- Symbol slices are capped at 120 lines and all output at ~3,500 characters; narrow with a `[filter]` or an explicit `:Lstart-Lend` range.
+- Very large repos are scanned up to a visit/depth cap; `--audit` prints a `partial scan` warning when the cap is hit.
+
+Found a security problem? See **[SECURITY.md](./SECURITY.md)**.
 
 ---
 
@@ -163,7 +239,7 @@ No extra plugins are needed. If you already use other AI workflow or token-savin
 
 Contributions are welcome — especially new language lexers, framework ignore rules, OS/agent fixes, and minimal bug repros.
 
-Setup takes 30 seconds with zero dependencies (`git clone`, then `npm test`). See **[CONTRIBUTING.md](./CONTRIBUTING.md)** for the repo map, guardrails, and PR checklist.
+Setup takes 30 seconds with zero dependencies (`git clone`, then `npm test`). See **[CONTRIBUTING.md](./CONTRIBUTING.md)** for the repo map, guardrails, and PR checklist, and the **[Code of Conduct](./CODE_OF_CONDUCT.md)**. Release history lives in **[CHANGELOG.md](./CHANGELOG.md)**.
 
 ---
 
