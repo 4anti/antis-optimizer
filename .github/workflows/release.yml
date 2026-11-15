@@ -44,7 +44,7 @@ jobs:
       - name: Extract release notes from CHANGELOG.md
         run: |
           VER="${GITHUB_REF_NAME#v}"
-          awk -v v="$VER" '$0 ~ "^## \\[" v "\\]" {f=1; next} /^## \[/ {f=0} f' CHANGELOG.md > notes.md
+          awk -v h="## [$VER]" 'index($0, h) == 1 {f=1; next} index($0, "## [") == 1 {f=0} f' CHANGELOG.md > notes.md
           if [ ! -s notes.md ]; then
             echo "::error::CHANGELOG.md has no section for [$VER]"
             exit 1
