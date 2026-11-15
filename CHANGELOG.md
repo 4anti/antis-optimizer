@@ -5,6 +5,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-11-16
+
 ### Security
 - All repository writes (`--sync-ignores --write`, `--sync-landmarks --write`, `--handoff --out`) now refuse symlinks and paths that resolve outside the repository root. Previously a repository shipping `.ignore` as a symlink could make `--sync-ignores --write` overwrite a file outside the repo.
 
@@ -70,7 +72,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 ### Added
 - Initial release: `--audit`, `--detect`, `--sync-ignores`, `--sync-landmarks`, `--map`, `--slice`, `--outline`, `--handoff`, `--verify`.
 
-[Unreleased]: https://github.com/4anti/antis-optimizer/compare/v1.3.1...HEAD
+[Unreleased]: https://github.com/4anti/antis-optimizer/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/4anti/antis-optimizer/compare/v1.3.1...v1.4.0
 [1.3.1]: https://github.com/4anti/antis-optimizer/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/4anti/antis-optimizer/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/4anti/antis-optimizer/compare/v1.1.0...v1.2.0
