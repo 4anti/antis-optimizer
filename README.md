@@ -45,7 +45,7 @@ Run an audit on any repo without cloning or installing anything:
 npx github:4anti/antis-optimizer --audit
 ```
 
-Or install globally so `antis-optimizer` is always available:
+Or install globally so `antis-optimizer` is always available (npm installs optional `typescript` by default for Compiler AST parsing; pass `--omit=optional` for zero downloads using the built-in lexer):
 
 ```bash
 npm install -g git+https://github.com/4anti/antis-optimizer.git
@@ -65,7 +65,7 @@ antis-optimizer --audit
 </div>
 
 1. **Audit your repo (`--audit`):** Counts real source files vs. junk, flags large files (`>= 15 KB`), and recommends a right-sized setup (for tiny repos, it skips extra docs completely so setup never costs more tokens than it saves).
-2. **Sync ignore rules everywhere (`--sync-ignores --write`):** Mirrors your exclusions across `.ignore`, `.contextignore`, and `.jcodemunch.jsonc` while keeping your own comments untouched.
+2. **Sync ignore rules everywhere (`--sync-ignores --write`):** Mirrors your exclusions across `.ignore`, `.contextignore`, and `.jcodemunch.jsonc` while preserving your `#` comments (grouped in the file header) and JSONC `//` comments. Guessed backup/large directories are flagged for review rather than auto-ignored.
 3. **Jump straight to exact lines (`--outline`, `--slice`):** Lists every function, class, HTML section, CSS block, or JSON section with exact `file:Lstart-Lend` ranges across TS/JS/JSX/TSX, Python, Rust, Go, C/C++, C#, HTML, CSS, and JSON, and slices exact AST/lexer symbol spans or `:Lstart-Lend` line ranges. Uses the TypeScript Compiler when installed, with a fast built-in parser fallback.
 4. **Keep docs fresh automatically (`--sync-landmarks --write`, `--verify`):** Re-anchors shifted line numbers after you edit code and confirms everything passes in a single line (including `0`-doc Tier 0 repos).
 
