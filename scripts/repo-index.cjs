@@ -31,9 +31,15 @@ const SKIP_WALK_DIRS = new Set([
 ]);
 const BACKUP_DIR_RE = /^(?:\.(?:.*backup.*|.*cache.*|.*preview.*)|(?:.*[-_])?(?:backup|backups|archive|archives|snapshots?|decompiled|reverse[-_]?engineer|unwanted)|_archive|_work)$/i;
 const BINARY_EXT_RE = /\.(?:exe|dll|pyd|so|dylib|bin|obj|glb|tsv|pyz|pdf|mp3|mp4|wav|woff2|ttf|webp|png|jpg|jpeg|gif|ico|zip|tar\.gz)$/i;
-const TEXT_TRAP_EXT_RE = /\.(?:js|cjs|mjs|ts|tsx|jsx|json|jsonc|html?|css|md|txt|svg|xml|ya?ml|toml|py|rs|go|c|cpp|h|hpp|cs|lock)$/i;
-const CODE_EXTS = new Set(['.js', '.cjs', '.mjs', '.ts', '.tsx', '.jsx', '.py', '.rs', '.go', '.c', '.cpp', '.cc', '.h', '.hpp', '.cs', '.html', '.htm', '.css']);
-const SLICE_EXTS = /\.(?:json|js|cjs|mjs|ts|tsx|py|rs|go|c|cpp|h|hpp|cs|ya?ml|toml|md|html?|css)$/i;
+const TEXT_TRAP_EXT_RE = /\.(?:js|cjs|mjs|ts|tsx|jsx|json|jsonc|html?|css|md|txt|svg|xml|ya?ml|toml|py|rs|go|c|cpp|cc|h|hpp|cs|svelte|vue|astro|java|kts?|swift|php|rb|exs?|sql|sh|bash|lock)$/i;
+const CODE_EXTS = new Set([
+  '.js', '.cjs', '.mjs', '.ts', '.tsx', '.jsx', '.py', '.rs', '.go',
+  '.c', '.cpp', '.cc', '.h', '.hpp', '.cs', '.html', '.htm', '.css',
+  '.md', '.yml', '.yaml', '.toml', '.json', '.jsonc',
+  '.svelte', '.vue', '.astro',
+  '.java', '.kt', '.kts', '.swift', '.php', '.rb', '.ex', '.exs', '.sql', '.sh', '.bash'
+]);
+const SLICE_EXTS = /\.(?:json|jsonc|js|cjs|mjs|ts|tsx|jsx|py|rs|go|c|cpp|cc|h|hpp|cs|ya?ml|toml|md|html?|css|svelte|vue|astro|java|kts?|swift|php|rb|exs?|sql|sh|bash)$/i;
 const LOCKFILE_RE = /(?:package-lock\.json|yarn\.lock|pnpm-lock\.yaml|Cargo\.lock|poetry\.lock)$/i;
 const SECRET_FILE_RE = /(?:^|\/)(?:\.env(?:\.(?!example$)[^/]+)?|.*\.(?:pem|key|p12|pfx)|id_rsa.*|.*(?:secret|credential|private[-_]?key).*\.(?:json|ya?ml|toml|env|txt))$/i;
 const SECRET_TOKEN_RES = [
@@ -341,6 +347,31 @@ function detectStack(root) {
   }
   if (fs.existsSync(path.join(root, 'Cargo.toml'))) stack.push('rust');
   if (fs.existsSync(path.join(root, 'go.mod'))) stack.push('go');
+
+  const files = new Set();
+  const subdirs = [];
+  try {
+    for (const e of fs.readdirSync(root, { withFileTypes: true })) {
+      if (e.isFile()) files.add(e.name);
+      else if (e.isDirectory() && !e.name.startsWith('.') && !SKIP_WALK_DIRS.has(e.name)) subdirs.push(e.name);
+    }
+  } catch {}
+  for (const d of subdirs) {
+    try {
+      for (const e of fs.readdirSync(path.join(root, d), { withFileTypes: true })) {
+        if (e.isFile()) files.add(e.name);
+      }
+    } catch {}
+  }
+
+  const hasMaven = files.has('pom.xml');
+  const hasGradle = files.has('build.gradle') || files.has('build.gradle.kts');
+  if (hasMaven || hasGradle) stack.push(`java(${hasMaven && hasGradle ? 'maven/gradle' : hasMaven ? 'maven' : 'gradle'})`);
+  if (files.has('Package.swift')) stack.push('swift');
+  if (files.has('Gemfile')) stack.push('ruby');
+  if (files.has('composer.json')) stack.push('php');
+  if (files.has('mix.exs')) stack.push('elixir');
+  if ([...files].some(f => /\.(?:csproj|sln)$/i.test(f))) stack.push('dotnet');
   return stack;
 }
 
@@ -755,6 +786,8 @@ function stripJsStringsAndComments(line, state, ext = '.js') {
   const isJsLike = ext === '.js' || ext === '.cjs' || ext === '.mjs' || ext === '.ts' || ext === '.tsx' || ext === '.jsx';
   const isRust = ext === '.rs';
   const isGo = ext === '.go';
+  const isPhp = ext === '.php';
+  const isTripleStrLang = ext === '.java' || ext === '.kt' || ext === '.kts' || ext === '.swift';
 
   for (let i = 0; i < line.length; i++) {
     const ch = line[i], next = line[i + 1];
@@ -786,6 +819,16 @@ function stripJsStringsAndComments(line, state, ext = '.js') {
       continue;
     }
     if (quote) {
+      if (quote === '"""') {
+        if (ch === '\\') { i++; continue; }
+        if (line.startsWith('"""', i)) {
+          quote = '';
+          i += 2;
+          prevSig = '"';
+          exprOut += '"';
+        }
+        continue;
+      }
       if (ch === '\\' && !(isGo && quote === '`')) {
         if (i + 1 >= line.length) escapedEol = true;
         i++;
@@ -807,6 +850,7 @@ function stripJsStringsAndComments(line, state, ext = '.js') {
       continue;
     }
     if (ch === '/' && next === '/' && ext !== '.css') break; // CSS has no line comments: `url(https://…)`
+    if (isPhp && ch === '#' && next !== '[') break;
     if (ch === '/' && next === '*') { state.inBlockComment = true; i++; continue; }
     if (isJsLike && ch === '/' && canStartRegex(prevSig, exprOut)) {
       inRegex = true;
@@ -820,6 +864,19 @@ function stripJsStringsAndComments(line, state, ext = '.js') {
         i += rm[0].length - 1;
         continue;
       }
+    }
+    if (ext === '.swift' && ch === '#') {
+      const srm = /^(#+)"(?!"")/.exec(line.slice(i));
+      if (srm) {
+        rawHashes = srm[1].length;
+        i += srm[0].length - 1;
+        continue;
+      }
+    }
+    if (isTripleStrLang && line.startsWith('"""', i)) {
+      quote = '"""';
+      i += 2;
+      continue;
     }
     if (ch === '"' || ch === '`') {
       quote = ch;
@@ -856,7 +913,7 @@ function stripJsStringsAndComments(line, state, ext = '.js') {
     if (ch.trim()) prevSig = ch;
   }
   state.rawHashes = rawHashes;
-  state.quote = (quote === '`' || (isRust && quote === '"') || (quote && escapedEol)) ? quote : '';
+  state.quote = (quote === '`' || quote === '"""' || (isRust && quote === '"') || (isPhp && (quote === '"' || quote === "'")) || (quote && escapedEol)) ? quote : '';
   return out;
 }
 
@@ -1200,7 +1257,626 @@ function parseFileOutline(fullPath) {
     }
   }
 
-  if (ext === '.html' || ext === '.htm') {
+  const h = {
+    fmtSpan(s, e) { return `L${s + 1}${e > s ? '-L' + (e + 1) : ''}`; },
+
+    findTagSpanEnd(start, tag, nest) {
+      if (nest) {
+        let depth = 0, end = start;
+        const openRe = new RegExp(`<${tag}\\b`, 'gi');
+        const closeRe = new RegExp(`</${tag}\\s*>`, 'gi');
+        for (let j = start; j < lines.length; j++) {
+          depth += (lines[j].match(openRe) || []).length - (lines[j].match(closeRe) || []).length;
+          end = j;
+          if (depth <= 0) break;
+        }
+        return end;
+      }
+      const closeRe = new RegExp(`</${tag}\\s*>`, 'i');
+      for (let j = start; j < lines.length; j++) {
+        if (j === start && closeRe.test(lines[j].slice(1))) return j;
+        if (j > start && new RegExp(`^\\s*</${tag}\\s*>`, 'i').test(lines[j])) return j;
+      }
+      for (let j = start + 1; j < lines.length; j++) {
+        if (closeRe.test(lines[j])) return j;
+      }
+      return start;
+    },
+
+    advanceYamlBlock(line, blk) {
+      if (blk.active) {
+        if (!line.trim()) return true;
+        const ind = line.match(/^( *)/)[1].length;
+        if (blk.contentIndent < 0) {
+          if (ind <= blk.headerIndent) blk.active = false;
+          else { blk.contentIndent = ind; return true; }
+        } else if (ind < blk.contentIndent) blk.active = false;
+        else return true;
+      }
+      if (/^(?: *-\s+| *[^#\s][^:]*:\s*)[|>](?:[+-]\d*|\d+[+-]?)?\s*(?:#.*)?$/.test(line)) {
+        blk.active = true;
+        blk.headerIndent = line.match(/^( *)/)[1].length;
+        blk.contentIndent = -1;
+      }
+      return false;
+    },
+
+    stripHashTriple(line, st, isToml) {
+      let code = '', structural = '';
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (st.triple) {
+          if ((!isToml || st.triple === '"""') && ch === '\\') { i++; continue; }
+          if (line.startsWith(st.triple, i)) { st.triple = ''; i += 2; }
+          continue;
+        }
+        if (ch === '#') break;
+        if (line.startsWith('"""', i) || line.startsWith("'''", i)) { st.triple = line.slice(i, i + 3); i += 2; continue; }
+        if (ch === '"' || ch === "'") {
+          const q = ch;
+          code += q;
+          i++;
+          while (i < line.length) {
+            const sc = line[i];
+            code += sc;
+            if ((!isToml || q === '"') && sc === '\\' && i + 1 < line.length) { code += line[++i]; i++; continue; }
+            if (sc === q) break;
+            i++;
+          }
+          structural += ' ';
+          continue;
+        }
+        code += ch;
+        structural += ch;
+      }
+      return { code, structural };
+    },
+
+    stripRuby(line, st) {
+      if (st.inDoc) { if (/^=end(?:\s|$)/.test(line)) st.inDoc = false; return ''; }
+      if (/^=begin(?:\s|$)/.test(line)) { st.inDoc = true; return ''; }
+      if (st.heredoc) {
+        if ((st.heredocStrip ? line.trimStart() : line).trimEnd() === st.heredoc) { st.heredoc = ''; st.heredocStrip = false; }
+        return '';
+      }
+      let out = '', q = '', interp = 0;
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i], nx = line[i + 1];
+        if (q) {
+          if (ch === '\\') { i++; continue; }
+          if (q === '"' && ch === '#' && nx === '{') { interp++; i++; out += ' '; continue; }
+          if (ch === q) { q = ''; out += ' '; }
+          continue;
+        }
+        if (interp > 0) {
+          if (ch === '{') interp++;
+          else if (ch === '}') { interp--; q = '"'; }
+          else if (ch === '"' || ch === "'") q = ch;
+          continue;
+        }
+        if (ch === '#') break;
+        if (ch === '<' && nx === '<') {
+          const hm = /^<<([-~]?)(['"]?)([A-Za-z_][A-Za-z0-9_]*)\2/.exec(line.slice(i));
+          if (hm) { st.nextHeredoc = hm[3]; st.nextStrip = Boolean(hm[1]); i += hm[0].length - 1; continue; }
+        }
+        if (ch === '"' || ch === "'" || ch === '`') { q = ch; continue; }
+        out += ch;
+      }
+      if (st.nextHeredoc) { st.heredoc = st.nextHeredoc; st.heredocStrip = st.nextStrip; st.nextHeredoc = ''; }
+      return out;
+    },
+
+    stripSql(line, st) {
+      let out = '';
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i], nx = line[i + 1];
+        if (st.dollarTag) {
+          if (line.startsWith(st.dollarTag, i)) { i += st.dollarTag.length - 1; st.dollarTag = ''; out += ' '; }
+          continue;
+        }
+        if (st.inBlockComment) { if (ch === '*' && nx === '/') { st.inBlockComment = false; i++; } continue; }
+        if (st.quote) {
+          if (ch === '\\' || (ch === "'" && nx === "'")) { i++; continue; }
+          if (ch === st.quote) { st.quote = ''; out += ' '; }
+          continue;
+        }
+        if (ch === '-' && nx === '-') break;
+        if (ch === '/' && nx === '*') { st.inBlockComment = true; i++; continue; }
+        if (ch === "'") { st.quote = "'"; continue; }
+        if (ch === '$') {
+          const dm = /^\$([A-Za-z0-9_]*)\$/.exec(line.slice(i));
+          if (dm) { st.dollarTag = dm[0]; i += dm[0].length - 1; continue; }
+        }
+        out += ch;
+      }
+      return out;
+    },
+
+    stripShell(line, st) {
+      if (st.heredoc) {
+        if ((st.heredocStrip ? line.replace(/^\t+/, '') : line) === st.heredoc) { st.heredoc = ''; st.heredocStrip = false; }
+        return '';
+      }
+      let out = '', q = st.quote || '';
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (q) {
+          if (q === '"' && ch === '\\') { i++; continue; }
+          if (ch === q) q = '';
+          continue;
+        }
+        if (ch === '\\') { i++; continue; }
+        if (ch === '#' && (i === 0 || /\s/.test(line[i - 1]))) break;
+        if (ch === '"' || ch === "'") { q = ch; continue; }
+        if (ch === '<' && line[i + 1] === '<' && line[i + 2] !== '<') {
+          const hm = /^<<(-?)\s*(['"]?)([A-Za-z_][A-Za-z0-9_]*)\2/.exec(line.slice(i));
+          if (hm) { st.nextHeredoc = hm[3]; st.nextStrip = Boolean(hm[1]); i += hm[0].length - 1; continue; }
+        }
+        out += ch;
+      }
+      st.quote = q;
+      if (st.nextHeredoc) { st.heredoc = st.nextHeredoc; st.heredocStrip = st.nextStrip; st.nextHeredoc = ''; }
+      return out;
+    },
+
+    scanBrace(bExt, startIdx, endIdx, labelPrefix) {
+      let braceDepth = 0;
+      const ppStack = [];
+      const lexState = { inBlockComment: false, quote: '', tplStack: [], rawHashes: -1 };
+      const fnOrTypeRe = /^(?:export\s+(?:default\s+)?)?(?:pub(?:\([^)]*\))?\s+)?(?:declare\s+)?(?:(?:async|const|unsafe|static|inline|virtual)\s+)*(?:(?:function|fn|func)\s*\*?\s*(?:\([^)]*\)\s*)?([A-Za-z0-9_$]+)\s*(?:<[^>]*>)?\s*\(|(?:class|interface|enum|type|struct|trait|impl|mod|namespace)\s+(?:<[^>]*>\s*)?([A-Za-z0-9_$]+))/;
+      const topVarFnRe = /^(?:export\s+)?(?:const|let|var)\s+([A-Za-z0-9_$]+)\s*(?::\s*[^=]+)?=\s*(?:async\s*)?(?:<[^>]*>\s*)?(?:\(|[A-Za-z0-9_$]+\s*=>|(?:React\.)?(?:forwardRef|memo)\b)/;
+      const innerArrowRe = /^(?:const|let)\s+([A-Za-z0-9_$]+)\s*=\s*(?:async\s*)?(?:\([^)]*\)|[A-Za-z0-9_$]+)\s*=>/;
+      const methodRe = /^\s{2,8}(?:(?:public|private|protected|static|async|readonly|get|set|pub|virtual|override)\s+)*\*?([A-Za-z0-9_$]+)\s*(?:<[^>]*>)?\s*\([^;]*\{/;
+      const isCFamily = bExt === '.c' || bExt === '.cpp' || bExt === '.cc' || bExt === '.h' || bExt === '.hpp' || bExt === '.cs';
+      const cFnRe = /^(?:(?:static|inline|extern|virtual|explicit|constexpr|const|unsigned|signed|long|short|struct|enum|public|private|protected)\s+)*[A-Za-z_][A-Za-z0-9_:<>*,&]*[\s*&]+([A-Za-z_][A-Za-z0-9_]*)\s*\([^;]*$/;
+      const isJava = bExt === '.java', isKt = bExt === '.kt' || bExt === '.kts', isSwift = bExt === '.swift', isPhp = bExt === '.php';
+      const isJvKtSwPhp = isJava || isKt || isSwift || isPhp;
+      const jvTypeRe = /^(?:(?:public|protected|private|internal|fileprivate|open|abstract|final|sealed|non-sealed|data|inner|static|readonly|indirect|nonisolated|strictfp|expect|actual|inline|value|annotation|fun)\s+)*(?:@?interface|class|enum(?:\s+class)?|struct|protocol|extension|actor|record|trait|object)\s+([A-Za-z_][A-Za-z0-9_$]*)|^(?:(?:public|protected|private|internal)\s+)?(companion\s+object)(?:\s+([A-Za-z_][A-Za-z0-9_$]*))?\s*\{/;
+      const ktFunRe = /^(?:(?:public|private|protected|internal|open|abstract|final|override|suspend|inline|noinline|crossinline|infix|operator|tailrec|external|expect|actual)\s+)*fun\s+(?:<[^>{}()]+>\s+)?(?:[A-Za-z0-9_<>?.,*]+\.)?([A-Za-z_][A-Za-z0-9_]*)\s*\(/;
+      const swFunRe = /^(?:(?:public|private|fileprivate|internal|open|static|class|mutating|nonmutating|override|final|convenience|required|async)\s+)*(?:func\s+(?:<[^>{}()]+>\s*)?([A-Za-z_][A-Za-z0-9_]*)\s*(?:<[^>]*>)?\s*\(|(init[?!]?|deinit)\b)/;
+      const phpFnRe = /^(?:(?:public|protected|private|static|abstract|final)\s+)*function\s+&?\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(/;
+      const jvCtorRe = /^(?:(?:public|protected|private)\s+)+([A-Z][A-Za-z0-9_$]*)\s*\(/;
+      const jvMethodRe = /^(?:(?:public|protected|private|static|final|abstract|synchronized|native|default|strictfp)\s+)*(?:<[^>{};]+>\s+)?(?:[A-Za-z_$][A-Za-z0-9_$.]*(?:<[^>{};]+>)?(?:\[\])*\s+)([A-Za-z_$][A-Za-z0-9_$]*)\s*\((?:[^;=]*$|\s*[^;]*\)\s*(?:throws\s+[A-Za-z0-9_.,\s]+)?\{)/;
+      const skipKw = new Set(['if', 'for', 'while', 'switch', 'catch', 'else', 'with', 'match', 'loop', 'return', 'sizeof', 'typedef', 'using', 'namespace', 'throw', 'new', 'super', 'this', 'try', 'finally', 'do', 'synchronized']);
+      const maxLen = labelPrefix ? 92 : 96;
+
+      for (let i = startIdx; i <= endIdx; i++) {
+        const line = lines[i];
+        const trimmed = (isPhp ? line.replace(/^\s*<\?(?:php)?\s*/i, '') : line).trim();
+        const matchTrim = (isJava || isKt || isSwift) ? trimmed.replace(/^(?:@[A-Za-z_][A-Za-z0-9_.]*(?:\([^)]*\))?\s+)+/, '') : trimmed;
+        const wasInCommentOrString = Boolean(lexState.inBlockComment || lexState.quote || lexState.rawHashes >= 0 || lexState.tplStack.length > 0);
+        if (!wasInCommentOrString && !isPhp && trimmed.startsWith('#')) {
+          if (/^#\s*(?:if|ifdef|ifndef)\b/.test(trimmed)) { ppStack.push(braceDepth); continue; }
+          if (/^#\s*(?:else|elif)\b/.test(trimmed) && ppStack.length) { braceDepth = ppStack[ppStack.length - 1]; continue; }
+          if (/^#\s*endif\b/.test(trimmed) && ppStack.length) { ppStack.pop(); continue; }
+        }
+        const structural = stripJsStringsAndComments(line, lexState, bExt);
+
+        if (isJvKtSwPhp && !wasInCommentOrString && braceDepth === 0) {
+          const pm = matchTrim.match(/^(?:package|namespace)\s+([A-Za-z0-9_.\\]+)\s*;?\s*(\{)?/);
+          if (pm && !pm[2] && !(i + 1 <= endIdx && lines[i + 1].trim().startsWith('{'))) {
+            entries.push({ startLine: i + 1, endLine: i + 1, symbol: pm[1], text: `${h.fmtSpan(i, i)}: ${labelPrefix}${trimmed.slice(0, maxLen)}` });
+            continue;
+          }
+        }
+
+        const fm = !wasInCommentOrString && braceDepth <= 1 ? trimmed.match(fnOrTypeRe) : null;
+        const vm = !wasInCommentOrString && braceDepth === 0 ? trimmed.match(topVarFnRe) : null;
+        const im = !wasInCommentOrString && braceDepth === 1 ? trimmed.match(innerArrowRe) : null;
+        const mm = !wasInCommentOrString && braceDepth === 1 ? line.match(methodRe) : null;
+        const cm = isCFamily && !wasInCommentOrString && braceDepth <= 1 && !fm && !mm ? trimmed.match(cFnRe) : null;
+        const jtm = isJvKtSwPhp && !wasInCommentOrString && braceDepth <= 2 && !fm ? matchTrim.match(jvTypeRe) : null;
+        const jfm = !wasInCommentOrString && braceDepth <= 2 && !fm && !jtm
+          ? (isKt ? matchTrim.match(ktFunRe) : isSwift ? matchTrim.match(swFunRe) : isPhp ? matchTrim.match(phpFnRe) : null)
+          : null;
+        const jmm = isJava && !wasInCommentOrString && braceDepth === 1 && !fm && !jtm && !/^[^(=]*=/.test(matchTrim)
+          ? (matchTrim.match(jvCtorRe) || matchTrim.match(jvMethodRe))
+          : null;
+
+        if (fm || vm || im || (mm && !skipKw.has(mm[1])) || (cm && !skipKw.has(cm[1])) || jtm || (jfm && !skipKw.has(jfm[1] || jfm[2])) || (jmm && !skipKw.has(jmm[1]))) {
+          const sym = fm ? (fm[1] || fm[2]) : vm ? vm[1] : im ? im[1] : mm ? mm[1] : cm ? cm[1]
+            : jtm ? (jtm[1] || jtm[3] || 'companion') : jfm ? (jfm[1] || jfm[2]) : jmm[1];
+          const isWrapperCall = Boolean(vm && /\b(?:forwardRef|memo)\b/.test(trimmed));
+          const isIdentArrow = Boolean((vm || im) && /=\s*(?:async\s*)?[A-Za-z0-9_$]+\s*=>/.test(trimmed));
+
+          if (vm && !isWrapperCall && !isIdentArrow) {
+            let pDepth = 0, bDepth = 0, sawOpen = false, sawClose = false, isArrow = false, hitSemi = false;
+            const lookLex = cloneLexState(lexState);
+            for (let k = i; k <= Math.min(endIdx, i + 16); k++) {
+              const st = k === i ? structural : stripJsStringsAndComments(lines[k], lookLex, bExt);
+              const startCi = k === i ? Math.max(0, st.indexOf('=')) : 0;
+              for (let ci = startCi; ci < st.length; ci++) {
+                const ch = st[ci], nx = st[ci + 1];
+                if (ch === '(') { pDepth++; sawOpen = true; }
+                else if (ch === ')' && pDepth > 0) {
+                  pDepth--;
+                  if (pDepth === 0 && sawOpen) sawClose = true;
+                } else if (sawClose && pDepth === 0) {
+                  if (ch === '{') bDepth++;
+                  else if (ch === '}' && bDepth > 0) bDepth--;
+                  else if (bDepth === 0 && ch === '=' && nx === '>') { isArrow = true; break; }
+                  else if (bDepth === 0 && ch === ';') { hitSemi = true; break; }
+                }
+              }
+              if (isArrow || hitSemi) break;
+            }
+            if (!isArrow) {
+              for (const ch of structural) {
+                if (ch === '{') braceDepth++;
+                else if (ch === '}' && braceDepth > 0) braceDepth--;
+              }
+              continue;
+            }
+          }
+
+          const isArrowDecl = Boolean((vm || im) && !isWrapperCall);
+          const isFnDecl = Boolean(fm?.[1] || mm || cm || jfm?.[1] || jmm);
+          const isKtBodylessType = Boolean(isKt && jtm && trimmed.includes('('));
+          let d = 0, p = 0, started = false, sawOpenP = false, paramsClosed = !(isFnDecl || isKtBodylessType), sawArrow = !isArrowDecl, end = i;
+          const spanPpStack = [];
+          const spanLex = cloneLexState(lexState);
+          for (let j = i; j <= endIdx; j++) {
+            const jt = lines[j].trim();
+            const spanInStr = Boolean(spanLex.inBlockComment || spanLex.quote || spanLex.rawHashes >= 0 || spanLex.tplStack.length > 0);
+            if (j > i && !spanInStr && !isPhp && jt.startsWith('#')) {
+              if (/^#\s*(?:if|ifdef|ifndef)\b/.test(jt)) { spanPpStack.push({ d, p, started, paramsClosed }); continue; }
+              if (/^#\s*(?:else|elif)\b/.test(jt) && spanPpStack.length) {
+                const top = spanPpStack[spanPpStack.length - 1];
+                d = top.d; p = top.p; started = top.started; paramsClosed = top.paramsClosed;
+                continue;
+              }
+              if (/^#\s*endif\b/.test(jt) && spanPpStack.length) { spanPpStack.pop(); continue; }
+            }
+            const stLine = j === i ? structural : stripJsStringsAndComments(lines[j], spanLex, bExt);
+            const startCi = (j === i && isArrowDecl) ? Math.max(0, stLine.indexOf('=') + 1) : 0;
+            for (let ci = startCi; ci < stLine.length; ci++) {
+              const ch = stLine[ci], nx = stLine[ci + 1];
+              if (!started) {
+                if (isArrowDecl && !sawArrow) {
+                  if (ch === '(') { p++; sawOpenP = true; }
+                  else if (ch === ')' && p > 0) p--;
+                  else if (p === 0 && ch === '=' && nx === '>') { sawArrow = true; ci++; }
+                  continue;
+                }
+                if ((isFnDecl || isKtBodylessType) && !paramsClosed) {
+                  if (ch === '(') { p++; sawOpenP = true; }
+                  else if (ch === ')' && p > 0) {
+                    p--;
+                    if (p === 0 && sawOpenP) paramsClosed = true;
+                  }
+                  continue;
+                }
+              }
+              if (ch === '(') p++;
+              else if (ch === ')' && p > 0) p--;
+              else if (ch === '{') { d++; started = true; }
+              else if (ch === '}') d--;
+            }
+            end = j;
+            if (started && d <= 0 && !(isFnDecl && j + 1 <= endIdx && lines[j + 1].trim().startsWith('{'))) break;
+            if (!started && paramsClosed && sawArrow && p === 0 && (stLine.trimEnd().endsWith(';') || (j === i && (vm || im) && !stLine.includes('{')))) break;
+            if (!started && paramsClosed && p === 0 && (isKt || isSwift)) {
+              const stTrim = stLine.trimEnd();
+              const nextTrim = j + 1 <= endIdx ? lines[j + 1].trim() : '';
+              if (!/(?:=|->|:|\bthrows|\bwhere)$/.test(stTrim) && !/^(?:\{|->|:|\bwhere\b)/.test(nextTrim)) break;
+            }
+            if (!started && j - i >= 18) break;
+          }
+          let sig = trimmed.split(/\s*\{\s*/)[0].replace(/(=>\s*).+$/, '$1...');
+          if ((sig.endsWith('(') || (trimmed.includes('(') && trimmed.endsWith('{'))) && !trimmed.includes(')') && i + 1 <= endIdx) {
+            sig = trimmed + ' ' + lines[i + 1].trim().replace(/,\s*$/, '') + '...)';
+          }
+          entries.push({ startLine: i + 1, endLine: end + 1, symbol: sym, text: `${h.fmtSpan(i, end)}: ${labelPrefix}${sig.slice(0, maxLen)}` });
+        }
+        for (const ch of structural) {
+          if (ch === '{') braceDepth++;
+          else if (ch === '}' && braceDepth > 0) braceDepth--;
+        }
+      }
+    }
+  };
+
+  if (ext === '.md') {
+    let startIdx = 0;
+    if (lines.length && lines[0].trim() === '---') {
+      let hasYamlKey = false, hasHeading = false;
+      for (let k = 1; k < Math.min(lines.length, 80); k++) {
+        const kt = lines[k].trim();
+        if (kt === '---' || kt === '...') { if (hasYamlKey && !hasHeading) startIdx = k + 1; break; }
+        if (/^#{2,4}\s/.test(kt)) { hasHeading = true; break; }
+        if (/^[A-Za-z0-9_.-]+\s*:/.test(kt)) hasYamlKey = true;
+      }
+    }
+    let fence = null;
+    const headings = [];
+    for (let i = startIdx; i < lines.length; i++) {
+      const line = lines[i];
+      if (fence) {
+        const cm = line.match(/^ {0,3}(`{3,}|~{3,})\s*$/);
+        if (cm && cm[1][0] === fence.ch && cm[1].length >= fence.len) fence = null;
+        continue;
+      }
+      const fm = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
+      if (fm && !(fm[1][0] === '`' && fm[2].includes('`'))) { fence = { ch: fm[1][0], len: fm[1].length }; continue; }
+      const hm = line.match(/^ {0,3}(#{1,4})[ \t]+(.+?)(?:[ \t]+#+)?[ \t]*$/);
+      if (hm) headings.push({ idx: i, level: hm[1].length, title: hm[2].trim() });
+    }
+    for (let k = 0; k < headings.length; k++) {
+      const hd = headings[k];
+      let nextIdx = lines.length;
+      for (let m = k + 1; m < headings.length; m++) {
+        if (headings[m].level <= hd.level) { nextIdx = headings[m].idx; break; }
+      }
+      let end = nextIdx - 1;
+      while (end > hd.idx && !lines[end].trim()) end--;
+      const label = `${'#'.repeat(hd.level)} ${hd.title}`;
+      entries.push({ startLine: hd.idx + 1, endLine: end + 1, symbol: hd.title, text: `${h.fmtSpan(hd.idx, end)}: [sec] ${label.slice(0, 90)}` });
+    }
+  } else if (ext === '.yml' || ext === '.yaml') {
+    const indentStack = [];
+    const blk = { active: false, headerIndent: 0, contentIndent: -1 };
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (h.advanceYamlBlock(line, blk)) continue;
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#') || trimmed === '---' || trimmed === '...' || trimmed.startsWith('-')) continue;
+      const km = line.match(/^( *)([A-Za-z0-9_.-]+|"[^"\r\n]+"|'[^'\r\n]+')\s*:(?:\s|$|#)/);
+      if (!km) continue;
+      const indent = km[1].length;
+      const rawKey = km[2];
+      const sym = (rawKey[0] === '"' || rawKey[0] === "'") ? rawKey.slice(1, -1) : rawKey;
+      while (indentStack.length && indent <= indentStack[indentStack.length - 1]) indentStack.pop();
+      indentStack.push(indent);
+      if (indentStack.length > 2 || indent > 4) continue;
+      let end = i;
+      const spanBlk = { ...blk };
+      for (let j = i + 1; j < lines.length; j++) {
+        if (h.advanceYamlBlock(lines[j], spanBlk)) { if (lines[j].trim()) end = j; continue; }
+        const jt = lines[j].trim();
+        if (!jt || jt.startsWith('#')) continue;
+        if (jt === '---' || jt === '...') break;
+        const jInd = lines[j].match(/^( *)/)[1].length;
+        if (jInd < indent || (jInd === indent && !jt.startsWith('-'))) break;
+        end = j;
+      }
+      entries.push({ startLine: i + 1, endLine: end + 1, symbol: sym, text: `${h.fmtSpan(i, end)}: ${km[1]}${trimmed.slice(0, 92)}` });
+    }
+  } else if (ext === '.toml') {
+    const st = { triple: '' };
+    let bracketDepth = 0, inTable = false;
+    const sections = [];
+    for (let i = 0; i < lines.length; i++) {
+      const wasInTriple = Boolean(st.triple);
+      const { code, structural } = h.stripHashTriple(lines[i], st, true);
+      if (!wasInTriple && bracketDepth === 0) {
+        const ct = code.trim();
+        const tm = ct.match(/^\[\[\s*(.+?)\s*\]\]$/) || ct.match(/^\[\s*(.+?)\s*\]$/);
+        if (tm) {
+          inTable = true;
+          sections.push({ idx: i, sym: tm[1].replace(/["']/g, '').trim(), text: ct });
+        } else if (!inTable && ct) {
+          const km = ct.match(/^([A-Za-z0-9_-]+|"[^"\r\n]+"|'[^'\r\n]+')\s*=/);
+          if (km) {
+            const sym = km[1].replace(/^["']|["']$/g, '');
+            let sd = bracketDepth;
+            for (const ch of structural) { if (ch === '[' || ch === '{') sd++; else if ((ch === ']' || ch === '}') && sd > 0) sd--; }
+            let end = i;
+            const spanSt = { triple: st.triple };
+            for (let j = i + 1; (sd > 0 || spanSt.triple) && j < lines.length; j++) {
+              const nxt = h.stripHashTriple(lines[j], spanSt, true);
+              for (const ch of nxt.structural) { if (ch === '[' || ch === '{') sd++; else if ((ch === ']' || ch === '}') && sd > 0) sd--; }
+              end = j;
+            }
+            entries.push({ startLine: i + 1, endLine: end + 1, symbol: sym, text: `${h.fmtSpan(i, end)}: ${ct.slice(0, 96)}` });
+          }
+        }
+      }
+      for (const ch of structural) {
+        if (ch === '[' || ch === '{') bracketDepth++;
+        else if ((ch === ']' || ch === '}') && bracketDepth > 0) bracketDepth--;
+      }
+    }
+    for (let k = 0; k < sections.length; k++) {
+      const sec = sections[k];
+      let end = (k + 1 < sections.length ? sections[k + 1].idx : lines.length) - 1;
+      while (end > sec.idx && !lines[end].trim()) end--;
+      entries.push({ startLine: sec.idx + 1, endLine: end + 1, symbol: sec.sym, text: `${h.fmtSpan(sec.idx, end)}: ${sec.text.slice(0, 96)}` });
+    }
+  } else if (ext === '.json' || ext === '.jsonc') {
+    let depth = 0;
+    const lexState = { inBlockComment: false, quote: '', tplStack: [], rawHashes: -1 };
+    for (let i = 0; i < lines.length; i++) {
+      const wasInStr = Boolean(lexState.inBlockComment || lexState.quote);
+      const structural = stripJsStringsAndComments(lines[i], lexState, '.json');
+      const trimmed = lines[i].trim();
+      if (!wasInStr && (depth === 1 || (i === 0 && depth === 0 && trimmed.startsWith('{')))) {
+        const km = trimmed.match(/^(?:\{\s*)?"((?:[^"\\]|\\.)+)"\s*:/);
+        if (km && !(lines.length === 1 && lines[0].length > 300)) {
+          const sym = km[1];
+          const colonIdx = structural.indexOf(':');
+          let bDepth = 0, started = false, end = i;
+          const spanLex = cloneLexState(lexState);
+          const firstTail = colonIdx >= 0 ? structural.slice(colonIdx + 1) : '';
+          for (const ch of firstTail) {
+            if (ch === '{' || ch === '[') { bDepth++; started = true; }
+            else if (ch === '}' || ch === ']') bDepth--;
+          }
+          if ((started && bDepth > 0) || (!started && !firstTail.trim() && i + 1 < lines.length && /^[{[]/.test(lines[i + 1].trim()))) {
+            for (let j = i + 1; j < lines.length; j++) {
+              const st = stripJsStringsAndComments(lines[j], spanLex, '.json');
+              for (const ch of st) {
+                if (ch === '{' || ch === '[') { bDepth++; started = true; }
+                else if (ch === '}' || ch === ']') bDepth--;
+              }
+              end = j;
+              if (started && bDepth <= 0) break;
+            }
+          }
+          entries.push({ startLine: i + 1, endLine: end + 1, symbol: sym, text: `${h.fmtSpan(i, end)}: ${trimmed.slice(0, 92)}` });
+        }
+      }
+      for (const ch of structural) {
+        if (ch === '{' || ch === '[') depth++;
+        else if ((ch === '}' || ch === ']') && depth > 0) depth--;
+      }
+    }
+  } else if (ext === '.svelte' || ext === '.vue' || ext === '.astro') {
+    let startIdx = 0;
+    if (ext === '.astro' && lines.length && lines[0].trim() === '---') {
+      const fmEnd = lines.findIndex((l, idx) => idx > 0 && l.trim() === '---');
+      if (fmEnd > 0) {
+        entries.push({ startLine: 1, endLine: fmEnd + 1, symbol: 'frontmatter', text: `${h.fmtSpan(0, fmEnd)}: --- (frontmatter)` });
+        h.scanBrace('.ts', 1, fmEnd - 1, '[ts] ');
+        startIdx = fmEnd + 1;
+      }
+    }
+    for (let i = startIdx; i < lines.length; i++) {
+      const t = lines[i].trim();
+      const commentMatch = t.match(/^<!--\s*([A-Za-z0-9_-]+)\s*-->/);
+      if (commentMatch) {
+        entries.push({ startLine: i + 1, endLine: i + 1, symbol: `<!-- ${commentMatch[1]} -->`, text: `L${i + 1}: ${t.slice(0, 96)}` });
+        continue;
+      }
+      const blkMatch = t.match(/^<(script|style|template)\b([^>]*)>/i);
+      if (blkMatch && !/\/>\s*$/.test(t)) {
+        const tag = blkMatch[1].toLowerCase();
+        const end = h.findTagSpanEnd(i, tag, tag === 'template');
+        entries.push({ startLine: i + 1, endLine: end + 1, symbol: tag, text: `${h.fmtSpan(i, end)}: ${t.slice(0, 92)}` });
+        if (tag === 'script') {
+          if (end > i + 1) h.scanBrace('.ts', i + 1, end - 1, '[js] ');
+          i = end;
+        } else if (tag === 'style') {
+          i = end;
+        }
+        continue;
+      }
+      const tagMatch = t.match(/^<(section|main|nav|header|aside|footer)\b([^>]*)>/i);
+      if (tagMatch) {
+        const tag = tagMatch[1].toLowerCase();
+        const attrs = tagMatch[2] || '';
+        const idM = attrs.match(/\bid=["']([^"']+)["']/i);
+        const clsM = attrs.match(/\bclass=["']([^"']+)["']/i);
+        const sym = idM ? `#${idM[1]}` : (clsM ? `.${clsM[1].split(/\s+/)[0]}` : tag);
+        const end = h.findTagSpanEnd(i, tag, true);
+        entries.push({ startLine: i + 1, endLine: end + 1, symbol: sym, text: `${h.fmtSpan(i, end)}: ${t.slice(0, 96)}` });
+      }
+    }
+  } else if (ext === '.rb') {
+    const st = { inDoc: false, heredoc: '', heredocStrip: false, nextHeredoc: '', nextStrip: false };
+    const declRe = /^(\s*)(?:(?:private|protected|public|module_function)\s+)?(class|module|def)\s+(<<\s*self|(?:self\.)?[A-Za-z_][A-Za-z0-9_:]*[?!=]?)/;
+    for (let i = 0; i < lines.length; i++) {
+      const wasBlocked = st.inDoc || Boolean(st.heredoc);
+      const code = h.stripRuby(lines[i], st);
+      if (wasBlocked || !code.trim()) continue;
+      const m = lines[i].match(declRe);
+      if (!m) continue;
+      const sym = m[3].replace(/^<<\s*/, '<<');
+      let end = i;
+      const isEndless = m[2] === 'def' && /^(?:\s*(?:private|protected|public|module_function)\s+)?def\s+[^()\n]*(?:\([^)]*\))?\s*=\s*(?!=)/.test(code);
+      if (!isEndless) {
+        let depth = 0;
+        const spanSt = { ...st };
+        for (let j = i; j < lines.length; j++) {
+          const sc = j === i ? code : h.stripRuby(lines[j], spanSt);
+          if (sc.trim()) {
+            const mods = (sc.match(/(?:^|[=;])\s*(?:if|unless|while|until)\b/g) || []).length;
+            const blk = (sc.match(/(?<![.:@])\b(?:class|module|def|case|begin|for)\b(?!:)/g) || []).length;
+            const doBlk = !/^\s*(?:for|while|until)\b/.test(sc) ? (sc.match(/(?<![.:@])\bdo\b(?:\s*\|[^|]*\|)?\s*(?:$|[;#])/g) || []).length : 0;
+            const ends = (sc.match(/(?<![.:@])\bend\b(?!:)/g) || []).length;
+            depth += mods + blk + doBlk - ends;
+          }
+          end = j;
+          if (depth <= 0) break;
+        }
+      }
+      entries.push({ startLine: i + 1, endLine: end + 1, symbol: sym, text: `${h.fmtSpan(i, end)}: ${m[1]}${lines[i].trim().slice(0, 92)}` });
+    }
+  } else if (ext === '.ex' || ext === '.exs') {
+    const st = { triple: '' };
+    const declRe = /^(\s*)(defmodule|defp?|defmacrop?)\s+([A-Za-z0-9_.?!]+)/;
+    for (let i = 0; i < lines.length; i++) {
+      const wasInTriple = Boolean(st.triple);
+      const { code } = h.stripHashTriple(lines[i], st, false);
+      if (wasInTriple) continue;
+      const m = lines[i].match(declRe);
+      if (!m) continue;
+      let depth = 0, started = false, end = i;
+      const spanSt = { triple: st.triple };
+      for (let j = i; j < lines.length; j++) {
+        const sc = j === i ? code : h.stripHashTriple(lines[j], spanSt, false).code;
+        const dos = (sc.match(/(?<![:.@])\bdo\b(?!:)/g) || []).length;
+        const fns = (sc.match(/(?<![:.@])\bfn\b(?!:)/g) || []).length;
+        const ends = (sc.match(/(?<![:.@])\bend\b(?!:)/g) || []).length;
+        if (dos > 0 || fns > 0) started = true;
+        depth += dos + fns - ends;
+        end = j;
+        if (started && depth <= 0) break;
+        if (!started && /,\s*do:/.test(sc)) break;
+      }
+      entries.push({ startLine: i + 1, endLine: end + 1, symbol: m[3], text: `${h.fmtSpan(i, end)}: ${m[1]}${lines[i].trim().slice(0, 92)}` });
+    }
+  } else if (ext === '.sql') {
+    const st = { inBlockComment: false, quote: '', dollarTag: '' };
+    const createRe = /^\s*CREATE\s+(?:OR\s+REPLACE\s+)?(?:TEMP(?:ORARY)?\s+|UNIQUE\s+|MATERIALIZED\s+)?(TABLE|VIEW|FUNCTION|PROCEDURE|INDEX|TRIGGER|TYPE)\s+(?:IF\s+NOT\s+EXISTS\s+)?([A-Za-z0-9_."`[\]]+)/i;
+    for (let i = 0; i < lines.length; i++) {
+      const wasBlocked = Boolean(st.inBlockComment || st.quote || st.dollarTag);
+      const code = h.stripSql(lines[i], st);
+      if (wasBlocked || !/^\s*CREATE\b/i.test(code)) continue;
+      const m = code.match(createRe);
+      if (!m) continue;
+      const sym = m[2].replace(/["`[\]]/g, '');
+      let pDepth = 0, bDepth = 0, end = i, done = false;
+      const spanSt = { ...st };
+      for (let j = i; j < lines.length; j++) {
+        const sc = j === i ? code : h.stripSql(lines[j], spanSt);
+        if (j > i && /^\s*GO\s*$/i.test(sc)) { end = j; break; }
+        const tokens = sc.match(/\b(?:BEGIN|CASE|END)\b|[();]/gi) || [];
+        for (const tok of tokens) {
+          const up = tok.toUpperCase();
+          if (tok === '(') pDepth++;
+          else if (tok === ')' && pDepth > 0) pDepth--;
+          else if (up === 'BEGIN' || up === 'CASE') bDepth++;
+          else if (up === 'END' && bDepth > 0) bDepth--;
+          else if (tok === ';' && !spanSt.dollarTag && !spanSt.quote && !spanSt.inBlockComment && pDepth === 0 && bDepth === 0) { done = true; break; }
+        }
+        end = j;
+        if (done) break;
+      }
+      entries.push({ startLine: i + 1, endLine: end + 1, symbol: sym, text: `${h.fmtSpan(i, end)}: ${lines[i].trim().slice(0, 96)}` });
+    }
+  } else if (ext === '.sh' || ext === '.bash') {
+    const st = { quote: '', heredoc: '', heredocStrip: false, nextHeredoc: '', nextStrip: false };
+    const fnRe = /^(\s*)(?:function\s+([A-Za-z_][A-Za-z0-9_:-]*)(?:\s*\(\s*\))?|([A-Za-z_][A-Za-z0-9_:-]*)\s*\(\s*\))\s*(?:\{|$)/;
+    let braceDepth = 0;
+    for (let i = 0; i < lines.length; i++) {
+      const wasBlocked = Boolean(st.quote || st.heredoc);
+      const code = h.stripShell(lines[i], st);
+      if (!wasBlocked && braceDepth === 0) {
+        const m = code.match(fnRe);
+        if (m) {
+          const sym = m[2] || m[3];
+          let d = 0, started = false, end = i;
+          const spanSt = { ...st };
+          for (let j = i; j < lines.length; j++) {
+            const sc = j === i ? code : h.stripShell(lines[j], spanSt);
+            for (const ch of sc) {
+              if (ch === '{') { d++; started = true; }
+              else if (ch === '}') d--;
+            }
+            end = j;
+            if (started && d <= 0) break;
+            if (!started && j > i + 1) break;
+          }
+          const sig = lines[i].trim().split(/\s*\{\s*/)[0];
+          entries.push({ startLine: i + 1, endLine: end + 1, symbol: sym, text: `${h.fmtSpan(i, end)}: ${sig.slice(0, 96)}` });
+        }
+      }
+      for (const ch of code) {
+        if (ch === '{') braceDepth++;
+        else if (ch === '}' && braceDepth > 0) braceDepth--;
+      }
+    }
+  } else if (ext === '.html' || ext === '.htm') {
     for (let i = 0; i < lines.length; i++) {
       const t = lines[i].trim();
       const commentMatch = t.match(/^<!--\s*([A-Za-z0-9_-]+)\s*-->/);
@@ -1227,12 +1903,7 @@ function parseFileOutline(fullPath) {
           if (!started && j === i && !stLine.includes('{')) break;
         }
         const sig = t.split(/\s*\{\s*/)[0].replace(/(=>\s*).+$/, '$1...');
-        entries.push({
-          startLine: i + 1,
-          endLine: end + 1,
-          symbol: sym,
-          text: `L${i + 1}${end > i ? '-L' + (end + 1) : ''}: [js] ${sig.slice(0, 92)}`
-        });
+        entries.push({ startLine: i + 1, endLine: end + 1, symbol: sym, text: `${h.fmtSpan(i, end)}: [js] ${sig.slice(0, 92)}` });
       } else {
         const tagMatch = t.match(/^<(section|main|nav|header|aside|footer)\b([^>]*)>/i);
         if (tagMatch) {
@@ -1241,22 +1912,8 @@ function parseFileOutline(fullPath) {
           const idM = attrs.match(/\bid=["']([^"']+)["']/i);
           const clsM = attrs.match(/\bclass=["']([^"']+)["']/i);
           const sym = idM ? `#${idM[1]}` : (clsM ? `.${clsM[1].split(/\s+/)[0]}` : tag);
-          let depth = 0, end = i;
-          const openRe = new RegExp(`<${tag}\\b`, 'gi');
-          const closeRe = new RegExp(`</${tag}\\s*>`, 'gi');
-          for (let j = i; j < lines.length; j++) {
-            const opens = (lines[j].match(openRe) || []).length;
-            const closes = (lines[j].match(closeRe) || []).length;
-            depth += opens - closes;
-            end = j;
-            if (depth <= 0) break;
-          }
-          entries.push({
-            startLine: i + 1,
-            endLine: end + 1,
-            symbol: sym,
-            text: `L${i + 1}${end > i ? '-L' + (end + 1) : ''}: ${t.slice(0, 96)}`
-          });
+          const end = h.findTagSpanEnd(i, tag, true);
+          entries.push({ startLine: i + 1, endLine: end + 1, symbol: sym, text: `${h.fmtSpan(i, end)}: ${t.slice(0, 96)}` });
         }
       }
     }
@@ -1281,12 +1938,7 @@ function parseFileOutline(fullPath) {
           if (started && d <= 0) break;
         }
         const symMatch = t.match(/^(@keyframes\s+[A-Za-z0-9_-]+|@[A-Za-z-]+|:root)/);
-        entries.push({
-          startLine: i + 1,
-          endLine: end + 1,
-          symbol: symMatch ? symMatch[1] : t.slice(0, 32),
-          text: `L${i + 1}${end > i ? '-L' + (end + 1) : ''}: ${t.slice(0, 96)}`
-        });
+        entries.push({ startLine: i + 1, endLine: end + 1, symbol: symMatch ? symMatch[1] : t.slice(0, 32), text: `${h.fmtSpan(i, end)}: ${t.slice(0, 96)}` });
       }
       for (const ch of structural) {
         if (ch === '{') braceDepth++;
@@ -1325,139 +1977,10 @@ function parseFileOutline(fullPath) {
         if (lt || wasInTriple || inTriple) end = j;
       }
       const sig = lines[i].trim().replace(/\(self,\s*/, '(').replace(/\(self\)/, '()');
-      entries.push({
-        startLine: start + 1,
-        endLine: end + 1,
-        symbol: sym,
-        text: `L${start + 1}-L${end + 1}: ${m[1]}${sig.slice(0, 92)}`
-      });
+      entries.push({ startLine: start + 1, endLine: end + 1, symbol: sym, text: `L${start + 1}-L${end + 1}: ${m[1]}${sig.slice(0, 92)}` });
     }
   } else {
-    let braceDepth = 0;
-    const ppStack = [];
-    const lexState = { inBlockComment: false, quote: '', tplStack: [], rawHashes: -1 };
-    const fnOrTypeRe = /^(?:export\s+(?:default\s+)?)?(?:pub(?:\([^)]*\))?\s+)?(?:declare\s+)?(?:(?:async|const|unsafe|static|inline|virtual)\s+)*(?:(?:function|fn|func)\s*\*?\s*(?:\([^)]*\)\s*)?([A-Za-z0-9_$]+)\s*(?:<[^>]*>)?\s*\(|(?:class|interface|enum|type|struct|trait|impl|mod|namespace)\s+(?:<[^>]*>\s*)?([A-Za-z0-9_$]+))/;
-    const topVarFnRe = /^(?:export\s+)?(?:const|let|var)\s+([A-Za-z0-9_$]+)\s*(?::\s*[^=]+)?=\s*(?:async\s*)?(?:<[^>]*>\s*)?(?:\(|[A-Za-z0-9_$]+\s*=>|(?:React\.)?(?:forwardRef|memo)\b)/;
-    const innerArrowRe = /^(?:const|let)\s+([A-Za-z0-9_$]+)\s*=\s*(?:async\s*)?(?:\([^)]*\)|[A-Za-z0-9_$]+)\s*=>/;
-    const methodRe = /^\s{2,8}(?:(?:public|private|protected|static|async|readonly|get|set|pub|virtual|override)\s+)*\*?([A-Za-z0-9_$]+)\s*(?:<[^>]*>)?\s*\([^;]*\{/;
-    const isCFamily = ext === '.c' || ext === '.cpp' || ext === '.cc' || ext === '.h' || ext === '.hpp' || ext === '.cs';
-    const cFnRe = /^(?:(?:static|inline|extern|virtual|explicit|constexpr|const|unsigned|signed|long|short|struct|enum|public|private|protected)\s+)*[A-Za-z_][A-Za-z0-9_:<>*,&]*[\s*&]+([A-Za-z_][A-Za-z0-9_]*)\s*\([^;]*$/;
-    const skipKw = new Set(['if', 'for', 'while', 'switch', 'catch', 'else', 'with', 'match', 'loop', 'return', 'sizeof', 'typedef', 'using', 'namespace']);
-
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i], trimmed = line.trim();
-      const wasInCommentOrString = Boolean(lexState.inBlockComment || lexState.quote || lexState.rawHashes >= 0 || lexState.tplStack.length > 0);
-      if (!wasInCommentOrString && trimmed.startsWith('#')) {
-        if (/^#\s*(?:if|ifdef|ifndef)\b/.test(trimmed)) { ppStack.push(braceDepth); continue; }
-        if (/^#\s*(?:else|elif)\b/.test(trimmed) && ppStack.length) { braceDepth = ppStack[ppStack.length - 1]; continue; }
-        if (/^#\s*endif\b/.test(trimmed) && ppStack.length) { ppStack.pop(); continue; }
-      }
-      const structural = stripJsStringsAndComments(line, lexState, ext);
-      const fm = !wasInCommentOrString && braceDepth <= 1 ? trimmed.match(fnOrTypeRe) : null;
-      const vm = !wasInCommentOrString && braceDepth === 0 ? trimmed.match(topVarFnRe) : null;
-      const im = !wasInCommentOrString && braceDepth === 1 ? trimmed.match(innerArrowRe) : null;
-      const mm = !wasInCommentOrString && braceDepth === 1 ? line.match(methodRe) : null;
-      const cm = isCFamily && !wasInCommentOrString && braceDepth <= 1 && !fm && !mm ? trimmed.match(cFnRe) : null;
-
-      if (fm || vm || im || (mm && !skipKw.has(mm[1])) || (cm && !skipKw.has(cm[1]))) {
-        const sym = fm ? (fm[1] || fm[2]) : vm ? vm[1] : im ? im[1] : mm ? mm[1] : cm[1];
-        const isWrapperCall = Boolean(vm && /\b(?:forwardRef|memo)\b/.test(trimmed));
-        const isIdentArrow = Boolean((vm || im) && /=\s*(?:async\s*)?[A-Za-z0-9_$]+\s*=>/.test(trimmed));
-
-        if (vm && !isWrapperCall && !isIdentArrow) {
-          // Verify `=>` appears at paren-depth 0 & brace-depth 0 after parameter list `(...)` closes
-          let pDepth = 0, bDepth = 0, sawOpen = false, sawClose = false, isArrow = false, hitSemi = false;
-          const lookLex = cloneLexState(lexState);
-          for (let k = i; k < Math.min(lines.length, i + 16); k++) {
-            const st = k === i ? structural : stripJsStringsAndComments(lines[k], lookLex, ext);
-            const startCi = k === i ? Math.max(0, st.indexOf('=')) : 0;
-            for (let ci = startCi; ci < st.length; ci++) {
-              const ch = st[ci], nx = st[ci + 1];
-              if (ch === '(') { pDepth++; sawOpen = true; }
-              else if (ch === ')' && pDepth > 0) {
-                pDepth--;
-                if (pDepth === 0 && sawOpen) sawClose = true;
-              } else if (sawClose && pDepth === 0) {
-                if (ch === '{') bDepth++;
-                else if (ch === '}' && bDepth > 0) bDepth--;
-                else if (bDepth === 0 && ch === '=' && nx === '>') { isArrow = true; break; }
-                else if (bDepth === 0 && ch === ';') { hitSemi = true; break; }
-              }
-            }
-            if (isArrow || hitSemi) break;
-          }
-          if (!isArrow) {
-            for (const ch of structural) {
-              if (ch === '{') braceDepth++;
-              else if (ch === '}' && braceDepth > 0) braceDepth--;
-            }
-            continue;
-          }
-        }
-
-        const isArrowDecl = Boolean((vm || im) && !isWrapperCall);
-        const isFnDecl = Boolean(fm?.[1] || mm || cm);
-        let d = 0, p = 0, started = false, sawOpenP = false, paramsClosed = !isFnDecl, sawArrow = !isArrowDecl, end = i;
-        const spanPpStack = [];
-        const spanLex = cloneLexState(lexState);
-        for (let j = i; j < lines.length; j++) {
-          const jt = lines[j].trim();
-          const spanInStr = Boolean(spanLex.inBlockComment || spanLex.quote || spanLex.rawHashes >= 0 || spanLex.tplStack.length > 0);
-          if (j > i && !spanInStr && jt.startsWith('#')) {
-            if (/^#\s*(?:if|ifdef|ifndef)\b/.test(jt)) { spanPpStack.push({ d, p, started, paramsClosed }); continue; }
-            if (/^#\s*(?:else|elif)\b/.test(jt) && spanPpStack.length) {
-              const top = spanPpStack[spanPpStack.length - 1];
-              d = top.d; p = top.p; started = top.started; paramsClosed = top.paramsClosed;
-              continue;
-            }
-            if (/^#\s*endif\b/.test(jt) && spanPpStack.length) { spanPpStack.pop(); continue; }
-          }
-          const stLine = j === i ? structural : stripJsStringsAndComments(lines[j], spanLex, ext);
-          const startCi = (j === i && isArrowDecl) ? Math.max(0, stLine.indexOf('=') + 1) : 0;
-          for (let ci = startCi; ci < stLine.length; ci++) {
-            const ch = stLine[ci], nx = stLine[ci + 1];
-            if (!started) {
-              if (isArrowDecl && !sawArrow) {
-                if (ch === '(') { p++; sawOpenP = true; }
-                else if (ch === ')' && p > 0) p--;
-                else if (p === 0 && ch === '=' && nx === '>') { sawArrow = true; ci++; }
-                continue;
-              }
-              if (isFnDecl && !paramsClosed) {
-                if (ch === '(') { p++; sawOpenP = true; }
-                else if (ch === ')' && p > 0) {
-                  p--;
-                  if (p === 0 && sawOpenP) paramsClosed = true;
-                }
-                continue;
-              }
-            }
-            if (ch === '(') p++;
-            else if (ch === ')' && p > 0) p--;
-            else if (ch === '{') { d++; started = true; }
-            else if (ch === '}') d--;
-          }
-          end = j;
-          if (started && d <= 0 && !(isFnDecl && j + 1 < lines.length && lines[j + 1].trim().startsWith('{'))) break;
-          if (!started && paramsClosed && sawArrow && p === 0 && (stLine.trimEnd().endsWith(';') || (j === i && (vm || im) && !stLine.includes('{')))) break;
-          if (!started && j - i >= 18) break;
-        }
-        let sig = trimmed.split(/\s*\{\s*/)[0].replace(/(=>\s*).+$/, '$1...');
-        if ((sig.endsWith('(') || trimmed.endsWith('{')) && !trimmed.includes(')') && i + 1 < lines.length) {
-          sig = trimmed + ' ' + lines[i + 1].trim().replace(/,\s*$/, '') + '...)';
-        }
-        entries.push({
-          startLine: i + 1,
-          endLine: end + 1,
-          symbol: sym,
-          text: `L${i + 1}${end > i ? '-L' + (end + 1) : ''}: ${sig.slice(0, 96)}`
-        });
-      }
-      for (const ch of structural) {
-        if (ch === '{') braceDepth++;
-        else if (ch === '}' && braceDepth > 0) braceDepth--;
-      }
-    }
+    h.scanBrace(ext, 0, lines.length - 1, '');
   }
   return { lines, rawBytes: Buffer.byteLength(raw), entries };
 }
@@ -1950,6 +2473,7 @@ if (require.main === module) {
   module.exports = {
     stripJsStringsAndComments,
     parseFileOutline,
+    detectStack,
     globToRegExp,
     stripJsonc,
     updatePyTriple,
