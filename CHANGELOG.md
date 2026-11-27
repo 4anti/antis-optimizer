@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-11-27
+
+### Upgrade note
+- Run `--sync-ignores --write` once after upgrading. It rewrites `.contextignore` in the new form and adds the private-key patterns.
+- Folder patterns in `.contextignore` now really block Token Optimizer reads; before, they matched nothing. To keep a folder readable and searchable, add `!folder/` to `.ignore`.
+
 ### Fixed
 - `.contextignore` is now written in the form Token Optimizer reads (fnmatch on the full path or the file name, which denies the whole Read):
   - Folder patterns become `*/dir/*`. A bare `dir/` never matched anything there.
@@ -120,7 +126,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 ### Added
 - Initial release: `--audit`, `--detect`, `--sync-ignores`, `--sync-landmarks`, `--map`, `--slice`, `--outline`, `--handoff`, `--verify`.
 
-[Unreleased]: https://github.com/4anti/antis-optimizer/compare/v1.5.0...HEAD
+[Unreleased]: https://github.com/4anti/antis-optimizer/compare/v1.6.0...HEAD
+[1.6.0]: https://github.com/4anti/antis-optimizer/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/4anti/antis-optimizer/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/4anti/antis-optimizer/compare/v1.3.1...v1.4.0
 [1.3.1]: https://github.com/4anti/antis-optimizer/compare/v1.3.0...v1.3.1

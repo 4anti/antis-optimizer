@@ -17,7 +17,7 @@ One command lists every symbol with its line range; one more prints just that fu
 
 <br/>
 
-**[Interactive Website & Diff Simulator](https://4anti.github.io/antis-optimizer/)** · **[v1.5.0 Release](https://github.com/4anti/antis-optimizer/releases/tag/v1.5.0)** · **[Changelog](./CHANGELOG.md)** · **[Contributing Guide](./CONTRIBUTING.md)** · **[Security](./SECURITY.md)**
+**[Interactive Website & Diff Simulator](https://4anti.github.io/antis-optimizer/)** · **[v1.6.0 Release](https://github.com/4anti/antis-optimizer/releases/tag/v1.6.0)** · **[Changelog](./CHANGELOG.md)** · **[Contributing Guide](./CONTRIBUTING.md)** · **[Security](./SECURITY.md)**
 
 <br/>
 
