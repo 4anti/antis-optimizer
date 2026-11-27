@@ -178,7 +178,7 @@ Scored on unmodified real-world files ([`test/corpus/`](./test/corpus/README.md)
 | :--- | :---: | :---: | :---: | :--- |
 | Python | 7 | 267 | **100%** | CPython `ast` |
 | JavaScript | 5 | 24 | **100%** | TypeScript compiler |
-| TypeScript / TSX | 9 | 141 | **90.1%** | TypeScript compiler |
+| TypeScript / TSX | 9 | 145 | **90.3%** | TypeScript compiler |
 
 Every other language in the table above is covered by unit tests only and has **no measured accuracy yet**. With `typescript` installed, TS/JS use the compiler itself instead of the lexer.
 
