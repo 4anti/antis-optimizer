@@ -5,6 +5,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-11-27
+
 ### Added
 - `--outline` / `--slice` now find more symbols:
   - Go generic functions (`func Map[T any, U any](...)`).
@@ -15,7 +17,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
   The TypeScript Compiler AST path applies the same rules. TS lexer accuracy baseline: 90.1% to 90.3% (141 to 145 judged symbols).
 
 ### Fixed
-- `--slice <file> <symbol>` no longer silently returns a different symbol when the name is only a partial match. A partial name that fits several symbols is refused with the candidate list (for example `OL` used to print `collectAuditStats`); a partial name that fits exactly one symbol still works but prints a `note: partial match` line.
+- `--slice <file> <symbol>` no longer silently returns a different symbol when the name is only a partial match. A partial name that fits several symbols is refused with the candidate list (for example `OL` used to print `collectAuditStats`); a partial name that fits exactly one symbol still works but prints a `note: partial match` line. An exact name shared by several symbols (two `__init__` methods, for example) still returns the first one, with a `note: N symbols named "X"` line.
 - Python one-line `def`/`class` bodies (`def f(self): return 1`, `class B(A): pass`) now end on their own line instead of swallowing the code that follows. Signature scanning also skips `:`, `#` and brackets inside string defaults.
 
 ## [1.4.0] - 2026-11-16
@@ -85,7 +87,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 ### Added
 - Initial release: `--audit`, `--detect`, `--sync-ignores`, `--sync-landmarks`, `--map`, `--slice`, `--outline`, `--handoff`, `--verify`.
 
-[Unreleased]: https://github.com/4anti/antis-optimizer/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/4anti/antis-optimizer/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/4anti/antis-optimizer/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/4anti/antis-optimizer/compare/v1.3.1...v1.4.0
 [1.3.1]: https://github.com/4anti/antis-optimizer/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/4anti/antis-optimizer/compare/v1.2.0...v1.3.0
