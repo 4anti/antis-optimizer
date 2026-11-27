@@ -2,7 +2,7 @@
 'use strict';
 
 /**
- * Antis-Optimizer — Comprehensive Automated Test Suite (64 Self-Contained Tests)
+ * Antis-Optimizer — Comprehensive Automated Test Suite (65 Self-Contained Tests)
  * Zero personal paths; runs entirely inside an isolated OS temp directory.
  */
 
@@ -15,8 +15,8 @@ const targetCli = path.resolve(__dirname, '..', 'scripts', 'repo-index.cjs');
 const pkg = require(path.resolve(__dirname, '..', 'package.json'));
 const lib = require(targetCli);
 
-console.log(`=== ANTIS-OPTIMIZER v${pkg.version} TEST SUITE (64 TESTS) ===`);
-let passed = 0, total = 64;
+console.log(`=== ANTIS-OPTIMIZER v${pkg.version} TEST SUITE (65 TESTS) ===`);
+let passed = 0, total = 65;
 
 (async function main() {
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'antis-opt-test-'));
@@ -1640,6 +1640,46 @@ try {
               t64TsOk(t64Spans('objs.ts', true)) && t64TsOk(t64Spans('objs.ts', false));
   if (t64) passed++;
   console.log(`[Test 64: Go Generics, Rust impl/macro_rules, Top-Level Objects & TS Class Arrows] ${t64 ? 'PASS' : 'FAIL'}`);
+
+  // 65. Key-Name Secret Redaction (AWS secret key, password/secret/api_key/token assignments, Hugging Face, Azure AccountKey)
+  const t65Dir = path.join(tmp, 't65-secrets');
+  fs.mkdirSync(t65Dir, { recursive: true });
+  const t65Fakes = [
+    'wJalrXUtnFEMI/K7MDENG/' + 'bPxRfiCYEXAMPLEKEY',
+    'Tr0ub4dor&3' + 'xyz',
+    'fakePass' + 'wd123',
+    'fakeSecret' + 'Value99',
+    'fakeApiKey' + '0123456789',
+    'fakeToken' + 'abcdef1234',
+    'hf_' + 'FAKEfakeFAKEfakeFAKEfakeFAKEfake12',
+    'FAKE+/ab'.repeat(10) + 'FAKEAB=='
+  ];
+  const t65Plain = 'A1b2C3d4E5f6G7h8I9j0'.repeat(2); // 40-char base64 shape, no aws/secret key name
+  fs.writeFileSync(path.join(t65Dir, 'cfg.js'), [
+    `aws_secret_access_key = "${t65Fakes[0]}"`,
+    `const o = { password: "${t65Fakes[1]}" };`,
+    `passwd="${t65Fakes[2]}"`,
+    `secret = "${t65Fakes[3]}"`,
+    `const k = { api_key: '${t65Fakes[4]}' };`,
+    `token = "${t65Fakes[5]}"`,
+    `const hf = "${t65Fakes[6]}";`,
+    `const conn = "DefaultEndpointsProtocol=https;AccountName=acct;AccountKey=${t65Fakes[7]};EndpointSuffix=core.windows.net";`,
+    'const password = getPassword();',
+    'token = req.headers.x;',
+    `const digest = "${t65Plain}";`,
+    'const msg = { password: "Enter your password" };'
+  ].join('\n'));
+  const t65Slice = spawnSync('node', [targetCli, '--root', t65Dir, '--slice', 'cfg.js:L1-L12'], { encoding: 'utf8' });
+  const t65Out = t65Slice.stdout || '';
+  const t65 = t65Slice.status === 0 &&
+              t65Fakes.every(f => !t65Out.includes(f)) &&
+              ['aws_secret_access_key = "[REDACTED_SECRET]"', 'password: "[REDACTED_SECRET]"', 'passwd="[REDACTED_SECRET]"',
+               'secret = "[REDACTED_SECRET]"', "api_key: '[REDACTED_SECRET]'", 'token = "[REDACTED_SECRET]"',
+               'AccountName=acct;AccountKey=[REDACTED_SECRET];EndpointSuffix=core.windows.net',
+               'const password = getPassword();', 'token = req.headers.x;', `const digest = "${t65Plain}";`,
+               'password: "Enter your password"'].every(s => t65Out.includes(s));
+  if (t65) passed++;
+  console.log(`[Test 65: Key-Name Secret Redaction (AWS, Assignments, Hugging Face, Azure) & Code Kept] ${t65 ? 'PASS' : 'FAIL'}`);
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true });
 }

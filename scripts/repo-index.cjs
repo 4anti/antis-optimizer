@@ -58,6 +58,13 @@ const SECRET_TOKEN_RES = [
   /\b[sr]k_(?:live|test)_[A-Za-z0-9]{16,}\b/g,
   /\bnpm_[A-Za-z0-9]{20,}\b/g,
   /\bglpat-[A-Za-z0-9_-]{20,}/g,
+  /\bhf_[A-Za-z0-9]{30,}\b/g,
+  // The rules below redact only the value so the key name stays readable.
+  // A 40-char base64 value counts as an AWS secret only next to an AWS secret key name.
+  /(?<=(?:aws_?secret_?(?:access_?)?|secret_?access_?)key["']?\s*(?::=|[:=]>?)\s*["'`]?)[A-Za-z0-9\/+]{40}(?![A-Za-z0-9\/+=])/gi,
+  /(?<=\b(?:Account|SharedAccess)Key=)[A-Za-z0-9+\/]{20,}={0,2}/gi,
+  // Quoted 8+ char literal assigned to a password/secret/api_key/token name; calls, member access and text with spaces stay.
+  /(?<=(?:passw(?:or)?d|secret(?:[_-]?key)?|api[_-]?key|token)["']?\s*(?::=|[:=]>?)\s*["'`])(?![$%{<])[^\s"'`]{8,}(?=["'`])/gi,
   /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|$)/g,
   /(?<=\b[a-z][a-z0-9+.-]*:\/\/[^\s:@\/]+:)[^\s@\/]+(?=@)/gi, // password in scheme://user:pass@host
   /(?<=_authToken=)\S+/g

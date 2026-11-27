@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 
 ## [Unreleased]
 
+### Security
+- Secret redaction now catches four kinds of secret that used to pass through `--slice` / `--outline` / `--map` output unredacted:
+  - AWS secret access keys (40-char base64) next to an AWS secret key name (`aws_secret_access_key = ...`, `AWS_SECRET_ACCESS_KEY=`, `secretAccessKey:`), quoted or not. The same 40-char shape elsewhere is left alone.
+  - Quoted values of 8+ characters assigned to `password`, `passwd`, `secret`, `secret_key`, `api_key` / `apiKey` or `token` names, including prefixed names such as `DB_PASSWORD` or `access_token` (`:`, `=`, `:=` and `=>`). Only the value is redacted, so the key name stays readable. Code such as `const password = getPassword()`, `token = req.headers.x`, text with spaces and `${VAR}` placeholders is not redacted.
+  - Hugging Face `hf_` tokens.
+  - Azure `AccountKey=` and `SharedAccessKey=` values in connection strings.
+
 ## [1.5.0] - 2026-11-27
 
 ### Added

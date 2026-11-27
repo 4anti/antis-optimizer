@@ -76,11 +76,11 @@ Real output from this repository:
 
 ```text
 $ antis-optimizer --outline scripts/repo-index.cjs redact
-=== OUTLINE scripts/repo-index.cjs (3067L, 148807B, imports=5, filter="redact") ===
-L81-L85: function redactSecrets(text)
+=== OUTLINE scripts/repo-index.cjs (3074L, 149453B, imports=5, filter="redact") ===
+L88-L92: function redactSecrets(text)
 
 $ antis-optimizer --slice scripts/repo-index.cjs isInsideRoot
-landmark: scripts/repo-index.cjs:L105-L108
+landmark: scripts/repo-index.cjs:L112-L115
 function isInsideRoot(root, fullPath) {
   const rel = path.relative(path.resolve(root), path.resolve(fullPath));
   return !rel.startsWith('..') && !path.isAbsolute(rel);
@@ -90,7 +90,7 @@ $ antis-optimizer --verify
 PASS doc-budgets: 1<=80L | PASS landmarks: verified | PASS nested-git: 1 | PASS ignore-parity: 3(70) | PASS repo-index syntax: ok
 ```
 
-A 3,067-line file answered in 5 lines — that is the whole idea.
+A 3,074-line file answered in 5 lines — that is the whole idea.
 
 > Nothing is modified unless you pass `--write`. To undo an ignore sync, delete or `git checkout` the ignore files it touched.
 
@@ -164,7 +164,7 @@ Every command caps its output below `3,500` characters (and `--handoff` below `2
 **Built-in guards**
 
 - **Read-only by default:** files change only with `--write` (ignore/landmark sync) or `--out` (handoff).
-- **Secret redaction on all output:** GitHub, OpenAI/Anthropic-style `sk-`, Google `AIza`, AWS `AKIA`, Slack, Stripe, npm and GitLab tokens, JWTs, PEM private-key blocks, and passwords inside `scheme://user:pass@host` URLs.
+- **Secret redaction on all output:** GitHub, OpenAI/Anthropic-style `sk-`, Google `AIza`, AWS `AKIA` keys and AWS secret access keys (next to an AWS secret key name), Slack, Stripe, npm, GitLab and Hugging Face `hf_` tokens, JWTs, PEM private-key blocks, Azure `AccountKey=` / `SharedAccessKey=` values, passwords inside `scheme://user:pass@host` URLs, and quoted values of 8+ characters assigned to `password` / `passwd` / `secret` / `api_key` / `token` names (the key name is kept; calls such as `getPassword()` and text with spaces are left alone).
 - **Refused files:** `.env*`, `*.pem` / `*.key` / `*.p12` / `*.pfx`, SSH keys, `.npmrc`, `.netrc`, `.pypirc`, `.git-credentials`, and secret/credential data files.
 - **Stays inside `--root`:** paths that escape the repository are refused.
 - **Never runs code from the scanned repo:** `typescript` is loaded only from the tool's own install or the global npm dir, never from the repo being scanned. If you copied the script *into* your own repo and want it to use that repo's `typescript`, set `ANTIS_TRUST_LOCAL_TS=1`. Set `ANTIS_FORCE_LEXER=1` to skip the compiler entirely.
