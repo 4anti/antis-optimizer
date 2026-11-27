@@ -2,7 +2,7 @@
 'use strict';
 
 /**
- * Antis-Optimizer — Comprehensive Automated Test Suite (65 Self-Contained Tests)
+ * Antis-Optimizer — Comprehensive Automated Test Suite (69 Self-Contained Tests)
  * Zero personal paths; runs entirely inside an isolated OS temp directory.
  */
 
@@ -15,8 +15,8 @@ const targetCli = path.resolve(__dirname, '..', 'scripts', 'repo-index.cjs');
 const pkg = require(path.resolve(__dirname, '..', 'package.json'));
 const lib = require(targetCli);
 
-console.log(`=== ANTIS-OPTIMIZER v${pkg.version} TEST SUITE (65 TESTS) ===`);
-let passed = 0, total = 65;
+console.log(`=== ANTIS-OPTIMIZER v${pkg.version} TEST SUITE (69 TESTS) ===`);
+let passed = 0, total = 69;
 
 (async function main() {
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'antis-opt-test-'));
@@ -668,7 +668,7 @@ try {
   const t39Audit = spawnSync('node', [targetCli, '--root', t39Dir, '--audit'], { encoding: 'utf8' });
   const t39Ig = fs.readFileSync(path.join(t39Dir, '.ignore'), 'utf8');
   const t39Ctx = fs.readFileSync(path.join(t39Dir, '.contextignore'), 'utf8');
-  const t39 = t39Sync.status === 0 && t39Sync.stdout.includes('review 2 guessed dir(s)') &&
+  const t39 = t39Sync.status === 0 && t39Sync.stdout.includes('review 2 guessed path(s)') &&
               !t39Ig.includes('src/features/archive/') && !t39Ig.includes('src/icons/') &&
               !t39Ctx.includes('src/features/archive/') && !t39Ctx.includes('src/icons/') &&
               t39Audit.stdout.includes('Review guessed dirs') && t39Audit.stdout.includes('src/icons/');
@@ -1680,6 +1680,131 @@ try {
                'password: "Enter your password"'].every(s => t65Out.includes(s));
   if (t65) passed++;
   console.log(`[Test 65: Key-Name Secret Redaction (AWS, Assignments, Hugging Face, Azure) & Code Kept] ${t65 ? 'PASS' : 'FAIL'}`);
+
+  // 66. .contextignore Uses Token Optimizer's fnmatch Dialect; `!path` in .ignore Is a Keep-List Verify Accepts
+  const t66Dir = path.join(tmp, 't66-ctx-dialect');
+  fs.mkdirSync(path.join(t66Dir, '_work'), { recursive: true });
+  fs.mkdirSync(path.join(t66Dir, 'decompiled'), { recursive: true });
+  fs.writeFileSync(path.join(t66Dir, '_work', 'notes.txt'), 'evidence\n');
+  fs.writeFileSync(path.join(t66Dir, 'decompiled', 'Main.cs'), 'class Main {}\n');
+  fs.writeFileSync(path.join(t66Dir, '.ignore'), '_work/\n!_work/\n!decompiled/\n');
+  // Lines an older sync wrote (raw dir pattern, image block) plus one the user added by hand.
+  fs.writeFileSync(path.join(t66Dir, '.contextignore'), 'node_modules/\n*.png\nprivate-notes/\n');
+  fs.writeFileSync(path.join(t66Dir, '.gitignore'), '/gen\nlogs\n'); // slashless: gitignore means file OR dir
+  const t66Sync = spawnSync('node', [targetCli, '--root', t66Dir, '--sync-ignores', '--write', '--all-ignores'], { encoding: 'utf8' });
+  const t66Ctx = fs.readFileSync(path.join(t66Dir, '.contextignore'), 'utf8').split(/\r?\n/);
+  // A keep added after a sync (`!dist` without the slash) must also clear the translated line written earlier.
+  fs.appendFileSync(path.join(t66Dir, '.ignore'), '!dist\n');
+  spawnSync('node', [targetCli, '--root', t66Dir, '--sync-ignores', '--write', '--all-ignores'], { encoding: 'utf8' });
+  const t66Ctx2 = fs.readFileSync(path.join(t66Dir, '.contextignore'), 'utf8').split(/\r?\n/);
+  const t66Ig = fs.readFileSync(path.join(t66Dir, '.ignore'), 'utf8').split(/\r?\n/);
+  const t66Jcm = JSON.parse(lib.stripJsonc(fs.readFileSync(path.join(t66Dir, '.jcodemunch.jsonc'), 'utf8'))).extra_ignore_patterns;
+  const t66Verify = spawnSync('node', [targetCli, '--root', t66Dir, '--verify', '--all-ignores'], { encoding: 'utf8' });
+  const t66Audit = spawnSync('node', [targetCli, '--root', t66Dir, '--audit'], { encoding: 'utf8' });
+  const t66 = t66Sync.status === 0 &&
+              ['*/node_modules/*', '*/dist/*', '*/.claude/settings.local.json', '*.pem', 'package-lock.json', 'private-notes/',
+               'gen', '*/gen/*', 'logs', '*/logs/*'].every(l => t66Ctx.includes(l)) && !t66Ctx.includes('*/package-lock.json/*') &&
+              !t66Ctx2.includes('*/dist/*') && t66Ctx2.includes('*/node_modules/*') && t66Ctx2.includes('private-notes/') &&
+              !['node_modules/', '*.png', '*.jpg', '*.webp', '*.pdf', '!_work/', '*/_work/*', '_work/'].some(l => t66Ctx.includes(l)) &&
+              ['_work/', '!_work/', '!decompiled/', '*.png'].every(l => t66Ig.includes(l)) && t66Jcm.includes('!_work/') &&
+              (t66Verify.stdout || '').includes('PASS ignore-parity') &&
+              !(t66Audit.stdout || '').includes('decompiled/') && !(t66Audit.stdout || '').includes('_work/');
+  if (t66) passed++;
+  console.log(`[Test 66: .contextignore fnmatch Dialect, No Image/PDF Blocks & .ignore Keep-List] ${t66 ? 'PASS' : 'FAIL'}`);
+
+  // 67. Landmarks Resolve Relative to Their Doc, Allow Spaces, Stay Inside Root & Report Unhealable Refs
+  const t67Dir = path.join(tmp, 't67-landmarks');
+  fs.mkdirSync(path.join(t67Dir, 'my dir'), { recursive: true });
+  fs.mkdirSync(path.join(t67Dir, 'sub', 'src'), { recursive: true });
+  fs.writeFileSync(path.join(t67Dir, 'my dir', 'y.ts'), 'export function b() {\n  return 2;\n}\n');
+  fs.writeFileSync(path.join(t67Dir, 'sub', 'src', 'x.ts'), 'export function a() {\n  return 1;\n}\n');
+  fs.writeFileSync(path.join(tmp, 't67-outside.ts'), 'export const o = 1;\n');
+  fs.writeFileSync(path.join(t67Dir, 'AGENTS.md'), [
+    '# Root',
+    '- `b` `my dir/y.ts:L1-L3`',
+    '- run `node tool.cjs --slice sub/src/x.ts:L1-L3`',
+    '- pair `sub/src/x.ts#a:L2-L4 and sub/src/x.ts:L1-L3`', // two refs in one span: the first (drifted) is checked too
+    '',
+    '| Needs | Why |',
+    '| :--- | :--- |',
+    '| `Node >= 18.0` | prose cell, not a path |',
+    ''
+  ].join('\n'));
+  fs.writeFileSync(path.join(t67Dir, 'sub', 'AGENTS.md'), '# Sub\n- `src/x.ts#a:L2-L4`\n');
+  const t67Run = (...a) => spawnSync('node', [targetCli, '--root', t67Dir, ...a], { encoding: 'utf8' });
+  const t67Heal = t67Run('--sync-landmarks', '--write');
+  const t67Healed = fs.readFileSync(path.join(t67Dir, 'sub', 'AGENTS.md'), 'utf8');
+  const t67Verify = t67Run('--verify');
+  fs.writeFileSync(path.join(t67Dir, 'sub', 'INDEX.md'), '# Refs\n- `gone.ts:L1-L2`\n- `../../t67-outside.ts:L1`\n');
+  const t67Manual = t67Run('--sync-landmarks', '--write');
+  const t67Root = fs.readFileSync(path.join(t67Dir, 'AGENTS.md'), 'utf8');
+  const t67 = t67Heal.status === 0 && t67Heal.stdout.includes('PASS sync-landmarks: healed 2') && t67Healed.includes('`src/x.ts#a:L1-L3`') &&
+              t67Root.includes('`sub/src/x.ts#a:L1-L3 and sub/src/x.ts:L1-L3`') &&
+              (t67Verify.stdout || '').includes('PASS landmarks') &&
+              t67Manual.status === 1 && t67Manual.stdout.includes('FAIL sync-landmarks') && t67Manual.stdout.includes('need a manual fix') &&
+              t67Manual.stdout.includes('sub/INDEX.md->gone.ts(missing)') && t67Manual.stdout.includes('sub/INDEX.md->../../t67-outside.ts(missing)');
+  if (t67) passed++;
+  console.log(`[Test 67: Doc-Relative & Spaced Landmarks, Root Confinement, Manual-Fix Report] ${t67 ? 'PASS' : 'FAIL'}`);
+
+  // 68. Audit: Any-Name venv (pyvenv.cfg), Large Plain Text Flagged, Nested Setups Not Re-Counted, Keys Ignored
+  const t68Dir = path.join(tmp, 't68-audit');
+  for (const d of ['.venv_re/lib', '_work', 'nested', 'src']) fs.mkdirSync(path.join(t68Dir, d), { recursive: true });
+  fs.writeFileSync(path.join(t68Dir, '.venv_re', 'pyvenv.cfg'), 'home = /usr/bin\n');
+  for (let i = 0; i < 30; i++) fs.writeFileSync(path.join(t68Dir, '.venv_re', 'lib', `m${i}.py`), 'x = 1\n');
+  fs.writeFileSync(path.join(t68Dir, 'dump.txt'), 'mov eax, 1\n'.repeat(110000));
+  fs.writeFileSync(path.join(t68Dir, '_work', 'kept.txt'), 'mov eax, 1\n'.repeat(110000));
+  fs.writeFileSync(path.join(t68Dir, '.ignore'), '!_work/\n');
+  fs.writeFileSync(path.join(t68Dir, 'nested', 'AGENTS.md'), '# Nested\n');
+  fs.writeFileSync(path.join(t68Dir, 'nested', '.ignore'), 'out/\n');
+  fs.writeFileSync(path.join(t68Dir, 'nested', 'big.ts'), 'export const a = 1;\n'.repeat(1500));
+  fs.writeFileSync(path.join(t68Dir, 'src', 'app.ts'), 'export const app = 1;\n');
+  fs.writeFileSync(path.join(t68Dir, 'tool.exe'), Buffer.alloc(120 * 1024));
+  fs.writeFileSync(path.join(t68Dir, 'ca_key.pem'), 'not a real key\n');
+  const t68Audit = spawnSync('node', [targetCli, '--root', t68Dir, '--audit'], { encoding: 'utf8' }).stdout || '';
+  spawnSync('node', [targetCli, '--root', t68Dir, '--sync-ignores', '--write'], { encoding: 'utf8' });
+  const t68Ig = fs.readFileSync(path.join(t68Dir, '.ignore'), 'utf8').split(/\r?\n/);
+  const t68Review = t68Audit.split(/\r?\n/).find(l => l.includes('Review guessed dirs')) || '';
+  const t68 = t68Audit.includes('.venv_re/') && t68Audit.includes('binary/media') && !t68Audit.includes('media/fonts') &&
+              t68Review.includes('dump.txt') && !t68Review.includes('kept.txt') &&
+              t68Audit.includes('Nested setups') && t68Audit.includes('nested/') && t68Audit.includes('Monoliths (>=15KB):      0 files') &&
+              ['.venv_re/', '*.pem', '*.key', 'id_rsa*', '!_work/'].every(l => t68Ig.includes(l)) && !t68Ig.includes('dump.txt');
+  if (t68) passed++;
+  console.log(`[Test 68: Audit venv by pyvenv.cfg, Large Text Review, Nested Setups & Key Files] ${t68 ? 'PASS' : 'FAIL'}`);
+
+  // 69. C# Default-Valued Params & Expression-Bodied Methods; Over-Cap Outline Hides Nested Symbols First
+  const t69Dir = path.join(tmp, 't69-csharp-cap');
+  fs.mkdirSync(t69Dir, { recursive: true });
+  fs.writeFileSync(path.join(t69Dir, 'Boot.cs'), [
+    'namespace Mutt.Strap;',
+    '',
+    'public sealed class Bootstrapper',
+    '{',
+    '    [Obsolete("old")]',
+    '    public async Task<bool> RunAsync(int retries = 3, string tag = "x")',
+    '    {',
+    '        return true;',
+    '    }',
+    '',
+    '    public override string ToString() => "boot";',
+    '    public int Count => 3;',
+    '}'
+  ].join('\n'));
+  const t69Cs = spawnSync('node', [targetCli, '--root', t69Dir, '--outline', 'Boot.cs'], { encoding: 'utf8', env: { ...process.env, ANTIS_FORCE_LEXER: '1' } }).stdout || '';
+  const t69Js = [];
+  for (let i = 0; i < 50; i++) {
+    t69Js.push(`function topLevelFunction${i}(alpha, beta) {`, '  const innerHelperOne = (x) => {', '    return x;', '  };', '  const innerHelperTwo = (y) => {', '    return y;', '  };', '  return alpha;', '}');
+  }
+  fs.writeFileSync(path.join(t69Dir, 'many.js'), t69Js.join('\n'));
+  const t69Cap = spawnSync('node', [targetCli, '--root', t69Dir, '--outline', 'many.js'], { encoding: 'utf8', env: { ...process.env, ANTIS_FORCE_LEXER: '1' } }).stdout || '';
+  // One class wrapping 300 methods: hiding nested symbols would leave only the class, so its methods stay (cap cuts the tail).
+  fs.writeFileSync(path.join(t69Dir, 'big.py'), ['class Big:', ...Array.from({ length: 300 }, (_, i) => `    def method_${i}(self):\n        return ${i}`)].join('\n'));
+  const t69One = spawnSync('node', [targetCli, '--root', t69Dir, '--outline', 'big.py'], { encoding: 'utf8' }).stdout || '';
+  const t69 = t69Cs.includes('L6-L9: public async Task<bool> RunAsync(int retries = 3') && t69Cs.includes('L11: public override string ToString()') &&
+              !t69Cs.includes('Count') &&
+              t69Cap.split('\n')[0].includes('100 nested hidden') && t69Cap.includes('topLevelFunction49') && !t69Cap.includes('innerHelperOne') && !t69Cap.includes('capped at') &&
+              t69One.includes('class Big') && t69One.includes('def method_0') && !t69One.split('\n')[0].includes('nested hidden');
+  if (t69) passed++;
+  console.log(`[Test 69: C# Defaults & => Methods; Over-Cap Outline Keeps Every Top-Level Symbol] ${t69 ? 'PASS' : 'FAIL'}`);
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true });
 }

@@ -107,8 +107,10 @@ A 3,074-line file answered in 5 lines — that is the whole idea.
    - Always syncs `.ignore`.
    - Mirrors exclusions into `.contextignore`, `.jcodemunch.jsonc`, and repo-present tool ignore files (`.cursorignore`, `.cursorindexingignore`, `.geminiignore`, `.aiexclude`, `.codeiumignore`, `.rooignore`, `.clineignore`, `.aiderignore`, `.claudeignore`) **only** when that tool or config already exists in your repo.
    - Anti-bloat: never creates unwanted dotfiles or modifies `opencode.json[c]`, which stays read-only with an `opencode-ignore` / `watcher.ignore` check.
+   - Writes `.contextignore` in Token Optimizer's own matching style (`dist/` becomes `*/dist/*`). It never blocks images or PDFs there, because Token Optimizer denies the whole Read on a match.
    - Preserves your `#` comments (grouped in the file header), JSONC `//` comments, and `.gitignore` `!` negations.
-   - Guessed backup/large directories are flagged for review rather than auto-ignored.
+   - **Keep-list:** a `!path` line in `.ignore` (for example `!_work/` or `!decompiled/`) marks a folder as intentional. It is never suggested as junk, stays readable in `.contextignore`, and `--verify` accepts it.
+   - Guessed backup/large directories and plain-text files over 1 MB are flagged for review rather than auto-ignored. Python virtual environments are found by their `pyvenv.cfg`, whatever the folder is called.
 3. **Jump straight to exact lines (`--outline`, `--slice`):** Lists functions, classes, headings, keys, blocks, and sections with exact `file:Lstart-Lend` ranges (see [Supported Languages](#-supported-languages)), and slices exact AST/lexer symbol spans or `:Lstart-Lend` line ranges. Uses the TypeScript Compiler when installed, with a fast built-in parser fallback.
 4. **Keep docs fresh automatically (`--sync-landmarks --write`, `--verify`):** Re-anchors shifted line numbers after you edit code and confirms everything passes in a single line (including `0`-doc Tier 0 repos and `AGENTS.override.md`).
 

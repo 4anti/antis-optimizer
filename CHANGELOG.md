@@ -5,6 +5,32 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 
 ## [Unreleased]
 
+### Fixed
+- `.contextignore` is now written in the form Token Optimizer reads (fnmatch on the full path or the file name, which denies the whole Read):
+  - Folder patterns become `*/dir/*`. A bare `dir/` never matched anything there.
+  - Image and PDF patterns (`*.png`, `*.jpg`, `*.webp`, `*.pdf`, ...) are no longer written, so agents can open reference images again.
+  - `!` lines, which Token Optimizer ignores, are not copied.
+  - Lines an older sync wrote in the old form are replaced on the next `--sync-ignores --write`. Lines you added yourself are kept.
+- **Keep-list:** a `!path` line in `.ignore` (e.g. `!_work/`, `!decompiled/`) now means "keep this on purpose":
+  - It is never suggested as junk, and neither is anything under it.
+  - It is left out of `.contextignore`.
+  - `--verify` stops reporting it.
+- Landmarks (`file:Lstart-Lend`):
+  - Paths are resolved relative to the doc that holds them (nested `AGENTS.md` / `INDEX.md`), then to the root, and never outside the root.
+  - Paths with spaces work inside a backtick code span.
+  - A command written in a code span still checks its path argument.
+  - `--sync-landmarks --write` now prints `FAIL` and exits 1 when some references need a manual fix (missing file, unknown symbol, out of range) instead of `PASS healed 0`.
+- `--audit`:
+  - Python virtual environments are found by `pyvenv.cfg` / `conda-meta` under any name (`.venv_re/`, `env/`), and their library files no longer count as active source.
+  - Plain-text files over 1 MB (`.txt`, `.log`, `.csv`, ...) are flagged for review.
+  - Subfolders with their own `AGENTS.md` + `.ignore` are listed as nested setups instead of being counted again.
+  - `.exe` / `.dll` / `.bin` are labelled "binary/media" instead of "media/fonts".
+- Private key files (`*.pem`, `*.key`, `*.p12`, `*.pfx`, `id_rsa*`, `id_ed25519*`) are now in the base ignore set, so search never surfaces them. Re-run `--sync-ignores --write` to add them.
+- C# outline:
+  - Methods with default parameter values (`RunAsync(int retries = 3)`) are listed.
+  - Expression-bodied methods (`ToString() => ...`) are listed.
+- `--outline` on a file whose full list exceeds the output cap now hides nested symbols first (the header says how many), so the top-level map is not cut off. A `[filter]` lists them.
+
 ### Security
 - Secret redaction now catches four kinds of secret that used to pass through `--slice` / `--outline` / `--map` output unredacted:
   - AWS secret access keys (40-char base64) next to an AWS secret key name (`aws_secret_access_key = ...`, `AWS_SECRET_ACCESS_KEY=`, `secretAccessKey:`), quoted or not. The same 40-char shape elsewhere is left alone.
