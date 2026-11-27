@@ -18,6 +18,7 @@ const { spawnSync } = require('child_process');
 const MAX_CLI_CHARS = 3400; // Stays safely under Token Optimizer 4,096-char archive_result cap.
 const MAX_HANDOFF_BYTES = 2048; // Pre-compaction handoff snapshot cap.
 const MAX_CODE_SLICE_LINES = 120;
+const MIN_TOP_LEVEL_MAP = 10; // fewer top-level symbols than this is a wrapper (one class/namespace), not a map
 const MIN_LITERAL_OUTLINE_LINES = 10; // smaller top-level object/array constants are grep-cheap and would crowd the outline cap
 // First line of a multi-line top-level JS/TS literal: `const X = {`, `= [`, `= Object.freeze({`, `= new Set([`; type may hold `=>`.
 const TOP_LITERAL_RE = /^(?:export\s+)?(?:const|let|var)\s+([A-Za-z0-9_$]+)\s*(?::(?:[^=]|=>)+)?=(?!>)\s*(?:new\s+)?(?:[A-Za-z0-9_$.]+\s*(?:<(?:[^<>]|<[^<>]*>)*>)?\s*\(\s*)?[{[]$/;
@@ -26,6 +27,7 @@ const DOC_MAX_LINES = 80;
 const DOC_MAX_BYTES = 4500;
 const MAX_WALK_VISITS = 3500;
 const HEAVY_DIR_ENTRIES = 400;
+const LARGE_TEXT_BYTES = 1024 * 1024;
 const EXEC_TIMEOUT_MS = 30000;
 
 const SKIP_WALK_DIRS = new Set([
@@ -80,7 +82,8 @@ const BASE_TRAPS = [
   '.git/', 'node_modules/', '.venv/', '__pycache__/', 'target/',
   '.claude/worktrees/', '.playwright-mcp/', '.wrangler/', 'dist/',
   '*.pdf', '*.mp3', '*.mp4', '*.wav', '*.woff2', '*.ttf', '*.webp', '*.png', '*.jpg', '*.zip', '*.tar.gz',
-  '*.original.md', '.claude/settings.local.json', 'package-lock.json'
+  '*.original.md', '.claude/settings.local.json', 'package-lock.json',
+  '*.pem', '*.key', '*.p12', '*.pfx', 'id_rsa*', 'id_ed25519*' // private keys: this CLI refuses to read them, so search must not surface them
 ];
 
 const fmtInt = n => Number(n).toLocaleString('en-US');
@@ -310,6 +313,23 @@ function matchIgnoreRules(ig, rel, name, isDir) {
 }
 const isDirIgnored = (ig, rel, name) => matchIgnoreRules(ig, rel, name, true);
 const isFileIgnored = (ig, rel, name) => matchIgnoreRules(ig, rel, name, false);
+// `!pattern` lines in .ignore double as a keep-list: a kept path, or anything under a kept dir, is never suggested as junk.
+const makeKeepCheck = ig => {
+  const keep = { rules: ig.rules.filter(r => r.neg).map(r => ({ ...r, neg: false })) };
+  return (rel, name, isDir = true) => {
+    if (!keep.rules.length) return false;
+    if (matchIgnoreRules(keep, rel, name, isDir)) return true;
+    const parts = rel.split('/');
+    for (let i = 1; i < parts.length; i++) {
+      if (matchIgnoreRules(keep, parts.slice(0, i).join('/'), parts[i - 1], true)) return true;
+    }
+    return false;
+  };
+};
+// Python virtual environments under any name (`.venv_re/`, `env/`): venv writes pyvenv.cfg, conda writes conda-meta/.
+const isPyEnvDir = full => fs.existsSync(path.join(full, 'pyvenv.cfg')) || fs.existsSync(path.join(full, 'conda-meta'));
+// Disassembly dumps, logs and CSV exports: searched as text but not source; flagged for review, never auto-ignored.
+const isLargePlainText = (name, size) => size >= LARGE_TEXT_BYTES && /\.(?:txt|log|csv|tsv|out|dump)$/i.test(name);
 
 function isDynamicTextTrap(fullPath, fileName, sizeBytes) {
   if (LOCKFILE_RE.test(fileName) || /\.min\.(?:js|css)$/i.test(fileName)) return true;
@@ -327,6 +347,7 @@ function walkRepo(root, maxDepth = 5) {
     generatedHints: [], backupDirs: [], suggestDirs: [], dotSourceDirs: [], truncated: false
   };
   const ig = loadIgnoreRules(root);
+  const isKept = makeKeepCheck(ig);
   const seenRealDirs = new Set();
   let visits = 0;
 
@@ -343,8 +364,8 @@ function walkRepo(root, maxDepth = 5) {
     let entries;
     try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
 
-    if (depth > 0 && entries.length >= HEAVY_DIR_ENTRIES) {
-      const relDir = normalizePattern(path.relative(root, dir));
+    const relDir = normalizePattern(path.relative(root, dir));
+    if (depth > 0 && entries.length >= HEAVY_DIR_ENTRIES && !isKept(relDir, path.basename(dir))) {
       if (relDir) res.suggestDirs.push(relDir + '/');
       return;
     }
@@ -356,7 +377,8 @@ function walkRepo(root, maxDepth = 5) {
       if (e.isDirectory()) {
         if (e.name === '.git') { res.gitDirs.push(rel); continue; }
         if (isDirIgnored(ig, rel, e.name)) continue;
-        if (BACKUP_DIR_RE.test(e.name)) { res.suggestDirs.push(rel + '/'); continue; }
+        if (isPyEnvDir(full)) { res.backupDirs.push(rel + '/'); continue; }
+        if (BACKUP_DIR_RE.test(e.name) && !isKept(rel, e.name)) { res.suggestDirs.push(rel + '/'); continue; }
         if (SKIP_WALK_DIRS.has(e.name)) {
           if ((depth > 0 || FRAMEWORK_BUILD_DIRS.has(e.name)) && !BASE_TRAPS.includes(e.name + '/') && e.name !== 'venv') res.backupDirs.push(rel + '/');
           continue;
@@ -379,6 +401,8 @@ function walkRepo(root, maxDepth = 5) {
           res.generatedHints.push(`*${path.extname(e.name).toLowerCase()}`);
         } else if (isDynamicTextTrap(full, e.name, st.size) && (LOCKFILE_RE.test(e.name) || st.size >= 50 * 1024)) {
           res.generatedHints.push(rel);
+        } else if (isLargePlainText(e.name, st.size)) {
+          if (!isKept(rel, e.name, false)) res.suggestDirs.push(rel);
         } else if (/(?:^|\/)(?:dist|build|out)\/.*\.(?:js|css)$/i.test(rel) && st.size >= 10 * 1024) {
           const head = readHead(full);
           if (st.size >= 50 * 1024 || /\.(?:bundle|vendor|chunk)\.(?:js|css)$/i.test(e.name) || head.split(/\r?\n/).some(l => l.length >= 2048)) {
@@ -434,6 +458,7 @@ function detectStack(root) {
 
 function collectAuditStats(root) {
   const ig = loadIgnoreRules(root);
+  const isKept = makeKeepCheck(ig);
   const seenRealDirs = new Set();
   let rawFiles = 0, rawBytes = 0, activeFiles = 0, activeBytes = 0;
   let trapTextFiles = 0, trapTextBytes = 0, trapBinaryBytes = 0;
@@ -441,6 +466,7 @@ function collectAuditStats(root) {
   const trapBuckets = {};
   const monoliths = [];
   const suggestSet = new Set();
+  const nestedSetups = [];
 
   function scanAll(dir, depth, parentIgnored, bucketName) {
     if (depth > 6 || visits >= MAX_WALK_VISITS * 3) {
@@ -456,7 +482,7 @@ function collectAuditStats(root) {
     try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
     if (depth > 0 && !parentIgnored && entries.length >= HEAVY_DIR_ENTRIES) {
       const relDir = normalizePattern(path.relative(root, dir));
-      if (relDir) suggestSet.add(relDir + '/');
+      if (relDir && !isKept(relDir, path.basename(dir))) suggestSet.add(relDir + '/');
     }
     for (const e of entries) {
       if (visits++ >= MAX_WALK_VISITS * 3) { truncated = true; return; }
@@ -465,8 +491,13 @@ function collectAuditStats(root) {
       const rel = normalizePattern(path.relative(root, full));
       if (e.isDirectory()) {
         // Name guesses (BACKUP_DIR_RE) are not synced, so they must not count as quarantined either.
-        const dirIg = parentIgnored || isDirIgnored(ig, rel, e.name) || SKIP_WALK_DIRS.has(e.name);
-        if (!dirIg && BACKUP_DIR_RE.test(e.name)) suggestSet.add(rel + '/');
+        const dirIg = parentIgnored || isDirIgnored(ig, rel, e.name) || SKIP_WALK_DIRS.has(e.name) || isPyEnvDir(full);
+        // A subfolder with its own AGENTS.md + .ignore was set up separately; re-counting it inflates this audit.
+        if (!dirIg && fs.existsSync(path.join(full, 'AGENTS.md')) && fs.existsSync(path.join(full, '.ignore'))) {
+          nestedSetups.push(rel + '/');
+          continue;
+        }
+        if (!dirIg && BACKUP_DIR_RE.test(e.name) && !isKept(rel, e.name)) suggestSet.add(rel + '/');
         const bName = bucketName || (dirIg ? rel + '/' : '');
         scanAll(full, depth + 1, dirIg, bName);
       } else if (e.isFile()) {
@@ -477,7 +508,7 @@ function collectAuditStats(root) {
         const dynTrap = !parentIgnored && !BINARY_EXT_RE.test(e.name) && isDynamicTextTrap(full, e.name, st.size);
         const fileIg = parentIgnored || isFileIgnored(ig, rel, e.name) || BINARY_EXT_RE.test(e.name) || dynTrap;
         if (fileIg) {
-          const key = bucketName || (BINARY_EXT_RE.test(e.name) ? `*${path.extname(e.name).toLowerCase()} (media/fonts)` : rel);
+          const key = bucketName || (BINARY_EXT_RE.test(e.name) ? `*${path.extname(e.name).toLowerCase()} (binary/media)` : rel);
           trapBuckets[key] = (trapBuckets[key] || 0) + st.size;
           if (BINARY_EXT_RE.test(e.name)) {
             trapBinaryBytes += st.size;
@@ -488,6 +519,7 @@ function collectAuditStats(root) {
         } else {
           activeFiles++;
           activeBytes += st.size;
+          if (isLargePlainText(e.name, st.size) && !isKept(rel, e.name, false)) suggestSet.add(rel);
           if (st.size >= 15 * 1024 && SLICE_EXTS.test(e.name) && !/\.md$/i.test(e.name) && !/(?:^|\/)scripts\/repo-index\.cjs$/.test(rel)) {
             monoliths.push({ rel, bytes: st.size, estTokens: Math.ceil(st.size / 4) });
           }
@@ -510,6 +542,7 @@ function collectAuditStats(root) {
     trapBinaryBytes,
     trapBuckets,
     monoliths,
+    nestedSetups,
     suggestDirs: [...suggestSet],
     truncated
   };
@@ -586,7 +619,7 @@ function cmdAudit(opts) {
     `=== ANTIS-OPTIMIZER AUDIT & TOKEN ROI ESTIMATE ===`,
     `Repo: ${path.basename(opts.root)} | Stack: ${detectStack(opts.root).join(', ') || 'generic'}`,
     `├─ Search noise filtered:  ${fmtInt(rawFiles)} raw files ──► ${fmtInt(activeFiles)} active files (▼ ${fileReductionPct}% file noise)`,
-    `├─ Total bloat quarantined: ${mbQuarantined} MB (${(trapBinaryBytes / 1048576).toFixed(1)} MB media/fonts + ${fmtInt(Math.round(trapTextBytes / 1024))} KB text/JSON/bundles)`,
+    `├─ Total bloat quarantined: ${mbQuarantined} MB (${(trapBinaryBytes / 1048576).toFixed(1)} MB binary/media + ${fmtInt(Math.round(trapTextBytes / 1024))} KB text/JSON/bundles)`,
     `├─ Ghost text traps blocked: ~${fmtInt(trapTextTokens)} tokens across ${fmtInt(trapTextFiles)} non-source text/JSON/bundle files`,
     `├─ Top quarantined paths:   ${topTraps.join(', ') || 'none'}`,
     `├─ Active source footprint: ${fmtInt(activeFiles)} files (~${fmtInt(activeTokens)} tokens total)`,
@@ -594,7 +627,8 @@ function cmdAudit(opts) {
     `├─ Estimated ROI (bytes/4): Session doc tax = ~${fmtInt(sessionTaxTokens)} tok (1.5x compact) | Avg monolith slice save = ~${fmtInt(avgMonoSave)} tok/read (${saveBasis})`,
     `├─ Break-even threshold:    R* = ${breakEvenReads} monolith reads/session (plus ~${fmtInt(trapTextTokens)} tok of trap files kept out of searches)`,
     `└─ Optimal configuration:   ${tierInfo.label} — ${tierInfo.reason}`,
-    ...(stats.suggestDirs.length ? [`⚠ Review guessed dirs (not auto-ignored): ${stats.suggestDirs.slice(0, 6).join(', ')}`] : []),
+    ...(stats.suggestDirs.length ? [`⚠ Review guessed dirs/large text (not auto-ignored; keep with !path in .ignore): ${stats.suggestDirs.slice(0, 6).join(', ')}`] : []),
+    ...(stats.nestedSetups.length ? [`ℹ Nested setups (own AGENTS.md + .ignore; audit them from their folder): ${stats.nestedSetups.slice(0, 6).join(', ')}`] : []),
     ...(stats.truncated ? [`⚠${partialNote(true)}`] : [])
   ];
   console.log(capOutput(out.join('\n')));
@@ -1031,6 +1065,30 @@ function missingIgnorePatterns(targets, rawList) {
   return targets.filter(p => !norm.includes(p) && !norm.includes(`**/${p}`));
 }
 
+// Token Optimizer matches .contextignore with fnmatch on the full path or the basename and denies the whole Read:
+// no `!` lines and no `dir/` semantics. Translate into that dialect, drop paths the .ignore keep-list re-includes,
+// and never block images/PDFs an agent has to open.
+const CONTEXT_READABLE_RE = /^\*\.(?:png|jpe?g|gif|webp|bmp|ico|svg|pdf)$/i;
+const stripSlash = p => p.replace(/\/+$/, '');
+// shortcut: fnmatch cannot anchor to the repo root, so `/build` blocks `build/` at any depth; fine for junk dirs.
+function contextIgnoreForms(p) {
+  const bare = p.replace(/^\/+/, '').replace(/^(?:\*\*\/)+/, '').replace(/\*\*/g, '*');
+  const lead = bare.startsWith('*/') ? '' : '*/';
+  if (bare.endsWith('/')) return [`${lead}${bare}*`];
+  // No glob, no slash, no extension (`node_modules`, `/src/gen`): gitignore means file OR dir, so emit both forms.
+  const dirForm = /[*?[]/.test(bare) || /[^/]\.[^/]*$/.test(bare) ? [] : [`${lead}${bare}/*`];
+  return [bare.includes('/') ? `${lead}${bare}` : bare, ...dirForm];
+}
+function toContextIgnorePatterns(patterns) {
+  const kept = new Set(patterns.filter(p => p.startsWith('!')).map(p => stripSlash(p.slice(1))));
+  const out = [];
+  for (const p of patterns) {
+    if (p.startsWith('!') || kept.has(stripSlash(p)) || CONTEXT_READABLE_RE.test(p)) continue;
+    for (const t of contextIgnoreForms(p)) if (!out.includes(t)) out.push(t);
+  }
+  return out;
+}
+
 function cmdSyncIgnores(opts) {
   const { patterns, suggestDirs, truncated, existingIgnore, existingContext, jcmPath, jcmObj, extraTargets } = computeIgnoreTargets(opts.root);
   const hosts = detectHostTools(opts.root);
@@ -1039,7 +1097,8 @@ function cmdSyncIgnores(opts) {
   const syncJcm = Boolean(opts.allIgnores || hasJcm);
 
   const mIg = missingIgnorePatterns(patterns, existingIgnore);
-  const mCtx = syncCtx ? missingIgnorePatterns(patterns, existingContext) : [];
+  const ctxTargets = toContextIgnorePatterns(patterns);
+  const mCtx = syncCtx ? missingIgnorePatterns(ctxTargets, existingContext) : [];
   const mJcm = syncJcm ? missingIgnorePatterns(patterns, jcmObj?.extra_ignore_patterns) : [];
   const activeExtras = extraTargets.filter(t => t.active);
   const skippedExtras = extraTargets.filter(t => !t.active).map(t => t.file);
@@ -1062,7 +1121,7 @@ function cmdSyncIgnores(opts) {
       ...activeExtras.map(t => `${t.file} missing (${t.missing.length}): ${HU.fmtList(t.missing, 10)}`),
       ...ocDry,
       ...(skippedExtras.length ? [`Skipped absent tools (anti-bloat; never auto-created): ${skippedExtras.join(', ')}`] : []),
-      ...(suggestDirs.length ? [`Review (guessed backup/heavy dirs, NOT written; add to .ignore by hand if junk): ${suggestDirs.join(', ')}`] : []),
+      ...(suggestDirs.length ? [`Review (guessed backup/heavy dirs or large text, NOT written; add to .ignore if junk, or keep with !path): ${suggestDirs.join(', ')}`] : []),
       `Re-run with --write to write/update files.${partialNote(truncated)}`
     ].join('\n');
     console.log(capOutput(out));
@@ -1078,8 +1137,11 @@ function cmdSyncIgnores(opts) {
   if (syncCtx) {
     const ctxComments = extractUserComments(path.join(opts.root, '.contextignore'));
     const ctxHeader = ['# Synced by antis-optimizer repo-index', ...(ctxComments.length ? ctxComments : igComments)].join('\n') + '\n';
-    // Patterns the user keeps only in .contextignore survive the sync (same merge as the other tool ignore files).
-    const ctxPatterns = HU.mergeToolPatterns(patterns, existingContext.filter(Boolean));
+    // User-only lines survive. Anything a sync writes for a managed pattern (raw `dist/`, `*.png`, `!x`, or the translated
+    // `*/dist/*` of a path the keep-list now re-includes) gives way to the current translation.
+    const managedForms = new Set(patterns.flatMap(p => [p, ...contextIgnoreForms(p.replace(/^!/, ''))]));
+    const ctxOwn = existingContext.filter(p => p && !managedForms.has(p));
+    const ctxPatterns = HU.mergeToolPatterns(ctxTargets, ctxOwn);
     writeInsideRoot(opts.root, path.join(opts.root, '.contextignore'), ctxHeader + ctxPatterns.join('\n') + '\n');
     written.push('.contextignore');
   }
@@ -1116,7 +1178,7 @@ function cmdSyncIgnores(opts) {
     }
   }
 
-  const review = suggestDirs.length ? ` | review ${suggestDirs.length} guessed dir(s) via dry run` : '';
+  const review = suggestDirs.length ? ` | review ${suggestDirs.length} guessed path(s) via dry run` : '';
   const hintNote = hints.length ? ` | ${hints.join('; ')}` : '';
   console.log(capOutput(`PASS sync-ignores: wrote ${written.join(', ')} (${patterns.length} patterns)${review}${hintNote}${partialNote(truncated)}`));
 }
@@ -1893,7 +1955,7 @@ const OL = Object.freeze({
     const swFunRe = /^(?:(?:public|private|fileprivate|internal|open|static|class|mutating|nonmutating|override|final|convenience|required|async)\s+)*(?:func\s+(?:<[^>{}()]+>\s*)?([A-Za-z_][A-Za-z0-9_]*)\s*(?:<[^>]*>)?\s*\(|(init[?!]?|deinit)\b)/;
     const phpFnRe = /^(?:(?:public|protected|private|static|abstract|final)\s+)*function\s+&?\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(/;
     const jvCtorRe = /^(?:(?:public|protected|private|internal)\s+)+([A-Z][A-Za-z0-9_$]*)\s*\(/;
-    const jvMethodRe = /^(?:(?:public|protected|private|internal|static|final|abstract|synchronized|native|default|strictfp|virtual|override|async|sealed|extern|unsafe|partial|new|readonly)\s+)*(?:<[^>{};]+>\s+)?(?!return\b|throw\b|new\b|else\b|case\b|yield\b|await\b|delete\b)(?:[A-Za-z_$][A-Za-z0-9_$.]*(?:\?)?(?:<[^>{};]+>)?(?:\[\])*(?:\?)?\s+)([A-Za-z_$][A-Za-z0-9_$]*)\s*\((?:[^;=]*$|\s*[^;]*\)\s*(?:throws\s+[A-Za-z0-9_.,\s]+)?\{)/;
+    const jvMethodRe = /^(?:(?:public|protected|private|internal|static|final|abstract|synchronized|native|default|strictfp|virtual|override|async|sealed|extern|unsafe|partial|new|readonly)\s+)*(?:<[^>{};]+>\s+)?(?!return\b|throw\b|new\b|else\b|case\b|yield\b|await\b|delete\b)(?:[A-Za-z_$][A-Za-z0-9_$.]*(?:\?)?(?:<[^>{};]+>)?(?:\[\])*(?:\?)?\s+)([A-Za-z_$][A-Za-z0-9_$]*)\s*\((?:[^;]*$|\s*[^;]*\)\s*(?:throws\s+[A-Za-z0-9_.,\s]+)?\{|[^;]*\)\s*=>)/; // `= 3` defaults and C# `=> expr;` bodies included
     const skipKw = new Set(['if', 'for', 'while', 'switch', 'catch', 'else', 'with', 'match', 'loop', 'return', 'sizeof', 'typedef', 'using', 'namespace', 'throw', 'new', 'super', 'this', 'try', 'finally', 'do', 'synchronized']);
     const maxLen = labelPrefix ? 92 : 96;
 
@@ -2560,12 +2622,25 @@ function cmdOutline(opts) {
   if (!CODE_EXTS.has(ext)) { console.error(`--outline supports extensions (${[...CODE_EXTS].join(',')})`); process.exit(1); }
 
   const { lines, rawBytes, entries } = parseFileOutline(full);
-  const items = entries.map(e => e.text);
-  const matched = filter ? items.filter(it => it.toLowerCase().includes(filter)) : items;
+  const matchedEntries = filter ? entries.filter(e => e.text.toLowerCase().includes(filter)) : entries;
   const importCount = lines.filter(l => /^\s*(?:import\s|from\s+\S+\s+import|const\s+.*=\s*require\(|use\s+[A-Za-z0-9_:]+|#include\s+)/.test(l)).length;
+  let shown = matchedEntries, hiddenNote = '';
+  // Over the output cap, deep symbols go first so more of the map fits: keep members of top-level types (depth <= 1)
+  // when that fits; otherwise keep only top-level symbols, unless there are too few of them to be a useful map
+  // (one class wrapping everything). A [filter] brings hidden symbols back.
+  const fits = list => list.reduce((n, e) => n + e.text.length + 1, 0) <= MAX_CLI_CHARS - 200;
+  if (!fits(shown)) {
+    const contains = (o, e) => o.startLine <= e.startLine && o.endLine >= e.endLine && (o.startLine < e.startLine || o.endLine > e.endLine);
+    const depth = new Map(shown.map(e => [e, shown.filter(o => contains(o, e)).length]));
+    const upToOne = shown.filter(e => depth.get(e) <= 1);
+    const topOnly = upToOne.filter(e => depth.get(e) === 0);
+    const pick = fits(upToOne) || topOnly.length < MIN_TOP_LEVEL_MAP ? upToOne : topOnly;
+    if (pick.length < shown.length) hiddenNote = `, ${shown.length - pick.length} nested hidden: pass [filter]`;
+    shown = pick;
+  }
   const out = [
-    `=== OUTLINE ${rel} (${lines.length}L, ${rawBytes}B, imports=${importCount}${filter ? `, filter="${filter}"` : ''}) ===`,
-    matched.length ? matched.join('\n') : '(no declarations matched; inspect bounded ranges directly)'
+    `=== OUTLINE ${rel} (${lines.length}L, ${rawBytes}B, imports=${importCount}${filter ? `, filter="${filter}"` : ''}${hiddenNote}) ===`,
+    shown.length ? shown.map(e => e.text).join('\n') : '(no declarations matched; inspect bounded ranges directly)'
   ].join('\n');
   console.log(capOutput(out));
 }
@@ -2644,6 +2719,18 @@ function inspectAndHealLandmarks(root, docs, writeChanges = false) {
     return outlineCache.get(relPath);
   }
 
+  const BARE_LANDMARK_RE = /([A-Za-z0-9_./-]+\.[A-Za-z0-9]+)(?:#([A-Za-z0-9_$-]+))?:L(\d+)(?:-L(\d+))?/g;
+
+  // A landmark path is read relative to the doc that holds it (nested AGENTS.md), then to the root; never outside the root.
+  function resolveRef(docRel, targetRel) {
+    const docDir = path.posix.dirname(docRel);
+    for (const cand of docDir === '.' ? [targetRel] : [path.posix.join(docDir, targetRel), targetRel]) {
+      const full = path.join(root, cand);
+      if (isInsideRoot(root, full) && fs.existsSync(full) && fs.statSync(full).isFile()) return normalizePattern(path.relative(root, full));
+    }
+    return null;
+  }
+
   for (const docRel of docs) {
     const docFull = path.join(root, docRel);
     const origContent = fs.readFileSync(docFull, 'utf8');
@@ -2651,46 +2738,58 @@ function inspectAndHealLandmarks(root, docs, writeChanges = false) {
     const docLines = origContent.split(/\r?\n/);
     let modified = false;
 
+    // Returns the rewritten `path#sym:Lx-Ly` when the symbol drifted, else null (issues are recorded either way).
+    const checkInlineRef = (targetRel, sym, sStr, eStr) => {
+      if (targetRel.includes('*') || targetRel.includes('{') || targetRel === 'file.ts') return null;
+      const resolved = resolveRef(docRel, targetRel);
+      const info = resolved ? getOutline(resolved) : null;
+      if (!info) {
+        issues.push(`${docRel}->${targetRel}(missing)`);
+        return null;
+      }
+      const startL = parseInt(sStr, 10);
+      const endL = eStr ? parseInt(eStr, 10) : startL;
+      if (sym) {
+        const entry = findClosestSymbolEntry(info.entries, sym, startL);
+        if (!entry && info.hasOutline) {
+          issues.push(`${docRel}->${targetRel}#${sym}(symbol not found)`);
+          return null;
+        }
+        if (entry && (entry.startLine !== startL || (eStr && entry.endLine !== endL))) {
+          const nextRange = eStr ? `L${entry.startLine}-L${entry.endLine}` : `L${entry.startLine}`;
+          issues.push(`${docRel}->${targetRel}#${sym}(L${startL}-L${endL} drifted to ${nextRange})`);
+          updates.push(`${docRel}:${targetRel}#${sym} -> ${nextRange}`);
+          modified = true;
+          return `${targetRel}#${sym}:${nextRange}`;
+        }
+      }
+      if (startL < 1 || endL > info.lines.length || startL > endL) {
+        issues.push(`${docRel}->${targetRel}:L${startL}-L${endL}(max L${info.lines.length})`);
+      }
+      return null;
+    };
+
     for (let li = 0; li < docLines.length; li++) {
       let line = docLines[li];
 
-      // 1. Check inline references: path/file.ext:L10-L20 or path/file.ext#symbol:L10-L20
-      const inlineRe = /([A-Za-z0-9_./-]+\.[A-Za-z0-9]+)(?:#([A-Za-z0-9_$-]+))?:L(\d+)(?:-L(\d+))?/g;
-      line = line.replace(inlineRe, (fullMatch, targetRel, sym, sStr, eStr) => {
-        if (targetRel.includes('*') || targetRel.includes('{') || targetRel === 'file.ts') return fullMatch;
-        const info = getOutline(targetRel);
-        if (!info) {
-          issues.push(`${docRel}->${targetRel}(missing)`);
-          return fullMatch;
-        }
-        const startL = parseInt(sStr, 10);
-        const endL = eStr ? parseInt(eStr, 10) : startL;
-        if (sym) {
-          const entry = findClosestSymbolEntry(info.entries, sym, startL);
-          if (!entry && info.hasOutline) {
-            issues.push(`${docRel}->${targetRel}#${sym}(symbol not found)`);
-            return fullMatch;
-          }
-          if (entry && (entry.startLine !== startL || (eStr && entry.endLine !== endL))) {
-            const nextRange = eStr ? `L${entry.startLine}-L${entry.endLine}` : `L${entry.startLine}`;
-            issues.push(`${docRel}->${targetRel}#${sym}(L${startL}-L${endL} drifted to ${nextRange})`);
-            updates.push(`${docRel}:${targetRel}#${sym} -> ${nextRange}`);
-            modified = true;
-            return `${targetRel}#${sym}:${nextRange}`;
-          }
-        }
-        if (startL < 1 || endL > info.lines.length || startL > endL) {
-          issues.push(`${docRel}->${targetRel}:L${startL}-L${endL}(max L${info.lines.length})`);
-        }
-        return fullMatch;
+      // 1. Inline references: path/file.ext:L10-L20 or path/file.ext#symbol:L10-L20. A whole `code span` naming an
+      // existing file is one reference (spaces allowed: `my dir/a.ts:L1-L5`); any other span (a command, a list of
+      // refs) has each bare reference inside it checked.
+      const inlineRe = /(?<=`)([^`\s][^`\n]*?\.[A-Za-z0-9]+)(?:#([A-Za-z0-9_$-]+))?:L(\d+)(?:-L(\d+))?(?=`)|([A-Za-z0-9_./-]+\.[A-Za-z0-9]+)(?:#([A-Za-z0-9_$-]+))?:L(\d+)(?:-L(\d+))?/g;
+      line = line.replace(inlineRe, (fullMatch, spanRel, spanSym, spanS, spanE, bareRel, bareSym, bareS, bareE) => {
+        if (bareRel) return checkInlineRef(bareRel, bareSym, bareS, bareE) ?? fullMatch;
+        if (resolveRef(docRel, spanRel)) return checkInlineRef(spanRel, spanSym, spanS, spanE) ?? fullMatch;
+        return fullMatch.replace(BARE_LANDMARK_RE, (m, r, s, a, b) => checkInlineRef(r, s, a, b) ?? m);
       });
 
-      // 2. Check table rows starting with | `path/to/file.ext` |
-      const rowFileMatch = line.match(/^\|\s*`([A-Za-z0-9_./-]+\.[A-Za-z0-9]+)`\s*\|/);
+      // 2. Check table rows starting with | `path/to/file.ext` | (backticks allow spaces in the path)
+      const rowFileMatch = line.match(/^\|\s*`([^`\n]+?\.[A-Za-z0-9]+)`\s*\|/);
       if (rowFileMatch) {
         const targetRel = rowFileMatch[1];
-        if (!targetRel.includes('*') && !targetRel.includes('{')) {
-          const info = getOutline(targetRel);
+        const resolvedRow = resolveRef(docRel, targetRel);
+        // A spaced first cell that is not a file (`Node >= 18.0`) is prose, not a landmark.
+        if (!targetRel.includes('*') && !targetRel.includes('{') && (resolvedRow || !/\s/.test(targetRel))) {
+          const info = resolvedRow ? getOutline(resolvedRow) : null;
           if (!info) {
             issues.push(`${docRel}->${targetRel}(missing)`);
           } else {
@@ -2766,11 +2865,15 @@ function cmdSyncLandmarks(opts) {
     console.log(`PASS sync-landmarks: all landmarks in ${docs.join(', ')} are exact.`);
     return;
   }
+  // Missing files, unknown symbols and out-of-range lines cannot be healed automatically; say so instead of PASS.
+  const manual = issues.filter(i => !/ drifted to | line count /.test(i));
+  const manualNote = manual.length ? `\n${manual.length} need a manual fix (missing file, unknown symbol or out of range): ${manual.join(', ')}` : '';
   if (!opts.write) {
-    console.log(capOutput(`=== SYNC-LANDMARKS (DRY RUN) ===\nDrifted/stale (${issues.length}): ${issues.join(', ')}\nRe-run with --write to auto-heal ${updates.length} landmark(s).`));
+    console.log(capOutput(`=== SYNC-LANDMARKS (DRY RUN) ===\nDrifted/stale (${issues.length}): ${issues.join(', ')}\nRe-run with --write to auto-heal ${updates.length} landmark(s).${manualNote}`));
     return;
   }
-  console.log(capOutput(`PASS sync-landmarks: healed ${updates.length} landmark(s): ${updates.join(', ')}`));
+  console.log(capOutput(`${manual.length ? 'FAIL' : 'PASS'} sync-landmarks: healed ${updates.length} landmark(s)${updates.length ? ': ' + updates.join(', ') : ''}${manualNote}`));
+  if (manual.length) process.exitCode = 1;
 }
 
 function runVerifyCmd(label, cmd, args, cwd) {
@@ -2829,7 +2932,7 @@ function cmdVerify(opts) {
   const ig = computeIgnoreTargets(opts.root);
   const { hasTokenOpt, hasJcm, opencode } = detectHostTools(opts.root);
   const mIg = missingIgnorePatterns(ig.patterns, ig.existingIgnore);
-  const mCtx = (opts.allIgnores || hasTokenOpt) ? missingIgnorePatterns(ig.patterns, ig.existingContext) : [];
+  const mCtx = (opts.allIgnores || hasTokenOpt) ? missingIgnorePatterns(toContextIgnorePatterns(ig.patterns), ig.existingContext) : [];
   const mJcm = (opts.allIgnores || hasJcm) ? missingIgnorePatterns(ig.patterns, ig.jcmObj?.extra_ignore_patterns) : [];
   const activeExtras = ig.extraTargets.filter(t => t.active);
   const extraFails = activeExtras.filter(t => t.missing.length > 0).map(t => `${t.file}(${t.missing.length})`);
