@@ -76,21 +76,21 @@ Real output from this repository:
 
 ```text
 $ antis-optimizer --outline scripts/repo-index.cjs redact
-=== OUTLINE scripts/repo-index.cjs (2942L, 139715B, imports=5, filter="redact") ===
-L77-L81: function redactSecrets(text)
+=== OUTLINE scripts/repo-index.cjs (3067L, 148807B, imports=5, filter="redact") ===
+L81-L85: function redactSecrets(text)
 
 $ antis-optimizer --slice scripts/repo-index.cjs isInsideRoot
-landmark: scripts/repo-index.cjs:L101-L104
+landmark: scripts/repo-index.cjs:L105-L108
 function isInsideRoot(root, fullPath) {
   const rel = path.relative(path.resolve(root), path.resolve(fullPath));
   return !rel.startsWith('..') && !path.isAbsolute(rel);
 }
 
 $ antis-optimizer --verify
-PASS doc-budgets: 1<=80L | PASS landmarks: verified | PASS nested-git: 1 | PASS ignore-parity: 3(69) | PASS repo-index syntax: ok
+PASS doc-budgets: 1<=80L | PASS landmarks: verified | PASS nested-git: 1 | PASS ignore-parity: 3(70) | PASS repo-index syntax: ok
 ```
 
-A 2,942-line file answered in 5 lines — that is the whole idea.
+A 3,067-line file answered in 5 lines — that is the whole idea.
 
 > Nothing is modified unless you pass `--write`. To undo an ignore sync, delete or `git checkout` the ignore files it touched.
 
@@ -178,7 +178,7 @@ Scored on unmodified real-world files ([`test/corpus/`](./test/corpus/README.md)
 | :--- | :---: | :---: | :---: | :--- |
 | Python | 7 | 267 | **100%** | CPython `ast` |
 | JavaScript | 5 | 24 | **100%** | TypeScript compiler |
-| TypeScript / TSX | 9 | 141 | **90.1%** | TypeScript compiler |
+| TypeScript / TSX | 9 | 145 | **90.3%** | TypeScript compiler |
 
 Every other language in the table above is covered by unit tests only and has **no measured accuracy yet**. With `typescript` installed, TS/JS use the compiler itself instead of the lexer.
 

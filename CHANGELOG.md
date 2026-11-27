@@ -5,6 +5,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 
 ## [Unreleased]
 
+### Added
+- `--outline` / `--slice` now find more symbols:
+  - Go generic functions (`func Map[T any, U any](...)`).
+  - Rust `impl<T: Into<String>> Point<T>` blocks written without a space before `<`, and `macro_rules!` macros.
+  - TS/JS class properties that hold arrow functions (`static create = <U,>(v: U) => ...`, `handle = async (e) => {`).
+  - Top-level object/array constants of 10+ lines (`const OL = Object.freeze({`, `const ROUTES = [`, `new Set([`).
+
+  The TypeScript Compiler AST path applies the same rules. TS lexer accuracy baseline: 90.1% to 90.3% (141 to 145 judged symbols).
+
+### Fixed
+- `--slice <file> <symbol>` no longer silently returns a different symbol when the name is only a partial match. A partial name that fits several symbols is refused with the candidate list (for example `OL` used to print `collectAuditStats`); a partial name that fits exactly one symbol still works but prints a `note: partial match` line.
+- Python one-line `def`/`class` bodies (`def f(self): return 1`, `class B(A): pass`) now end on their own line instead of swallowing the code that follows. Signature scanning also skips `:`, `#` and brackets inside string defaults.
+
 ## [1.4.0] - 2026-11-16
 
 ### Security

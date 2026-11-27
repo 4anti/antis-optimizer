@@ -18,6 +18,9 @@ const { spawnSync } = require('child_process');
 const MAX_CLI_CHARS = 3400; // Stays safely under Token Optimizer 4,096-char archive_result cap.
 const MAX_HANDOFF_BYTES = 2048; // Pre-compaction handoff snapshot cap.
 const MAX_CODE_SLICE_LINES = 120;
+const MIN_LITERAL_OUTLINE_LINES = 10; // smaller top-level object/array constants are grep-cheap and would crowd the outline cap
+// First line of a multi-line top-level JS/TS literal: `const X = {`, `= [`, `= Object.freeze({`, `= new Set([`; type may hold `=>`.
+const TOP_LITERAL_RE = /^(?:export\s+)?(?:const|let|var)\s+([A-Za-z0-9_$]+)\s*(?::(?:[^=]|=>)+)?=(?!>)\s*(?:new\s+)?(?:[A-Za-z0-9_$.]+\s*(?:<(?:[^<>]|<[^<>]*>)*>)?\s*\(\s*)?[{[]$/;
 const DEFAULT_SLICE_TOKENS = 450; // fallback when a monolith has no parseable symbols
 const DOC_MAX_LINES = 80;
 const DOC_MAX_BYTES = 4500;
@@ -1356,13 +1359,20 @@ function parseSliceTargetSpec(raw) {
   };
 }
 
+// Exact name wins (dupes counted for a note); a partial name is used only when it points at one entry, never a guess.
 function findBestOutlineEntry(entries, symQuery) {
   const q = symQuery.toLowerCase();
   const strip = s => s.toLowerCase().replace(/^[#.]/, '');
-  return entries.find(e => e.symbol.toLowerCase() === q || strip(e.symbol) === q)
-    || entries.find(e => strip(e.symbol).startsWith(q))
-    || entries.find(e => e.symbol.toLowerCase().includes(q) || e.text.toLowerCase().includes(q))
-    || null;
+  const named = entries.filter(e => e.symbol.toLowerCase() === q || strip(e.symbol) === q);
+  if (named.length) return { entry: named[0], partial: false, ambiguous: [], dupes: named.length };
+  const pool = entries.filter(e => !e.symbol.startsWith('</')); // closing-tag markers belong to their opener
+  const tiers = [e => strip(e.symbol).startsWith(q), e => e.symbol.toLowerCase().includes(q), e => e.text.toLowerCase().includes(q)];
+  for (const tier of tiers) {
+    const hits = pool.filter(tier);
+    if (hits.length > 1) return { entry: null, partial: true, ambiguous: hits, dupes: 0 };
+    if (hits.length === 1) return { entry: hits[0], partial: true, ambiguous: [], dupes: 0 };
+  }
+  return { entry: null, partial: true, ambiguous: [], dupes: 0 };
 }
 
 function isRelPathIgnored(ig, rel) {
@@ -1489,14 +1499,23 @@ function cmdSlice(opts) {
   const ext = path.extname(target).toLowerCase();
   if (effectiveId && CODE_EXTS.has(ext)) {
     const { entries } = parseFileOutline(target);
-    const entry = findBestOutlineEntry(entries, effectiveId);
+    const match = findBestOutlineEntry(entries, effectiveId);
+    if (match.ambiguous.length) {
+      const more = match.ambiguous.length > 8 ? `, +${match.ambiguous.length - 8} more` : '';
+      const shown = match.ambiguous.slice(0, 8).map(e => `${e.symbol} (L${e.startLine})`).join(', ');
+      console.error(capOutput(`Ambiguous symbol "${effectiveId}" in ${rel}: ${shown}${more} (pass an exact name or ${rel}:Lstart-Lend)`));
+      process.exit(1);
+    }
+    const entry = match.entry;
     if (entry) {
       const startIdx = Math.max(0, entry.startLine - 1);
       const isMarker = /^(?:<!--|\/\*|<script\b|<style\b)/i.test(entry.symbol);
       const endIdx = entry.endLine > entry.startLine
         ? Math.min(lines.length, entry.endLine, startIdx + MAX_CODE_SLICE_LINES)
         : (isMarker ? Math.min(lines.length, startIdx + 40) : Math.min(lines.length, entry.endLine));
-      console.log(capOutput(`landmark: ${rel}:L${startIdx + 1}-L${endIdx}\n` + lines.slice(startIdx, endIdx).join('\n')));
+      const note = match.partial ? `note: partial match "${effectiveId}" -> ${entry.symbol}\n`
+        : match.dupes > 1 ? `note: ${match.dupes} symbols named "${entry.symbol}"; showing the first (pass ${rel}:Lstart-Lend for another)\n` : '';
+      console.log(capOutput(`${note}landmark: ${rel}:L${startIdx + 1}-L${endIdx}\n` + lines.slice(startIdx, endIdx).join('\n')));
       return;
     }
   }
@@ -1538,6 +1557,23 @@ function updatePyTriple(line, inTriple) {
   return q;
 }
 
+// Carries bracket depth across a Python def/class header; done at the header's top-level ':' (one-line bodies included).
+function scanPySigLine(line, depth) {
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '#') break;
+    if (ch === '"' || ch === "'") {
+      let close = i + 1;
+      while (close < line.length && line[close] !== ch) close += line[close] === '\\' ? 2 : 1;
+      if (close >= line.length) break;
+      i = close;
+    } else if (ch === '(' || ch === '[' || ch === '{') depth++;
+    else if (ch === ')' || ch === ']' || ch === '}') depth = Math.max(0, depth - 1);
+    else if (ch === ':' && depth === 0) return { depth, done: true };
+  }
+  return { depth, done: false };
+}
+
 let cachedTs = undefined;
 let untrustedRoot = null; // set to --root by the CLI entrypoint; ANTIS_TRUST_LOCAL_TS=1 opts out
 function loadTypeScript() {
@@ -1563,17 +1599,18 @@ function loadTypeScript() {
 function tryParseTypeScriptAst(fullPath, raw, lines) {
   const ts = loadTypeScript();
   if (!ts) return null;
+  const ext = path.extname(fullPath).toLowerCase();
   try {
     const sf = ts.createSourceFile(fullPath, raw, ts.ScriptTarget.Latest, true);
     const entries = [];
-    const addEntry = (node, sym) => {
+    const addEntry = (node, sym, isLiteral = false) => {
       if (!sym) return;
       const startLine = sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
       const endLine = sf.getLineAndCharacterOfPosition(node.getEnd()).line + 1;
       const firstIdx = startLine - 1;
       const trimmed = (lines[firstIdx] || '').trim();
-      let sig = trimmed.split(/\s*\{\s*/)[0].replace(/(=>\s*).+$/, '$1...');
-      if ((sig.endsWith('(') || trimmed.endsWith('{')) && !trimmed.includes(')') && firstIdx + 1 < lines.length) {
+      let sig = isLiteral ? trimmed : trimmed.split(/\s*\{\s*/)[0].replace(/(=>\s*).+$/, '$1...');
+      if (!isLiteral && (sig.endsWith('(') || trimmed.endsWith('{')) && !trimmed.includes(')') && firstIdx + 1 < lines.length) {
         sig = trimmed + ' ' + lines[firstIdx + 1].trim().replace(/,\s*$/, '') + '...)';
       }
       entries.push({
@@ -1591,6 +1628,7 @@ function tryParseTypeScriptAst(fullPath, raw, lines) {
       }
       return cur;
     };
+    const isFnNode = n => Boolean(n) && (ts.isArrowFunction(n) || ts.isFunctionExpression(n));
 
     const visitNode = (node, depth) => {
       if (ts.isFunctionDeclaration(node) && node.name) {
@@ -1606,6 +1644,8 @@ function tryParseTypeScriptAst(fullPath, raw, lines) {
           for (const m of node.members) {
             if ((ts.isMethodDeclaration(m) || ts.isGetAccessorDeclaration(m) || ts.isSetAccessorDeclaration(m)) && m.name) {
               addEntry(m, m.name.getText(sf));
+            } else if (ts.isPropertyDeclaration(m) && m.name && m.initializer && isFnNode(unwrapInit(m.initializer))) {
+              addEntry(m, m.name.getText(sf));
             }
           }
         }
@@ -1615,10 +1655,15 @@ function tryParseTypeScriptAst(fullPath, raw, lines) {
         for (const decl of node.declarationList.declarations) {
           if (!ts.isIdentifier(decl.name) || !decl.initializer) continue;
           const init = unwrapInit(decl.initializer);
-          const isFn = ts.isArrowFunction(init) || ts.isFunctionExpression(init);
+          const isFn = isFnNode(init);
           const isWrapper = depth === 0 && ts.isCallExpression(init) && /(?:^|\.)(?:forwardRef|memo)$/.test(init.expression.getText(sf));
-          if (isFn || isWrapper) {
-            addEntry(node, decl.name.getText(sf));
+          // Same first-line rule as the lexer (TOP_LITERAL_RE) so both engines list the same literals.
+          const firstLine = sf.getLineAndCharacterOfPosition(node.getStart(sf)).line;
+          const spanLines = sf.getLineAndCharacterOfPosition(node.getEnd()).line - firstLine + 1;
+          const isTopLiteral = depth === 0 && !isFn && !isWrapper && spanLines >= MIN_LITERAL_OUTLINE_LINES &&
+            TOP_LITERAL_RE.test(stripJsStringsAndComments(lines[firstLine] || '', { inBlockComment: false, quote: '', tplStack: [], rawHashes: -1 }, ext).trim());
+          if (isFn || isWrapper || isTopLiteral) {
+            addEntry(node, decl.name.getText(sf), isTopLiteral);
             if (depth === 0 && isFn && init.body && ts.isBlock(init.body)) {
               for (const st of init.body.statements) visitNode(st, 1);
             }
@@ -1812,9 +1857,13 @@ const OL = Object.freeze({
     let pendingBraceKind = '';
     const ppStack = [];
     const lexState = { inBlockComment: false, quote: '', tplStack: [], rawHashes: -1 };
-    const fnOrTypeRe = /^(?:export\s+(?:default\s+)?)?(?:pub(?:\([^)]*\))?\s+)?(?:declare\s+)?(?:(?:async|const|unsafe|static|inline|virtual)\s+)*(?:(?:function|fn|func)\s*\*?\s*(?:\([^)]*\)\s*)?([A-Za-z0-9_$]+)\s*(?:<[^>]*>)?\s*\(|(?:class|interface|enum|type|struct|trait|impl|mod|namespace)\s+(?:<[^>]*>\s*)?([A-Za-z0-9_$.]+))/;
+    // Type params: `<...>` (one nested level, Rust `impl<T: Into<U>>`) or Go `[T any, V []int]`.
+    const fnOrTypeRe = /^(?:export\s+(?:default\s+)?)?(?:pub(?:\([^)]*\))?\s+)?(?:declare\s+)?(?:(?:async|const|unsafe|static|inline|virtual)\s+)*(?:(?:function|fn|func)\b\s*\*?\s*(?:\([^)]*\)\s*)?([A-Za-z0-9_$]+)\s*(?:<[^>]*>|\[(?:[^[\]]|\[[^\]]*\])*\])?\s*\(|(?:class|interface|enum|type|struct|trait|impl|mod|namespace|macro_rules!)(?:\s+|(?=<))(?:<(?:[^<>]|<[^<>]*>)*>\s*)?([A-Za-z0-9_$.]+))/;
     const topVarFnRe = /^(?:export\s+)?(?:const|let|var)\s+([A-Za-z0-9_$]+)\s*(?::\s*[^=]+)?=\s*(?:async\s*)?(?:<[^>]*>\s*)?(?:\(|[A-Za-z0-9_$]+\s*=>|(?:React\.)?(?:forwardRef|memo)\b)/;
     const innerArrowRe = /^(?:const|let)\s+([A-Za-z0-9_$]+)\s*=\s*(?:async\s*)?(?:\([^)]*\)|[A-Za-z0-9_$]+)\s*=>/;
+    // Class property holding an arrow: `static create = <U,>(v: U) =>`, `handle = async (e) => {`.
+    // shortcut: single-line parameter lists only; multi-line `x = (` arrows are listed by the AST path, not the lexer.
+    const classArrowRe = /^\s+(?:(?:public|private|protected|static|readonly|override)\s+)*(#?[A-Za-z0-9_$]+)\s*[?!]?\s*(?::\s*[^=]+)?=\s*(?:async\s*)?(?:<(?:[^<>]|<[^<>]*>)*>\s*)?(?:\([^)]*\)|[A-Za-z0-9_$]+)\s*(?::\s*[^=]+?)?\s*=>/;
     const methodRe = /^(?:	{1,4}|[ 	]{2,8})(?:(?:public|private|protected|static|async|readonly|get|set|pub|virtual|override)\s+)*\*?([A-Za-z0-9_$]+)\s*(?:<[^>]*>)?\s*\([^;]*\{/;
     // Class method whose parameter list wraps onto following lines: `static merge(` ... `) {`
     const wrappedMethodRe = /^\s+(?:(?:public|private|protected|static|async|readonly|override)\s+)*\*?([A-Za-z0-9_$]+)\s*(?:<[^>]*>)?\s*\($/;
@@ -1882,8 +1931,24 @@ const OL = Object.freeze({
 
       const fm = !wasInCommentOrString && braceDepth <= 1 ? trimmed.match(fnOrTypeRe) : null;
       const vm = !wasInCommentOrString && braceDepth === 0 ? trimmed.match(topVarFnRe) : null;
-      const im = !wasInCommentOrString && braceDepth === 1 ? trimmed.match(innerArrowRe) : null;
+      const om = isJsLikeB && !wasInCommentOrString && braceDepth === 0 && !vm ? structural.trim().match(TOP_LITERAL_RE) : null;
+      if (om) {
+        let depth = 0, end = i;
+        const objLex = cloneLexState(lexState);
+        for (let j = i; j <= endIdx; j++) {
+          const st = j === i ? structural : stripJsStringsAndComments(lines[j], objLex, bExt);
+          for (const ch of st) depth += '{[('.includes(ch) ? 1 : '}])'.includes(ch) ? -1 : 0;
+          end = j;
+          if (depth <= 0) break;
+        }
+        if (end - i + 1 >= MIN_LITERAL_OUTLINE_LINES) entries.push({ startLine: i + 1, endLine: end + 1, symbol: om[1], text: `${OL.fmtSpan(i, end)}: ${labelPrefix}${trimmed.slice(0, maxLen)}` });
+        advanceBraceState(structural, '');
+        continue;
+      }
       const inJsClass = isJsLikeB && braceDepth === 1 && braceStack[braceStack.length - 1] === 'type';
+      const im = !wasInCommentOrString && braceDepth === 1
+        ? (trimmed.match(innerArrowRe) || (inJsClass ? line.match(classArrowRe) : null))
+        : null;
       const mm = !wasInCommentOrString && braceDepth === 1 ? (line.match(methodRe) || (inJsClass ? line.trimEnd().match(wrappedMethodRe) : null)) : null;
       const cm = isCFamily && !wasInCommentOrString && braceDepth <= 1 && !fm && !mm ? trimmed.match(cFnRe) : null;
       const jtm = isJvKtSwPhp && !wasInCommentOrString && braceDepth <= 2 && !fm ? matchTrim.match(jvTypeRe) : null;
@@ -2444,15 +2509,13 @@ function parseFileOutline(fullPath) {
       const sym = m[3];
       let start = i;
       while (start > 0 && lines[start - 1].trim().startsWith('@') && lines[start - 1].match(/^(\s*)/)[1].length === indent) start--;
-      let sigEnd = i, parenDepth = 0, sigTriple = topTriple;
+      let sigEnd = i, sigDepth = 0, sigTriple = topTriple;
       for (let k = i; k < Math.min(lines.length, i + 25); k++) {
         if (k > i) sigTriple = updatePyTriple(lines[k], sigTriple);
-        for (const ch of lines[k]) {
-          if (ch === '(') parenDepth++;
-          else if (ch === ')' && parenDepth > 0) parenDepth--;
-        }
+        const scan = scanPySigLine(lines[k], sigDepth);
+        sigDepth = scan.depth;
         sigEnd = k;
-        if (parenDepth === 0 && lines[k].trim().replace(/#.*$/, '').trim().endsWith(':')) break;
+        if (scan.done) break;
       }
       let end = sigEnd, inTriple = sigTriple;
       for (let j = sigEnd + 1; j < lines.length; j++) {

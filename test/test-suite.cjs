@@ -2,7 +2,7 @@
 'use strict';
 
 /**
- * Antis-Optimizer — Comprehensive Automated Test Suite (61 Self-Contained Tests)
+ * Antis-Optimizer — Comprehensive Automated Test Suite (64 Self-Contained Tests)
  * Zero personal paths; runs entirely inside an isolated OS temp directory.
  */
 
@@ -15,8 +15,8 @@ const targetCli = path.resolve(__dirname, '..', 'scripts', 'repo-index.cjs');
 const pkg = require(path.resolve(__dirname, '..', 'package.json'));
 const lib = require(targetCli);
 
-console.log(`=== ANTIS-OPTIMIZER v${pkg.version} TEST SUITE (61 TESTS) ===`);
-let passed = 0, total = 61;
+console.log(`=== ANTIS-OPTIMIZER v${pkg.version} TEST SUITE (64 TESTS) ===`);
+let passed = 0, total = 64;
 
 (async function main() {
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'antis-opt-test-'));
@@ -1499,6 +1499,147 @@ try {
   const t61 = t61Keeps && t61LinkOk;
   if (t61) passed++;
   console.log(`[Test 61: Sync Keeps User Patterns, Idempotent & Symlink Escape Refused${t61CanLink ? '' : ' (symlink part skipped: OS)'}] ${t61 ? 'PASS' : 'FAIL'}`);
+
+  // 62. --slice Never Silently Returns A Different Symbol: Ambiguous Partials Refused, Unique Partials Flagged
+  const t62Dir = path.join(tmp, 't62-slice-match');
+  fs.mkdirSync(t62Dir, { recursive: true });
+  fs.writeFileSync(path.join(t62Dir, 'amb.js'), [
+    'function collectStats() {',
+    '  return 1;',
+    '}',
+    'function detectHost() {',
+    '  return 2;',
+    '}',
+    'function loadUser() {',
+    '  return 3;',
+    '}'
+  ].join('\n'));
+  fs.writeFileSync(path.join(t62Dir, 'page.html'), '<html>\n<style>\n  .a { color: red; }\n</style>\n<body></body>\n</html>\n');
+  fs.writeFileSync(path.join(t62Dir, 'dup.py'), 'class A:\n    def __init__(self):\n        pass\n\nclass B:\n    def __init__(self, x):\n        self.x = x\n');
+  const t62Run = (file, sym) => spawnSync('node', [targetCli, '--root', t62Dir, '--slice', file, sym], { encoding: 'utf8', env: { ...process.env, ANTIS_FORCE_LEXER: '1' } });
+  const t62Amb = t62Run('amb.js', 'ect');
+  const t62Partial = t62Run('amb.js', 'loadU');
+  const t62Exact = t62Run('amb.js', 'loadUser');
+  const t62Style = t62Run('page.html', 'style');
+  const t62DupPartial = t62Run('dup.py', 'init');
+  const t62DupExact = t62Run('dup.py', '__init__');
+  const t62 = t62Amb.status === 1 && (t62Amb.stdout || '') === '' &&
+              /Ambiguous/.test(t62Amb.stderr) && t62Amb.stderr.includes('collectStats (L1)') && t62Amb.stderr.includes('detectHost (L4)') &&
+              t62Partial.status === 0 && t62Partial.stdout.includes('note: partial match "loadU" -> loadUser') && t62Partial.stdout.includes('return 3;') &&
+              t62Exact.status === 0 && !t62Exact.stdout.includes('note:') && t62Exact.stdout.includes('landmark: amb.js:L7-L9') &&
+              t62Style.status === 0 && t62Style.stdout.includes('color: red') &&
+              t62DupPartial.status === 1 && t62DupPartial.stderr.includes('__init__ (L2)') && t62DupPartial.stderr.includes('__init__ (L6)') &&
+              t62DupExact.status === 0 && t62DupExact.stdout.includes('note: 2 symbols named "__init__"') && t62DupExact.stdout.includes('landmark: dup.py:L2-L3');
+  if (t62) passed++;
+  console.log(`[Test 62: --slice Refuses Ambiguous Partial Symbols & Flags Unique Partials] ${t62 ? 'PASS' : 'FAIL'}`);
+
+  // 63. Python One-Line def/class Bodies End On Their Own Line (no swallowing following code)
+  const t63Dir = path.join(tmp, 't63-py-oneliner');
+  fs.mkdirSync(t63Dir, { recursive: true });
+  fs.writeFileSync(path.join(t63Dir, 'one.py'), [
+    'class A:',
+    '    def f(self): return 1',
+    '    def g(self, x=")", y="#:"):  # c: d',
+    '        return x',
+    '',
+    '',
+    'x = 1',
+    'def last(): pass',
+    'class B(A): pass'
+  ].join('\n'));
+  const t63Entries = lib.parseFileOutline(path.join(t63Dir, 'one.py')).entries.map(e => `${e.symbol}:${e.startLine}-${e.endLine}`);
+  const t63Slice = spawnSync('node', [targetCli, '--root', t63Dir, '--slice', 'one.py', 'f'], { encoding: 'utf8' }).stdout || '';
+  const t63 = ['A:1-4', 'f:2-2', 'g:3-4', 'last:8-8', 'B:9-9'].every(s => t63Entries.includes(s)) &&
+              t63Slice.includes('landmark: one.py:L2-L2') && !t63Slice.includes('x = 1');
+  if (t63) passed++;
+  console.log(`[Test 63: Python One-Line def/class Spans Match CPython ast] ${t63 ? 'PASS' : 'FAIL'}`);
+
+  // 64. Lexer Gaps: Go Generics, Rust impl<...>/macro_rules!, Top-Level Object Constants & TS Class Arrow Properties
+  const t64Dir = path.join(tmp, 't64-lexer-gaps');
+  fs.mkdirSync(t64Dir, { recursive: true });
+  fs.writeFileSync(path.join(t64Dir, 'gen.go'), [
+    'package main',
+    '',
+    'func Map[T any, U any](xs []T, f func(T) U) []U {',
+    '\treturn nil',
+    '}',
+    '',
+    'func Keys[K comparable, V []int](m map[K]V) []K {',
+    '\treturn nil',
+    '}'
+  ].join('\n'));
+  fs.writeFileSync(path.join(t64Dir, 'lib.rs'), [
+    'pub struct Point<T> {',
+    '    x: T,',
+    '}',
+    '',
+    'impl<T: Into<String>> Point<T> {',
+    '    pub fn new(x: T) -> Self {',
+    '        Point { x }',
+    '    }',
+    '}',
+    '',
+    'macro_rules! sq {',
+    '    ($x:expr) => { $x * $x };',
+    '}'
+  ].join('\n'));
+  // Literals of >= 10 lines are listed (CONFIG L1-L10, ROUTES L12-L21); shorter multi-line ones (SMALL_SET) and one-liners are not.
+  fs.writeFileSync(path.join(t64Dir, 'objs.ts'), [
+    'export const CONFIG = Object.freeze({ // retry policy',
+    '  retries: 3,',
+    '  nested: { close: "}" },',
+    ...['a', 'b', 'c', 'd', 'e', 'f'].map((k, n) => `  ${k}: ${n},`),
+    '});',
+    '',
+    'const ROUTES: string[] = [',
+    ...[1, 2, 3, 4, 5, 6, 7, 8].map(n => `  'r${n}',`),
+    '];',
+    '',
+    'const SMALL_SET = new Set([',
+    "  'x',",
+    ']);',
+    '',
+    'const small = { a: 1 };',
+    '',
+    'export class Foo<T> {',
+    '  static create = <U,>(v: U) => new Foo<U>();',
+    '  handle = async (e: Event) => {',
+    '    return e;',
+    '  };',
+    '  run(): void {}',
+    '}',
+    '',
+    'fnTable[key](a);',
+    'functions[name](args);',
+    '',
+    'export const HANDLERS: Record<string, (x: number) => void> = {',
+    ...[1, 2, 3, 4, 5, 6, 7, 8].map(n => `  h${n}: noop,`),
+    '};',
+    '',
+    'const LIST = [',
+    ...[1, 2, 3, 4, 5, 6, 7, 8].map(n => `  'i${n}',`),
+    "].join(',');",
+    '',
+    'class Bar {',
+    '  pick = <T extends Map<string, number>>(m: T) => m;',
+    '}'
+  ].join('\n'));
+  const t64Spans = (file, env) => {
+    const saved = process.env.ANTIS_FORCE_LEXER;
+    if (env) process.env.ANTIS_FORCE_LEXER = '1'; else delete process.env.ANTIS_FORCE_LEXER;
+    try { return lib.parseFileOutline(path.join(t64Dir, file)).entries.map(e => `${e.symbol}:${e.startLine}-${e.endLine}`); }
+    finally { if (saved === undefined) delete process.env.ANTIS_FORCE_LEXER; else process.env.ANTIS_FORCE_LEXER = saved; }
+  };
+  const t64Go = t64Spans('gen.go', true), t64Rs = t64Spans('lib.rs', true);
+  const t64TsWant = ['CONFIG:1-10', 'ROUTES:12-21', 'Foo:29-35', 'create:30-30', 'handle:31-33', 'run:34-34',
+                     'HANDLERS:40-49', 'LIST:51-60', 'pick:63-63'];
+  // fnTable[...](...) / functions[...](...) are index calls, not Go-style generic declarations.
+  const t64TsOk = spans => t64TsWant.every(s => spans.includes(s)) && !spans.some(s => /^(?:small|SMALL_SET|Table|s|tions):/.test(s));
+  const t64 = ['Map:3-5', 'Keys:7-9'].every(s => t64Go.includes(s)) &&
+              ['Point:1-3', 'Point:5-9', 'new:6-8', 'sq:11-13'].every(s => t64Rs.includes(s)) &&
+              t64TsOk(t64Spans('objs.ts', true)) && t64TsOk(t64Spans('objs.ts', false));
+  if (t64) passed++;
+  console.log(`[Test 64: Go Generics, Rust impl/macro_rules, Top-Level Objects & TS Class Arrows] ${t64 ? 'PASS' : 'FAIL'}`);
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true });
 }
